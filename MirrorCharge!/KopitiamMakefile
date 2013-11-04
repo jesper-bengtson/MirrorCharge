@@ -6,16 +6,10 @@ bin/%.vo: src/%.v
 	$(_COQCMD)
 override COQFLAGS += -R "src" ""
 override COQFLAGS += -R "bin" ""
-override COQFLAGS += -R "/Users/jebe/coqs/coq-8.4pl2/theories" "Coq"
-override COQFLAGS += -R "/Users/jebe/coqs/coq-8.4pl2/plugins" "Coq"
-override COQFLAGS += -R "/Users/jebe/coqs/coq-8.4pl2/user-contrib" ""
-override COQFLAGS += -R "/Users/jebe/git/Charge/Charge!/src" ""
-override COQFLAGS += -R "/Users/jebe/git/Charge/Charge!/bin" ""
-override COQFLAGS += -R "/Users/jebe/coqs/coq-8.4pl2/theories" "Coq"
-override COQFLAGS += -R "/Users/jebe/coqs/coq-8.4pl2/plugins" "Coq"
-override COQFLAGS += -R "/Users/jebe/coqs/coq-8.4pl2/user-contrib" ""
-override COQFLAGS += -R "/Users/jebe/git/mirror-core/src" "MirrorCore"
-override COQFLAGS += -R "/Users/jebe/git/mirror-core/coq-ext-lib/theories" "ExtLib"
+override COQFLAGS += -R "../coq-ext-lib/theories" "ExtLib"
+override COQFLAGS += -R "../mirror-core/src" "MirrorCore"
+override COQFLAGS += -R "../Charge!/bin" ""
+
 OBJECTS = \
 	bin/ILogicFunc.vo
 
