@@ -1,222 +1,110 @@
 Require Import ILogic ZArith.
 Require Import MirrorCore.Ext.ExprCore.
 Require Import MapPositive.
-
-Definition logic_index := positive.
-Definition ref_index := positive.
-
-Inductive typ :=
-| tyPred : logic_index -> typ
-| tyRef    : ref_index -> typ
-| tyArr  : typ -> typ -> typ.
-
-Section TypeDenotation.
-
-  Definition var_logic_map := PositiveMap.t {x : Type & ILogicOps x}.
-  Definition ref_type_map := PositiveMap.t Type.
-
-  Fixpoint typD (vlm : var_logic_map) (rtm : ref_type_map) (l : list Type) (t : typ) :=
-    match t with
-      | tyPred p =>
-        match PositiveMap.find p vlm with
-	  | Some T => projT1 T
-	  | None => Empty_set
-	end
-      | tyRef p =>
-        match PositiveMap.find p rtm with
-	  | Some T => T
-	  | None => Empty_set
-	end
-      | tyArr t1 t2 => typD vlm rtm l t1 -> typD vlm rtm l t2
-    end.
-
-End TypeDenotation.
+Require Import MirrorCore.Ext.Types.
 
 Inductive ilfunc :=
-| ilf_true : logic_index -> ilfunc
-| ilf_false : logic_index -> ilfunc
-| ilf_and : logic_index -> ilfunc
-| ilf_or: logic_index -> ilfunc
-| ilf_impl : logic_index -> ilfunc
+| ilf_true : typ -> ilfunc
+| ilf_false : typ -> ilfunc
+| ilf_and : typ -> ilfunc
+| ilf_or: typ -> ilfunc
+| ilf_impl : typ -> ilfunc
 | fref (fi : positive).
 
 Section RFunc.
-  Variable ts : var_logic_map.
-  Variable rs : ref_type_map.
-
+  Variable ts : types.
+  
+  Definition logic_ops := forall (t : typ),
+    option (ILogicOps (typD ts nil t)).
+  
   Record function := F
   { ftype : typ
-  ; fdenote : typD ts rs nil ftype
+  ; fdenote : typD ts nil ftype
   }.
 
   Definition fun_map := PositiveMap.t function.
 
   Variable fs : fun_map.
+  Variable gs : logic_ops.
 
   Definition typeof_func (f : ilfunc) : option typ :=
     match f with
-      | ilf_true i
-      | ilf_false i =>
-        match PositiveMap.find i ts with
-  	  | Some _ => Some (tyPred i)
-  	  | None => None
-  	end
-      | ilf_and i
-      | ilf_or i
-      | ilf_impl i =>
-        match PositiveMap.find i ts with
-  	  | Some _ => Some (tyArr (tyPred i) (tyArr (tyPred i) (tyPred i)))
-  	  | None => None
-  	end
+      | ilf_true t
+      | ilf_false t =>
+        match gs t with
+   	      | Some _ => Some t
+  	      | None => None
+  	    end
+      | ilf_and t
+      | ilf_or t
+      | ilf_impl t =>
+        match gs t with
+  	      | Some _ => Some (tvArr t (tvArr t t))
+  	      | None => None
+  	    end
       | fref i =>
         match PositiveMap.find i fs with
-  	  | Some f => Some (ftype f)
-  	  | None => None
-  	end
+  	      | Some f => Some (ftype f)
+  	      | None => None
+  	    end
     end.
 
   Definition funcD (f : ilfunc) :
     match typeof_func f with
-      | Some t => typD ts rs nil t
+      | Some t => typD ts nil t
       | None => unit
-    end :=
-    match f as f return match typeof_func f with
-			  | Some t => typD ts rs nil t
-			  | None => unit
-			end with
-      | ilf_true i =>
-	match PositiveMap.find i ts as x
-	      return x = PositiveMap.find i ts ->
-		     (match match x with
-			      | Some _ => Some (tyPred i)
-			      | None => None
-			    end
-		      with
-			| Some t => typD ts rs nil t
-			| None => unit
-		      end)
-	with
-  	  | Some t => fun pf => match pf in _ = t return
-  				      match t with
-                                        | Some T => projT1 T
-                                        | None => Empty_set
-                                      end with
-  				  | eq_refl => @ltrue _ (projT2 t)
-  				end
-  	  | None => fun _ => tt
-  	end eq_refl
-      | ilf_false i =>
-	match PositiveMap.find i ts as x
-	      return x = PositiveMap.find i ts ->
-		     (match match x with
-			      | Some _ => Some (tyPred i)
-			      | None => None
-			    end
-		      with
-			| Some t => typD ts rs nil t
-			| None => unit
-		      end)
-	with
-  	  | Some t => fun pf => match pf in _ = t return
-  				      match t with
-                                        | Some T => projT1 T
-                                        | None => Empty_set
-                                      end with
-  				  | eq_refl => @lfalse _ (projT2 t)
-  				end
-  	  | None => fun _ => tt
-  	end eq_refl
-      | ilf_and i =>
-	match PositiveMap.find i ts as x
-	      return x = PositiveMap.find i ts ->
-		     (match match x with
-			      | Some _ => Some (tyArr (tyPred i) (tyArr (tyPred i) (tyPred i)))
-			      | None => None
-			    end
-		      with
-			| Some t => typD ts rs nil t
-			| None => unit
-		      end)
-	with
-  	  | Some t => fun pf => match pf in _ = t return
-  				      match t with
-                                        | Some T => projT1 T
-                                        | None => Empty_set
-                                      end ->
-                                      match t with
-                                        | Some T => projT1 T
-                                        | None => Empty_set
-                                      end ->
-                                      match t with
-                                        | Some T => projT1 T
-                                        | None => Empty_set
-                                      end
-                                with
-  				  | eq_refl => @land _ (projT2 t)
-  				end
-  	  | None => fun _ => tt
-  	end eq_refl
-      | ilf_or i =>
-	match PositiveMap.find i ts as x
-	      return x = PositiveMap.find i ts ->
-		     (match match x with
-			      | Some _ => Some (tyArr (tyPred i) (tyArr (tyPred i) (tyPred i)))
-			      | None => None
-			    end
-		      with
-			| Some t => typD ts rs nil t
-			| None => unit
-		      end)
-	with
-  	  | Some t => fun pf => match pf in _ = t return
-  				      match t with
-                                        | Some T => projT1 T
-                                        | None => Empty_set
-                                      end ->
-                                      match t with
-                                        | Some T => projT1 T
-                                        | None => Empty_set
-                                      end ->
-                                      match t with
-                                        | Some T => projT1 T
-                                        | None => Empty_set
-                                      end
-                                with
-  				  | eq_refl => @lor _ (projT2 t)
-  				end
-  	  | None => fun _ => tt
-  	end eq_refl
-      | ilf_impl i =>
-	match PositiveMap.find i ts as x
-	      return x = PositiveMap.find i ts ->
-		     (match match x with
-			      | Some _ => Some (tyArr (tyPred i) (tyArr (tyPred i) (tyPred i)))
-			      | None => None
-			    end
-		      with
-			| Some t => typD ts rs nil t
-			| None => unit
-		      end)
-	with
-  	  | Some t => fun pf => match pf in _ = t return
-  				      match t with
-                                        | Some T => projT1 T
-                                        | None => Empty_set
-                                      end ->
-                                      match t with
-                                        | Some T => projT1 T
-                                        | None => Empty_set
-                                      end ->
-                                      match t with
-                                        | Some T => projT1 T
-                                        | None => Empty_set
-                                      end
-                                with
-  				  | eq_refl => @limpl _ (projT2 t)
-  				end
-  	  | None => fun _ => tt
-  	end eq_refl
-      | fref fi => 
+    end.
+    refine (match f as f return match typeof_func f with
+							    | Some t => typD ts nil t
+							    | None => unit
+			                    end 
+			with 
+			| ilf_true t => match gs t as x return (match match x with
+						                            | Some _ => Some t
+						                            | None => None
+						                            end with
+							| Some t0 => typD ts nil t0
+							| None => unit
+							end) with 
+							| Some t => @ltrue _ t 
+							| None => tt end
+			| ilf_false t => match gs t as x return (match match x with
+						                            | Some _ => Some t
+						                            | None => None
+						                            end with
+							| Some t0 => typD ts nil t0
+							| None => unit
+							end) with 
+							| Some t => @lfalse _ t 
+							| None => tt end
+			| ilf_and t => match gs t as x return (match match x with
+						                            | Some _ => Some (tvArr t (tvArr t t))
+						                            | None => None
+						                            end with
+							| Some t0 => typD ts nil t0
+							| None => unit
+							end) with 
+							| Some t => @land _ t 
+							| None => tt end
+			| ilf_impl t => match gs t as x return (match match x with
+						                            | Some _ => Some (tvArr t (tvArr t t))
+						                            | None => None
+						                            end with
+							| Some t0 => typD ts nil t0
+							| None => unit
+							end) with 
+							| Some t => @limpl _ t 
+							| None => tt end
+			| ilf_or t => match gs t as x return (match match x with
+						                            | Some _ => Some (tvArr t (tvArr t t))
+						                            | None => None
+						                            end with
+							| Some t0 => typD ts nil t0
+							| None => unit
+							end) with 
+							| Some t => @lor _ t 
+							| None => tt end
+		| fref fi => 
         match PositiveMap.find fi fs as x
               return match 
                 match x with
@@ -225,15 +113,15 @@ Section RFunc.
                 end
               with
                 | None => unit
-                | Some t => typD ts rs nil t
+                | Some t => typD ts nil t
               end
         with
           | None => tt
           | Some f => f.(fdenote)
-        end
-    end.
+        end			end).
+Defined.
 
-  Global Instance RFunc_ilfunc : RFunc (@typD ts rs) ilfunc :=
+  Global Instance RFunc_ilfunc : RFunc (@typD ts) ilfunc :=
   { typeof_func := typeof_func
   ; funcD := funcD
   }.
@@ -243,15 +131,18 @@ End RFunc.
 Section demo.
   Context {T : Type} {ILO : ILogicOps T}.
 
-  Definition logics : var_logic_map :=
-    PositiveMap.add 1%positive (@existT _ ILogicOps _ ILO) (PositiveMap.empty _).
-  Definition types : ref_type_map :=
-    PositiveMap.empty _.
+  Definition ts : types := (default_type T)::nil.
 
-  Definition funcs : fun_map logics types := PositiveMap.empty _.
+  Definition logics : logic_ops ts :=
+    fun t => match t with
+             | tvType 0 => Some ILO
+             | _ => None
+             end.
 
-  Definition tm : expr typ ilfunc :=
-    Inj (ilf_true 1%positive).
+  Definition funcs : fun_map ts := PositiveMap.empty _.
+
+  Definition tm : expr ilfunc :=
+    Inj (ilf_true (tvType 0)).
 
   Require Import MirrorCore.Ext.ExprD.
 
@@ -260,6 +151,7 @@ Section demo.
    ** - To solve this problem, we need to abstract [expr] with respect to
    **   types.
    **)
-  Eval simpl in @exprD _ _ (RFunc_ilfunc _ _ _) nil nil tm (tyPred 1%positive).
+   Check @RFunc_ilfunc.
+  Eval cbv beta iota zeta delta - [ltrue] in @exprD ts _ (RFunc_ilfunc ts funcs logics) nil nil tm (tvType 0).
 
 End demo.
