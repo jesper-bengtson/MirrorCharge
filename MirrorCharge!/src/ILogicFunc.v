@@ -2,6 +2,10 @@ Require Import ILogic ZArith.
 Require Import MirrorCore.Ext.ExprCore.
 Require Import MapPositive.
 Require Import MirrorCore.Ext.Types.
+Require Import MirrorCore.SymI.
+Require Import ExtLib.Core.RelDec.
+Require Import Coq.Bool.Bool.
+Require Import ExtLib.Data.Positive.
 
 Inductive ilfunc :=
 | ilf_true : typ -> ilfunc
@@ -12,6 +16,23 @@ Inductive ilfunc :=
 | ilf_exists : typ -> typ -> ilfunc
 | ilf_forall : typ -> typ -> ilfunc
 | fref (fi : positive).
+
+Global Instance RelDec_ilfunc : RelDec (@eq ilfunc) := {
+	rel_dec := fun a b => 
+		match a, b with
+			| ilf_true t, ilf_true t'
+			| ilf_false t, ilf_false t' 
+			| ilf_and t, ilf_and t'
+			| ilf_or t, ilf_or t' 
+			| ilf_impl t, ilf_impl t' => t ?[eq] t'
+			| ilf_forall a t, ilf_forall a' t'
+			| ilf_exists a t, ilf_exists a' t' => a ?[eq] a' && t ?[eq] t'
+			| fref r, fref r' => r ?[eq] r'
+			| _, _ => false
+		end
+}.
+
+Global Instance RelDec_Correct_ilfunc : RelDec_Correct RelDec_ilfunc. admit. Qed.
 
 Section RFunc.
   Variable ts : types.
@@ -41,13 +62,13 @@ Section RFunc.
       | ilf_or t
       | ilf_impl t =>
         match gs t with
-  	      | Some _ => Some (tvArr t (tvArr t t))
+  	      | Some _ => Some (tyArr t (tyArr t t))
   	      | None => None
   	    end
   	  | ilf_forall a t
   	  | ilf_exists a t =>
   	  	match gs t with 
-  	  		| Some _ => Some (tvArr (tvArr a t) t)
+  	  		| Some _ => Some (tyArr (tyArr a t) t)
   	  		| None => None
   	  	end
       | fref i =>
@@ -86,7 +107,7 @@ Section RFunc.
 							| Some t => @lfalse _ t 
 							| None => tt end
 			| ilf_and t => match gs t as x return (match match x with
-						                            | Some _ => Some (tvArr t (tvArr t t))
+						                            | Some _ => Some (tyArr t (tyArr t t))
 						                            | None => None
 						                            end with
 							| Some t0 => typD ts nil t0
@@ -95,7 +116,7 @@ Section RFunc.
 							| Some t => @land _ t 
 							| None => tt end
 			| ilf_impl t => match gs t as x return (match match x with
-						                            | Some _ => Some (tvArr t (tvArr t t))
+						                            | Some _ => Some (tyArr t (tyArr t t))
 						                            | None => None
 						                            end with
 							| Some t0 => typD ts nil t0
@@ -104,7 +125,7 @@ Section RFunc.
 							| Some t => @limpl _ t 
 							| None => tt end
 			| ilf_or t => match gs t as x return (match match x with
-						                            | Some _ => Some (tvArr t (tvArr t t))
+						                            | Some _ => Some (tyArr t (tyArr t t))
 						                            | None => None
 						                            end with
 							| Some t0 => typD ts nil t0
@@ -128,7 +149,7 @@ Section RFunc.
           | Some f => f.(fdenote)
         end		
         | ilf_exists a t => match gs t as x return (match match x with
-						                            | Some _ => Some (tvArr (tvArr a t) t)
+						                            | Some _ => Some (tyArr (tyArr a t) t)
 						                            | None => None
 						                            end with
 							| Some t0 => typD ts nil t0
@@ -137,7 +158,7 @@ Section RFunc.
 							| Some t0 => @lexists _ t0 (typD ts nil a)
 							| None => tt end	
          | ilf_forall a t => match gs t as x return (match match x with
-						                            | Some _ => Some (tvArr (tvArr a t) t)
+						                            | Some _ => Some (tyArr (tyArr a t) t)
 						                            | None => None
 						                            end with
 							| Some t0 => typD ts nil t0
@@ -147,9 +168,9 @@ Section RFunc.
 							| None => tt end end).	
 Defined.
 
-  Global Instance RFunc_ilfunc : RFunc (@typD ts) ilfunc :=
-  { typeof_func := typeof_func
-  ; funcD := funcD
+  Global Instance RSym_ilfunc : RSym (@typD ts) ilfunc :=
+  { typeof_sym := typeof_func
+  ; symD := funcD
   }.
 End RFunc.
 
@@ -157,22 +178,34 @@ End RFunc.
 Section demo.
   Context {T : Type} {ILO : ILogicOps T}.
 
-  Definition ts : types := (default_type T)::nil.
+  Definition ts : types := (default_type T)::(default_type nat)::nil.
 
   Definition logics : logic_ops ts :=
     fun t => match t with
-             | tvType 0 => Some ILO
+             | tyType 0 => Some ILO
              | _ => None
              end.
 
-  Definition funcs : fun_map ts := PositiveMap.empty _.
+  Axiom eq_nat : nat -> nat -> T.
+  
+  Definition eq_nat_emb := F ts (tyArr (tyType 1) (tyArr (tyType 1) (tyType 0))) (eq_nat).
 
-  Definition inj_and (p q : expr ilfunc) : expr ilfunc := App (App (Inj (ilf_and (tvType 0))) p) q.
-  Definition inj_true : expr ilfunc := Inj (ilf_true (tvType 0)).
-  Definition inj_false: expr ilfunc := Inj (ilf_false (tvType 0)).
+  Definition funcs : fun_map ts := PositiveMap.add (1%positive) (eq_nat_emb) (PositiveMap.empty _).
+
+  Definition inj_and (p q : expr ilfunc) : expr ilfunc := App (App (Inj (ilf_and (tyType 0))) p) q.
+  Definition inj_true : expr ilfunc := Inj (ilf_true (tyType 0)).
+  Definition inj_false : expr ilfunc := Inj (ilf_false (tyType 0)).
+  Definition inj_exists (a : typ) (f : expr ilfunc) : expr ilfunc := 
+  	App (Inj (ilf_exists a (tyType 0))) (Abs a f).
+  Definition inj_forall (a : typ) (f : expr ilfunc) : expr ilfunc := 
+  	App (Inj (ilf_forall a (tyType 0))) (Abs a f).
+  Definition inj_eq_nat (a b : expr ilfunc) : expr ilfunc :=
+    App (App (Inj (fref (1%positive))) a) b.
+
+
 
   Definition tm : expr ilfunc := inj_and inj_true inj_true.
-
+  Definition tm2 : expr ilfunc := inj_forall (tyType 1) (inj_eq_nat (Var 0) (Var 0)).
   Require Import MirrorCore.Ext.ExprD.
 
   (** TODO: Here we run into a problem because the [expr] type is
@@ -180,7 +213,8 @@ Section demo.
    ** - To solve this problem, we need to abstract [expr] with respect to
    **   types.
    **)
-   Check @RFunc_ilfunc.
-  Eval cbv beta iota zeta delta - [ltrue land] in @exprD ts _ (RFunc_ilfunc ts funcs logics) nil nil tm (tvType 0).
+
+  Eval cbv beta iota zeta delta - [ltrue land] in @exprD ts _ (RSym_ilfunc ts funcs logics) nil nil tm (tyType 0).
+  Eval cbv beta iota zeta delta - [ltrue land lforall] in @exprD ts _ (RSym_ilfunc ts funcs logics) nil nil tm2 (tyType 0).
 
 End demo.
