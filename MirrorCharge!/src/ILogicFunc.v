@@ -9,6 +9,8 @@ Inductive ilfunc :=
 | ilf_and : typ -> ilfunc
 | ilf_or: typ -> ilfunc
 | ilf_impl : typ -> ilfunc
+| ilf_exists : typ -> typ -> ilfunc
+| ilf_forall : typ -> typ -> ilfunc
 | fref (fi : positive).
 
 Section RFunc.
@@ -26,7 +28,7 @@ Section RFunc.
 
   Variable fs : fun_map.
   Variable gs : logic_ops.
-
+ 
   Definition typeof_func (f : ilfunc) : option typ :=
     match f with
       | ilf_true t
@@ -42,6 +44,12 @@ Section RFunc.
   	      | Some _ => Some (tvArr t (tvArr t t))
   	      | None => None
   	    end
+  	  | ilf_forall a t
+  	  | ilf_exists a t =>
+  	  	match gs t with 
+  	  		| Some _ => Some (tvArr (tvArr a t) t)
+  	  		| None => None
+  	  	end
       | fref i =>
         match PositiveMap.find i fs with
   	      | Some f => Some (ftype f)
@@ -118,7 +126,25 @@ Section RFunc.
         with
           | None => tt
           | Some f => f.(fdenote)
-        end			end).
+        end		
+        | ilf_exists a t => match gs t as x return (match match x with
+						                            | Some _ => Some (tvArr (tvArr a t) t)
+						                            | None => None
+						                            end with
+							| Some t0 => typD ts nil t0
+							| None => unit
+							end) with 
+							| Some t0 => @lexists _ t0 (typD ts nil a)
+							| None => tt end	
+         | ilf_forall a t => match gs t as x return (match match x with
+						                            | Some _ => Some (tvArr (tvArr a t) t)
+						                            | None => None
+						                            end with
+							| Some t0 => typD ts nil t0
+							| None => unit
+							end) with 
+							| Some t0 => @lforall _ t0 (typD ts nil a)
+							| None => tt end end).	
 Defined.
 
   Global Instance RFunc_ilfunc : RFunc (@typD ts) ilfunc :=
@@ -141,8 +167,11 @@ Section demo.
 
   Definition funcs : fun_map ts := PositiveMap.empty _.
 
-  Definition tm : expr ilfunc :=
-    Inj (ilf_true (tvType 0)).
+  Definition inj_and (p q : expr ilfunc) : expr ilfunc := App (App (Inj (ilf_and (tvType 0))) p) q.
+  Definition inj_true : expr ilfunc := Inj (ilf_true (tvType 0)).
+  Definition inj_false: expr ilfunc := Inj (ilf_false (tvType 0)).
+
+  Definition tm : expr ilfunc := inj_and inj_true inj_true.
 
   Require Import MirrorCore.Ext.ExprD.
 
@@ -152,6 +181,6 @@ Section demo.
    **   types.
    **)
    Check @RFunc_ilfunc.
-  Eval cbv beta iota zeta delta - [ltrue] in @exprD ts _ (RFunc_ilfunc ts funcs logics) nil nil tm (tvType 0).
+  Eval cbv beta iota zeta delta - [ltrue land] in @exprD ts _ (RFunc_ilfunc ts funcs logics) nil nil tm (tvType 0).
 
 End demo.
