@@ -17,6 +17,7 @@ override COQFLAGS += -R "/Users/jebe/coqs/coq-8.4pl2/user-contrib" ""
 override COQFLAGS += -R "/Users/jebe/git/mirror-core/src" "MirrorCore"
 override COQFLAGS += -R "/Users/jebe/git/mirror-core/coq-ext-lib/theories" "ExtLib"
 OBJECTS = \
+	bin/ILPullQuant.vo \
 	bin/ILogicFunc.vo \
 	bin/Tauto.vo
 
@@ -24,5 +25,6 @@ all: $(OBJECTS)
 clean:
 	rm -f $(OBJECTS)
 
+bin/ILPullQuant.vo: src/ILPullQuant.v bin/ILogicFunc.vo
 bin/ILogicFunc.vo: src/ILogicFunc.v
 bin/Tauto.vo: src/Tauto.v bin/ILogicFunc.vo
