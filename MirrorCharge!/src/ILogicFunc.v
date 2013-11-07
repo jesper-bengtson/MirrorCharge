@@ -167,9 +167,10 @@ Section RFunc.
 							| Some t0 => @lforall _ t0 (typD ts nil a)
 							| None => tt end end).	
 Defined.
-
+Print RSym.
   Global Instance RSym_ilfunc : RSym (@typD ts) ilfunc :=
   { typeof_sym := typeof_func
+  ; sym_eqb := fun a b => Some (rel_dec a b)
   ; symD := funcD
   }.
 End RFunc.

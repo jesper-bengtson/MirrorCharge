@@ -88,7 +88,7 @@ Section PullExistsLeft.
 	  		  end).
 	  		  uip_all.
 	Check exprD_App.
-	rewrite (@exprD_app ts ilfunc RSym_ilfunc us vs
+	rewrite (@exprD_App ts ilfunc RSym_ilfunc us vs (tyArr t0 t) t2 e2) in H7.
 	rewrite exprD_App with (RSym_func := RSym_ilfunc) in H7.
 	Check exprD_App.
 	Check RSym_ilfunc.

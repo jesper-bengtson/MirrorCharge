@@ -92,7 +92,7 @@ Qed.
     destruct e; simpl in *; try (eauto using assumption_sound).
     
     destruct i; eauto using assumption_sound.
-	reduce_exprD. unfold SymI.funcAs in H1. simpl in H1.
+	reduce_exprD;  unfold SymI.symAs in H1. simpl in H1.
 	forward. inv_all. destruct H5; subst.
 	specialize (H t); rewrite H1 in *. inv_all; subst. 
 	apply (@ltrueR _ ILO H).
@@ -102,7 +102,7 @@ Qed.
     destruct i; eauto using assumption_sound.
 	+ repeat progress (reduce_exprD; forward; inv_all; try subst).
 	  revert H14; subst.
-	  unfold SymI.funcAs in H9; simpl in H9. forward. inv_all; subst. 
+	  unfold SymI.symAs in H9; simpl in H9. forward. inv_all; subst. 
 
 	  repeat (match goal with
 	  		   | H : exists x, _ |- _ => destruct H; intuition; subst
@@ -118,7 +118,7 @@ Qed.
 
 	+ repeat progress (reduce_exprD; forward; inv_all; try subst).
 	  revert H14; repeat subst. intros.
-	  unfold SymI.funcAs in H9; simpl in H9; forward; inv_all; subst.
+	  unfold SymI.symAs in H9; simpl in H9; forward; inv_all; subst.
 	  repeat (match goal with
 	  		   | H : exists x, _ |- _ => destruct H; intuition; subst
 	  		  end). inv_all; subst.
@@ -133,7 +133,7 @@ Qed.
 	apply (@lorR2 _ i H); eapply H0; try eassumption; red; solve_expr_acc_trans.
 	+ repeat progress (reduce_exprD; forward; inv_all; try subst).
 	  revert H14; subst; intros.
-	  unfold SymI.funcAs in H9; simpl in H9; forward; inv_all; subst.
+	  unfold SymI.symAs in H9; simpl in H9; forward; inv_all; subst.
 	  repeat (match goal with
 	  		   | H : exists x, _ |- _ => destruct H; intuition; subst
 	  		  end). inv_all; subst.
