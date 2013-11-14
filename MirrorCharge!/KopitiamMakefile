@@ -19,6 +19,7 @@ override COQFLAGS += -R "/Users/jebe/git/mirror-core/coq-ext-lib/theories" "ExtL
 OBJECTS = \
 	bin/ILPullQuant.vo \
 	bin/ILogicFunc.vo \
+	bin/SetoidRewrite.vo \
 	bin/Tauto.vo
 
 all: $(OBJECTS)
@@ -27,4 +28,5 @@ clean:
 
 bin/ILPullQuant.vo: src/ILPullQuant.v bin/ILogicFunc.vo
 bin/ILogicFunc.vo: src/ILogicFunc.v
+bin/SetoidRewrite.vo: src/SetoidRewrite.v
 bin/Tauto.vo: src/Tauto.v bin/ILogicFunc.vo

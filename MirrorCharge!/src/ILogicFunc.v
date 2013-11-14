@@ -1,8 +1,13 @@
-Require Import ILogic ZArith.
-Require Import MirrorCore.Ext.ExprCore.
+Add Rec LoadPath "/Users/jebe/git/Charge/Charge!/bin".
+Add Rec LoadPath "/Users/jebe/git/mirror-core/src/" as MirrorCore.
+Add Rec LoadPath "/Users/jebe/git/mirror-core/coq-ext-lib/theories" as ExtLib.
+
+
+Require Import ILogic ILInsts ZArith.
 Require Import MapPositive.
-Require Import MirrorCore.Ext.Types.
+Require Import MirrorCore.Ext.ExprCore.
 Require Import MirrorCore.SymI.
+Require Import MirrorCore.Ext.Types.
 Require Import ExtLib.Core.RelDec.
 Require Import Coq.Bool.Bool.
 Require Import ExtLib.Data.Positive.
@@ -50,24 +55,37 @@ Section RFunc.
   Variable fs : fun_map.
   Variable gs : logic_ops.
  
+  Local Existing Instance ILFun_Ops.
+  Local Existing Instance ILFun_ILogic.
+
+  Fixpoint gs' (t : typ) : option (ILogicOps (typD ts nil t)):=
+    match t with
+        | tyArr t t' =>
+          match gs' t' with
+            | Some T => Some _
+            | None => None
+          end
+        | t => gs t
+    end.
+
   Definition typeof_func (f : ilfunc) : option typ :=
     match f with
       | ilf_true t
       | ilf_false t =>
-        match gs t with
+        match gs' t with
    	      | Some _ => Some t
   	      | None => None
   	    end
       | ilf_and t
       | ilf_or t
       | ilf_impl t =>
-        match gs t with
+        match gs' t with
   	      | Some _ => Some (tyArr t (tyArr t t))
   	      | None => None
   	    end
   	  | ilf_forall a t
   	  | ilf_exists a t =>
-  	  	match gs t with 
+  	  	match gs' t with 
   	  		| Some _ => Some (tyArr (tyArr a t) t)
   	  		| None => None
   	  	end
@@ -88,7 +106,7 @@ Section RFunc.
 							    | None => unit
 			                    end 
 			with 
-			| ilf_true t => match gs t as x return (match match x with
+			| ilf_true t => match gs' t as x return (match match x with
 						                            | Some _ => Some t
 						                            | None => None
 						                            end with
@@ -97,7 +115,7 @@ Section RFunc.
 							end) with 
 							| Some t => @ltrue _ t 
 							| None => tt end
-			| ilf_false t => match gs t as x return (match match x with
+			| ilf_false t => match gs' t as x return (match match x with
 						                            | Some _ => Some t
 						                            | None => None
 						                            end with
@@ -106,7 +124,7 @@ Section RFunc.
 							end) with 
 							| Some t => @lfalse _ t 
 							| None => tt end
-			| ilf_and t => match gs t as x return (match match x with
+			| ilf_and t => match gs' t as x return (match match x with
 						                            | Some _ => Some (tyArr t (tyArr t t))
 						                            | None => None
 						                            end with
@@ -115,7 +133,7 @@ Section RFunc.
 							end) with 
 							| Some t => @land _ t 
 							| None => tt end
-			| ilf_impl t => match gs t as x return (match match x with
+			| ilf_impl t => match gs' t as x return (match match x with
 						                            | Some _ => Some (tyArr t (tyArr t t))
 						                            | None => None
 						                            end with
@@ -124,7 +142,7 @@ Section RFunc.
 							end) with 
 							| Some t => @limpl _ t 
 							| None => tt end
-			| ilf_or t => match gs t as x return (match match x with
+			| ilf_or t => match gs' t as x return (match match x with
 						                            | Some _ => Some (tyArr t (tyArr t t))
 						                            | None => None
 						                            end with
@@ -148,7 +166,7 @@ Section RFunc.
           | None => tt
           | Some f => f.(fdenote)
         end		
-        | ilf_exists a t => match gs t as x return (match match x with
+        | ilf_exists a t => match gs' t as x return (match match x with
 						                            | Some _ => Some (tyArr (tyArr a t) t)
 						                            | None => None
 						                            end with
@@ -157,7 +175,7 @@ Section RFunc.
 							end) with 
 							| Some t0 => @lexists _ t0 (typD ts nil a)
 							| None => tt end	
-         | ilf_forall a t => match gs t as x return (match match x with
+         | ilf_forall a t => match gs' t as x return (match match x with
 						                            | Some _ => Some (tyArr (tyArr a t) t)
 						                            | None => None
 						                            end with
@@ -194,6 +212,8 @@ Section demo.
   Definition funcs : fun_map ts := PositiveMap.add (1%positive) (eq_nat_emb) (PositiveMap.empty _).
 
   Definition inj_and (p q : expr ilfunc) : expr ilfunc := App (App (Inj (ilf_and (tyType 0))) p) q.
+  Definition inj_or (p q : expr ilfunc) : expr ilfunc := App (App (Inj (ilf_or (tyType 0))) p) q.
+  Definition inj_impl (p q : expr ilfunc) : expr ilfunc := App (App (Inj (ilf_impl (tyType 0))) p) q.
   Definition inj_true : expr ilfunc := Inj (ilf_true (tyType 0)).
   Definition inj_false : expr ilfunc := Inj (ilf_false (tyType 0)).
   Definition inj_exists (a : typ) (f : expr ilfunc) : expr ilfunc := 
