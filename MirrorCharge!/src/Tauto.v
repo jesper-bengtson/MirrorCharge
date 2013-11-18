@@ -1,4 +1,4 @@
-Require Import Bool.
+Require Import Coq.Bool.Bool.
 Require Import Setoid Morphisms RelationClasses.
 Require Import ILogic ILEmbed.
 Require Import ExtLib.Core.RelDec.
