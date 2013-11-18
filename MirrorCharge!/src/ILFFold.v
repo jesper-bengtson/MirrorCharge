@@ -72,7 +72,9 @@ Section fold.
       typeof_expr tus tvs (apps l (map fst rs)) = Some t ->
       let ft := fold_right tyArr t ts in
       R_t ft l (l_res tus tvs) tus tvs ->
-      Forall2 (fun t x => R_t t (fst x) (snd x tus tvs) tus tvs)
+      Forall2 (fun t x =>
+                    typeof_expr tus tvs (fst x) = Some t
+                 /\ R_t t (fst x) (snd x tus tvs) tus tvs)
               ts rs ->
       R_t t (apps l (map fst rs)) (do_app l l_res rs tus tvs) tus tvs.
   Hypothesis Hex
@@ -114,10 +116,13 @@ Section fold.
   Proof.
     intros. unfold type_of_apply in *.
     forward; inv_all; subst.
-    assert (Forall2 (fun t x => R_t t (fst x) (snd x tus tvs) tus tvs)
+    assert (Forall2 (fun t x =>
+                          typeof_expr tus tvs (fst x) = Some t
+                       /\ R_t t (fst x) (snd x tus tvs) tus tvs)
                     (t1 :: nil)
                     ((e2, app_fold e2) :: nil)).
     { constructor; [ simpl | constructor ].
+      split; eauto.
       eapply H0; eauto with typeclass_instances. }
     generalize (H0 e _ tus tvs _ _ eq_refl H2).
     assert (forall y : expr ilfunc,
@@ -130,7 +135,7 @@ Section fold.
     { clear - H0. intuition.
       eapply H0; eauto.
       eapply TransitiveClosure.RTStep. eauto. constructor. }
-    assert (typeof_expr tus tvs (apps e (map fst ((e2, app_fold e2) :: nil))) 
+    assert (typeof_expr tus tvs (apps e (map fst ((e2, app_fold e2) :: nil)))
             = Some t).
     { simpl. rewrite H1. rewrite H2. simpl. forward. }
     revert H0 H H3 H4.
@@ -186,10 +191,13 @@ Section fold.
         generalize dependent (App e1_1 e1_2). clear e1_1 e1_2.
         intros. unfold type_of_apply in *.
         forward; inv_all; subst.
-        assert (Forall2 (fun t x => R_t t (fst x) (snd x tus tvs) tus tvs)
+        assert (Forall2 (fun t x => 
+                              typeof_expr tus tvs (fst x) = Some t
+                           /\ R_t t (fst x) (snd x tus tvs) tus tvs)
                         (t1 :: nil)
                         ((e2, app_fold e2) :: nil)).
         { constructor; [ simpl | constructor ].
+          split; eauto.
           eapply H; eauto with typeclass_instances. }
         generalize (H e _ tus tvs _ _ eq_refl H2).
         assert (forall y : expr ilfunc,
@@ -202,7 +210,7 @@ Section fold.
         { clear - H. intuition.
           eapply H; eauto.
           eapply TransitiveClosure.RTStep. eauto. constructor. }
-        assert (typeof_expr tus tvs (apps e (map fst ((e2, app_fold e2) :: nil))) 
+        assert (typeof_expr tus tvs (apps e (map fst ((e2, app_fold e2) :: nil)))
                 = Some t).
         { simpl. rewrite H1. rewrite H2. simpl. forward. }
         revert H0 H H3 H4 H1 H2.
@@ -220,7 +228,6 @@ Section fold.
             with (apps e1 (map fst ((e2, app_fold e2) :: l0))).
           unfold type_of_apply in *.
           forward; inv_all; subst.
-          
           eapply IHe1; eauto with typeclass_instances.
           { intros. eapply H3; eauto with typeclass_instances.
             eapply TransitiveClosure.RTStep. eauto. constructor. } } } }
