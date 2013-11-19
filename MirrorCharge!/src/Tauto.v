@@ -140,7 +140,7 @@ Section Tauto.
         destruct e1; eauto using FactsD_known_cons.
         destruct e1_1; eauto using FactsD_known_cons.
         destruct i; eauto using FactsD_known_cons.
-        repeat (red_exprD; Cases.rewrite_all; forward; simpl in *; inv_all; try subst).
+        repeat (red_exprD; Cases.rewrite_all_goal; forward; simpl in *; inv_all; try subst).
         revert H11. repeat subst.
         rewrite typ_cast_typ_refl in *. inv_all; subst.
         intros; subst. specialize (H t). rewrite H3 in *. inv_all; subst.
