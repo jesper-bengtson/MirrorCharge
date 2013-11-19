@@ -167,10 +167,10 @@ Section seplog_fold.
               { forward. subst. simpl in *.
                 inv_all; subst.
                 intuition. inv_all; subst.
-                rewrite H in *. rewrite H7 in *. rewrite x in *.
                 unfold type_of_apply in *.
-                forward. inv_all. revert H9. subst.
-                intro.
+                rewrite x in *. rewrite H7 in *. rewrite H in *.
+                forward. inv_all. clear H13. revert H6 H10. subst.
+                intros.
                 eapply Hstar; eauto. }
               { intuition. simpl in *.
                 rewrite typeof_expr_apps in H.
