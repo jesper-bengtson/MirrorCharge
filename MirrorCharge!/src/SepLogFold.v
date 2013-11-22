@@ -3,7 +3,7 @@
  **)
 Require Import ExtLib.Data.Positive.
 Require Import ExtLib.Tactics.
-Require Import BILogic.
+Require Import BILogic Pure.
 Require Import MirrorCore.EnvI.
 Require Import MirrorCore.SymI.
 Require Import MirrorCore.Ext.Expr.
@@ -37,7 +37,27 @@ Section seplog_fold.
   Variable sla : SepLogArgs.
   Variable sls : SepLogSpec.
 
-  Record SepLogArgsOk (R_t : expr sym -> T -> tenv typ -> tenv typ -> Prop) : Type :=
+  Record SepLogSpecOk (sls : SepLogSpec)
+         (OPS : ILogic.ILogicOps (typD ts nil SL))
+         (BI : BILOperators (typD ts nil SL)) : Type :=
+  { _PureOp : @PureOp (typD ts nil SL)
+  ; _Pure : @Pure _ OPS BI _PureOp
+  ; His_pure : forall e,
+                 sls.(is_pure) e = true ->
+                 forall us vs val,
+                   exprD us vs e SL = Some val ->
+                   pure val
+  ; His_emp : forall e,
+                sls.(is_emp) e = true ->
+                forall us vs,
+                  exprD us vs (Inj e) SL = Some empSP
+  ; His_star : forall e,
+                 sls.(is_star) e = true ->
+                 forall us vs,
+                   exprD us vs (Inj e) (tyArr SL (tyArr SL SL)) = Some sepSP
+  }.
+
+  Record SepLogArgsOk (R_t : expr sym -> T -> tenv typ -> tenv typ -> Prop) :=
   { atomic_appOk
     : forall e es tus tvs,
         typeof_apps _ tus tvs e es = Some SL ->
@@ -63,7 +83,8 @@ Section seplog_fold.
         R_t (apps (Inj e) (l :: r :: nil)) (sla.(do_star) l_res r_res) tus tvs
   }.
 
-  Definition AppFullFoldArgs_SepLogArgs (sla : SepLogArgs) : AppFullFoldArgs sym T :=
+  Definition AppFullFoldArgs_SepLogArgs (sla : SepLogArgs)
+  : AppFullFoldArgs sym T :=
     match sla , sls with
       | {| do_atomic_app := do_atomic_app
          ; do_pure := do_pure
@@ -193,7 +214,48 @@ Section seplog_fold.
         R_t e result tus tvs.
     Proof.
       intros.
-      eapply (app_fold_args_sound AppFullFoldArgsOk_SepLogsOk) in H; eauto. 
+      eapply (app_fold_args_sound AppFullFoldArgsOk_SepLogsOk) in H; eauto.
     Qed.
   End sound.
+
+(*
+  Variable OPS : ILogic.ILogicOps (typD ts nil SL).
+  Variable BI : BILOperators (typD ts nil SL).
+  Variable slsok : SepLogSpecOk sls OPS BI.
+
+  Require Import Relations.
+  Require Import ExtLib.Data.HList.
+
+  Record SepLogArgsSemOk
+         (TD : T -> forall tus tvs, tenv typ -> tenv typ -> option (typD ts nil SL))
+         (R : forall tus tvs,
+                relation (hlist (typD ts nil) tus ->
+                          hlist (typD ts nil) tvs ->
+                          typD ts nil SL)) :=
+  { atomic_appOk
+    : forall e es tus tvs val,
+        exprD' tus tvs (apps e es) SL = Some val ->
+        R tus tvs val (TD (sla.(do_atomic_app) e es))
+  ; pureOk
+    : forall e tus tvs,
+        typeof_expr tus tvs e = Some SL ->
+        sls.(is_pure) e = true ->
+        R_t e (sla.(do_pure) e) tus tvs
+  ; empOk
+    : forall e tus tvs,
+        typeof_sym e = Some SL ->
+        sls.(is_emp) e = true ->
+        R_t (Inj e) sla.(do_emp) tus tvs
+  ; starOk
+    : forall e l r l_res r_res tus tvs,
+        typeof_sym e = Some (tyArr SL (tyArr SL SL)) ->
+        typeof_expr tus tvs l = Some SL ->
+        typeof_expr tus tvs r = Some SL ->
+        sls.(is_star) e = true ->
+        R_t l l_res tus tvs ->
+        R_t r r_res tus tvs ->
+        R_t (apps (Inj e) (l :: r :: nil)) (sla.(do_star) l_res r_res) tus tvs
+  }.
+*)
+
 End seplog_fold.
