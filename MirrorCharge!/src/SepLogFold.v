@@ -8,7 +8,6 @@ Require Import MirrorCore.EnvI.
 Require Import MirrorCore.SymI.
 Require Import MirrorCore.Ext.Expr.
 Require Import MirrorCore.Ext.AppFull.
-Require Import ILogicFunc.
 
 Set Implicit Arguments.
 Set Strict Implicit.
