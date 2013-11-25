@@ -13,6 +13,7 @@ Require Import ILogicFunc SepLogFold.
 Set Implicit Arguments.
 Set Strict Implicit.
 
+(** TODO: This should be moved elsewhere, really it is based on folding **)
 Section iterated.
   Variable T : Type.
   Variable base : T.
@@ -185,6 +186,7 @@ Section cancel_state.
    ; pure := l.(pure) ++ r.(pure)
    |}.
 
+
   Definition SepLogArgs_normalize : SepLogArgs sym conjunctives :=
   {| do_emp := mkEmpty
    ; do_star := mkStar
@@ -241,7 +243,7 @@ Section cancel_state.
         exprD' (ts := ts) (join_env us) tvs e SL = Some val ->
         exists val',
              exprD' (join_env us) tvs (conjunctives_to_expr c) SL = Some val'
-          /\ (forall vs, 
+          /\ (forall vs,
                 (val vs -|- val' vs) /\ well_formed c (join_env us) (join_env vs)).
 
     Hypothesis e_empOk : forall us tvs,
@@ -642,6 +644,9 @@ Section cancel_state.
       rewrite sepSPC. reflexivity.
     Qed.
 
+    Hypothesis pure_ltrue : Pure.pure ltrue.
+    Hypothesis pure_land : forall p q, Pure.pure p -> Pure.pure q -> Pure.pure (land p q).
+
     Lemma well_formed_pure
     : forall x us tvs (vs : hlist _ tvs),
         well_formed x us (join_env vs) ->
@@ -654,7 +659,8 @@ Section cancel_state.
       { unfold iterated_base in H. simpl in *.
         destruct (e_trueOk us tvs).
         rewrite H in *. destruct H0.
-        inv_all; subst. rewrite H1.
+        inv_all; subst. 
+rewrite H1.
         eapply pure_ltrue; eauto with typeclass_instances. }
       { unfold iterated_base in *. simpl in *.
         destruct (iterated e_and l); intros.
@@ -680,6 +686,20 @@ Section cancel_state.
         { intuition. inversion H0; subst. constructor; eauto. eapply IHxs. auto. } }
     Qed.
 
+    Lemma exprD'_e_and_None
+    : forall us tvs a b,
+        exprD' us tvs (e_and a b) SL = None ->
+        exprD' us tvs a SL = None \/ exprD' us tvs b SL = None.
+    Proof.
+    Admitted.
+
+    Lemma exprD'_e_star_None
+    : forall us tvs a b,
+        exprD' us tvs (e_star a b) SL = None ->
+        exprD' us tvs a SL = None \/ exprD' us tvs b SL = None.
+    Proof.
+    Admitted.
+
     Lemma cte_mkStar
     : forall us tvs r_res l_res rval lval,
         exprD' us tvs (conjunctives_to_expr r_res) SL = Some rval ->
@@ -696,8 +716,25 @@ Section cancel_state.
       specialize (conjunctives_to_expr_conjunctives_to_expr' r_res us tvs).
       specialize (conjunctives_to_expr_conjunctives_to_expr' l_res us tvs).
       specialize (conjunctives_to_expr_conjunctives_to_expr' (mkStar l_res r_res) us tvs).
-      About Reflexive_Sem_equiv.
-      generalize (@iterated_base_app _ e_true e_and (Sem_equiv _ SL lequiv)
+      Cases.rewrite_all_goal.
+      intros; forward.
+      consider (exprD' us tvs (conjunctives_to_expr (mkStar l_res r_res)) SL); intros; forward.
+      { eexists; split; eauto. intros.
+        rewrite H4 , H5 , H7; clear H4 H5 H7.
+        clear H1 H H0.
+        unfold conjunctives_to_expr' , mkStar in *.
+        eapply e_andValid in H3.
+        eapply e_andValid in H2.
+        eapply e_andValid in H6.
+        repeat match goal with
+                 | H : exists x, _ |- _ =>
+                   destruct H
+                 | H : _ /\ _ |- _ =>
+                   destruct H
+               end.
+        simpl in *.
+        rewrite H3 , H5 , H7 ; clear H3 H5 H7. unfold well_formed. simpl.
+        generalize (@iterated_base_app _ e_true e_and (Sem_equiv _ SL lequiv)
                                      (@Reflexive_Sem_equiv _ _ _ SL lequiv _)
                                      (@Transitive_Sem_equiv _ _ _ SL lequiv _)
                                      Sem_equiv_e_and_assoc Sem_equiv_Proper_e_and
@@ -705,229 +742,86 @@ Section cancel_state.
                  Sem_equiv_e_true_e_and_unitLR
                  Sem_equiv_e_true_e_and_unitRL
                  Sem_equiv_e_true_e_and_unitRR r_res.(pure) l_res.(pure) us tvs).
-(*
-      generalize (@iterated_base_app _ e_emp e_star (Sem_equiv _ SL lequiv) _ _
-                                     Sem_equiv_e_star_assoc Sem_equiv_Proper_e_star
-                 Sem_equiv_e_emp_e_star_unitLL
-                 Sem_equiv_e_emp_e_star_unitLR
-                 Sem_equiv_e_emp_e_star_unitRL
-                 Sem_equiv_e_emp_e_star_unitRR (map
-                (fun x : expr sym * list (expr sym) => apps (fst x) (snd x))
-                (spatial r_res)) (map
-                (fun x : expr sym * list (expr sym) => apps (fst x) (snd x))
-                (spatial l_res)) us tvs).
- *)
-      Cases.rewrite_all_goal.
-      unfold Sem_equiv, mkStar, conjunctives_to_expr', conjunctives_to_expr; simpl.
-      clear H H0; intros; forward.
-      repeat go_crazy.
-      inv_all; subst.
-      forward. 
-      repeat go_crazy.
-      admit.
-(*
-      destruct (spatial l_res).
-      { destruct (spatial r_res).
-
-      match goal with
-        | |- exists x, exprD' _ _ ?X _ = _ /\ _ =>
-          generalize dependent X
-      end.
-      intros.
-      consider (exprD' us tvs e SL); intros; forward.
-      { eexists; split; eauto.
-        intros. split.
-        rewrite H4 , 
-                 
-      generalize dependent (match
-                               match spatial l_res with
-                                 | Some a =>
-                                   match spatial r_res with
-                                     | Some b => Some (a ++ b)
-                                     | None => Some a
-                                   end
-                                 | None => spatial r_res
-                               end
-                             with
-                               | Some s =>
-                                 match iterated e_and (pure l_res ++ pure r_res) with
-                                   | Some p =>
-                                     e_and p
-                                           (iterated_base e_emp e_star
-                                                          (map
-                                                             (fun x : expr sym * list (expr sym) =>
-                                                                apps (fst x) (snd x)) s))
-                                   | None =>
-                                     iterated_base e_emp e_star
-                                                   (map
-                                                      (fun x : expr sym * list (expr sym) =>
-                                                         apps (fst x) (snd x)) s)
-                                 end
-                               | None => iterated_base e_true e_and (pure l_res ++ pure r_res)
-                             end); 
-      
-
-
-      destruct (l_res.(spatial)); destruct (r_res.(spatial)).
-      { generalize (
-      inv_all; subst.
-      consider (iterated e_and (pure l_res ++ pure r_res)); intros.
-      { forward. repeat go_crazy.
-        inv_all; subst.
-        eexists; split; eauto.
-        intros.
-        unfold iterated_base in H0. rewrite H1 in H0.
-        rewrite H0 in H14. inv_all; subst.
-        split.
-        { rewrite H4 , H5. rewrite H9 , H7 , H21.
-          rewrite H12. rewrite H11.
-          rewrite H10. rewrite H15.
-          eapply something_smart.
-          red in H20.
-          eapply well_formed_pure. 2: eauto. eauto.
-          eapply well_formed_pure. 2: eauto. eauto. }
-        { unfold well_formed; simpl.
-          rewrite Forall_app. split.
-          eapply H20. eapply H22. } }
-      { eapply iterated_None in H1. rewrite H1 in *.
-        unfold iterated_base in H0. simpl in H0.
-        repeat go_crazy.
-        eexists; split; eauto.
-        intros. unfold well_formed; simpl; split; auto.
-        rewrite H4 , H5 , H7. rewrite H14. rewrite H16. rewrite H9.
-        rewrite H10. rewrite H17. rewrite H12 , H11.
-        eapply something_smart.
-        clear - H1 H2 e_trueOk BIL IL.
-        unfold iterated_base in *.
-        destruct (pure l_res); simpl in *; try congruence.
-        specialize (e_trueOk us tvs). destruct e_trueOk. rewrite H2 in *.
-        destruct H. inv_all; subst.
-        rewrite H0. eapply pure_ltrue; eauto with typeclass_instances.
-        clear - H1 H3 e_trueOk BIL IL.
-        unfold iterated_base in *.
-        destruct (pure l_res); simpl in *; try congruence.
-        specialize (e_trueOk us tvs). rewrite H1 in *. simpl in *.
-        destruct e_trueOk. rewrite H3 in *.
-        destruct H. inv_all; subst.
-        rewrite H0. eapply pure_ltrue; eauto with typeclass_instances. }
-*)
+        rewrite H. intros; forward.
+        eapply e_andValid in H3.
+        repeat match goal with
+                 | H : exists x, _ |- _ =>
+                   destruct H
+                 | H : _ /\ _ |- _ =>
+                   destruct H
+               end.
+        rewrite H5. rewrite H10. clear H5 H10.
+        rewrite H1 in *. rewrite H0 in *. inv_all; subst.
+        cut (Pure.pure (x5 vs)); intros.
+        cut (Pure.pure (x6 vs)); intros.
+        split; [ | apply Forall_app; split; [ apply H8 | apply H9 ] ].
+        { destruct (spatial l_res); destruct (spatial r_res).
+          { rewrite map_app in *.
+            generalize (@iterated_base_app _ e_emp e_star (Sem_equiv _ SL lequiv)
+                                           (@Reflexive_Sem_equiv _ _ _ SL lequiv _)
+                                           (@Transitive_Sem_equiv _ _ _ SL lequiv _)
+                                           Sem_equiv_e_star_assoc Sem_equiv_Proper_e_star
+                                           Sem_equiv_e_emp_e_star_unitLL
+                                           Sem_equiv_e_emp_e_star_unitLR
+                                           Sem_equiv_e_emp_e_star_unitRL
+                                           Sem_equiv_e_emp_e_star_unitRR
+                                           (map (fun x : expr sym * list (expr sym) => apps (fst x) (snd x)) l0)
+                                           (map (fun x : expr sym * list (expr sym) => apps (fst x) (snd x)) l) us tvs).
+            rewrite H2. intros; forward.
+            eapply e_starValid in H7.
+            repeat match goal with
+                 | H : exists x, _ |- _ =>
+                   destruct H
+                 | H : _ /\ _ |- _ =>
+                   destruct H
+               end.
+            rewrite H7 in *. rewrite H11 in *. inv_all; subst.
+            rewrite H10. rewrite H12.
+            eauto using something_smart. }
+          { destruct (e_trueOk us tvs) as [ ? [ ? ? ] ].
+            rewrite H7 in *. rewrite H4 in *.
+            inv_all; subst. rewrite H10.
+            rewrite landtrueR.
+            admit. }
+        admit. admit. }
+        admit. admit. }
+      { exfalso.
+        clear H1 H H0.
+        unfold mkStar, conjunctives_to_expr' in *; simpl in *.
+        eapply e_andValid in H3.
+        eapply e_andValid in H2.
+        repeat match goal with
+                 | H : exists x, _ |- _ =>
+                   destruct H
+                 | H : _ /\ _ |- _ =>
+                   destruct H
+               end.
+        generalize (@iterated_base_app _ e_true e_and (Sem_equiv _ SL lequiv)
+                                     (@Reflexive_Sem_equiv _ _ _ SL lequiv _)
+                                     (@Transitive_Sem_equiv _ _ _ SL lequiv _)
+                                     Sem_equiv_e_and_assoc Sem_equiv_Proper_e_and
+                 Sem_equiv_e_true_e_and_unitLL
+                 Sem_equiv_e_true_e_and_unitLR
+                 Sem_equiv_e_true_e_and_unitRL
+                 Sem_equiv_e_true_e_and_unitRR r_res.(pure) l_res.(pure) us tvs).
+        repeat go_crazy. inv_all; subst. intros. forward.
+        eapply exprD'_e_and_None in H6. destruct H6.
+        { congruence. }
+        { destruct (e_trueOk us tvs). destruct H13.
+          destruct (spatial l_res); destruct (spatial r_res); try congruence.
+          { generalize (@iterated_base_app _ e_emp e_star (Sem_equiv _ SL lequiv)
+                                           (@Reflexive_Sem_equiv _ _ _ SL lequiv _)
+                                           (@Transitive_Sem_equiv _ _ _ SL lequiv _)
+                                           Sem_equiv_e_star_assoc Sem_equiv_Proper_e_star
+                                           Sem_equiv_e_emp_e_star_unitLL
+                                           Sem_equiv_e_emp_e_star_unitLR
+                                           Sem_equiv_e_emp_e_star_unitRL
+                                           Sem_equiv_e_emp_e_star_unitRR
+                                           (map (fun x : expr sym * list (expr sym) => apps (fst x) (snd x)) l0)
+                                           (map (fun x : expr sym * list (expr sym) => apps (fst x) (snd x)) l) us tvs).
+            rewrite map_app in H6. rewrite H6. intros; forward.
+            eapply exprD'_e_star_None in H15. destruct H15. congruence. congruence. } } }
     Qed.
-
-(*
-    Lemma cte_mkStar
-    : forall us tvs r_res l_res rval lval val,
-        exprD' us tvs (conjunctives_to_expr r_res) SL = Some rval ->
-        exprD' us tvs (conjunctives_to_expr l_res) SL = Some lval ->
-        exprD' us tvs (conjunctives_to_expr (mkStar l_res r_res)) SL = Some val ->
-        forall vs, val vs -|- lval vs ** rval vs.
-    Proof.
-      intros.
-      specialize (conjunctives_to_expr_conjunctives_to_expr' r_res us tvs).
-      specialize (conjunctives_to_expr_conjunctives_to_expr' l_res us tvs).
-      specialize (conjunctives_to_expr_conjunctives_to_expr' (mkStar l_res r_res) us tvs).
-      Cases.rewrite_all_goal.
-      unfold mkStar, conjunctives_to_expr'; simpl.
-      clear H H0 H1; intros; forward.
-      rewrite map_app in *.
-      generalize dependent (map
-                (fun x : expr sym * list (expr sym) => apps (fst x) (snd x))
-                (spatial l_res)).
-      generalize dependent (map (fun x : expr sym * list (expr sym) => apps (fst x) (snd x))
-               (spatial r_res)); intros.
-      assert (forall a b c : expr sym,
-                Sem_equiv SL lequiv (e_and a (e_and b c)) (e_and (e_and a b) c)).
-      { clear - IL e_andOk e_andValid. intros.
-        red. intros.
-        consider (exprD' us tvs (e_and a (e_and b c)) SL);
-          consider (exprD' us tvs (e_and (e_and a b) c) SL); intros; auto.
-        { eapply e_andValid in H. eapply e_andValid in H0.
-          do 2 destruct H; do 2 destruct H0.
-          destruct H0. destruct H1. destruct H. destruct H3.
-          eapply e_andValid in H. do 3 destruct H. destruct H5.
-          eapply e_andValid in H1. do 3 destruct H1. destruct H7.
-          rewrite H4. rewrite H2. rewrite H6. rewrite H8.
-          rewrite H0 in *. rewrite H5 in *. rewrite H7 in *.
-          inv_all; subst.
-          symmetry. eapply landA. }
-        { eapply e_andValid in H0.
-          do 3 destruct H0. destruct H1.
-          eapply e_andValid in H1.
-          do 3 destruct H1. destruct H3.
-          destruct (@e_andOk _ _ _ _ _ _ H0 H1). destruct H5.
-          destruct (@e_andOk _ _ _ _ _ _ H5 H3). destruct H7.
-          congruence. }
-        { eapply e_andValid in H.
-          do 3 destruct H. destruct H1.
-          eapply e_andValid in H.
-          do 3 destruct H. destruct H3.
-          destruct (@e_andOk _ _ _ _ _ _ H3 H1). destruct H5.
-          destruct (@e_andOk _ _ _ _ _ _ H H5). destruct H7.
-          congruence. } }
-      assert (Proper
-                (Sem_equiv SL lequiv ==> Sem_equiv SL lequiv ==> Sem_equiv SL lequiv)
-                e_and).
-      { clear - IL e_andOk e_andValid. intros.
-        repeat red; unfold Sem_equiv; intros.
-        specialize (H us tvs). specialize (H0 us tvs).
-        admit. }
-      assert (forall a : expr sym, Sem_equiv SL lequiv (e_and e_emp a) a) by admit.
-      assert (forall a : expr sym, Sem_equiv SL lequiv (e_and a e_emp) a) by admit.
-      assert (forall a : expr sym, Sem_equiv SL lequiv a (e_and e_emp a)) by admit.
-      assert (forall a : expr sym, Sem_equiv SL lequiv a (e_and a e_emp)) by admit.
-      eapply e_starValid in H1. eapply e_starValid in H0. eapply e_starValid in H.
-      repeat match goal with
-               | H : exists x, _ |- _ => destruct H
-               | H : _ /\ _ |- _ => destruct H
-             end.
-      specialize (@iterated_base_app (expr sym) e_emp e_and (@Sem_equiv SL lequiv) _ _ H5 H6 H7 H8 H9 H10 
-                                     (pure r_res) (pure l_res) us tvs).
-      rewrite H.
-      destruct (@e_andOk us tvs _ _ _ _ H0 H1). destruct H17. rewrite H17; intros.
-      assert (forall a : expr sym, Sem_equiv SL lequiv (e_star e_emp a) a) by admit.
-      assert (forall a : expr sym, Sem_equiv SL lequiv (e_star a e_emp) a) by admit.
-      assert (forall a : expr sym, Sem_equiv SL lequiv a (e_star e_emp a)) by admit.
-      assert (forall a : expr sym, Sem_equiv SL lequiv a (e_star a e_emp)) by admit.
-      assert (forall a b c : expr sym,
-                Sem_equiv SL lequiv (e_star a (e_star b c)) (e_star (e_star a b) c)).
-      { clear - IL BIL e_starOk e_starValid. intros.
-        red. intros.
-        consider (exprD' us tvs (e_star a (e_star b c)) SL);
-          consider (exprD' us tvs (e_star (e_star a b) c) SL); intros; auto.
-        { eapply e_starValid in H. eapply e_starValid in H0.
-          do 2 destruct H; do 2 destruct H0.
-          destruct H0. destruct H1. destruct H. destruct H3.
-          eapply e_starValid in H. do 3 destruct H. destruct H5.
-          eapply e_starValid in H1. do 3 destruct H1. destruct H7.
-          rewrite H4. rewrite H2. rewrite H6. rewrite H8.
-          rewrite H in *. rewrite H1 in *. rewrite H7 in *.
-          inv_all; subst. rewrite sepSPA. reflexivity. }
-        { eapply e_starValid in H0.
-          do 3 destruct H0. destruct H1.
-          eapply e_starValid in H1.
-          do 3 destruct H1. destruct H3.
-          destruct (@e_starOk _ _ _ _ _ _ H0 H1). destruct H5.
-          destruct (@e_starOk _ _ _ _ _ _ H5 H3). destruct H7.
-          congruence. }
-        { eapply e_starValid in H.
-          do 3 destruct H. destruct H1.
-          eapply e_starValid in H.
-          do 3 destruct H. destruct H3.
-          destruct (@e_starOk _ _ _ _ _ _ H3 H1). destruct H5.
-          destruct (@e_starOk _ _ _ _ _ _ H H5). destruct H7.
-          congruence. } }
-      assert (Proper
-                (Sem_equiv SL lequiv ==> Sem_equiv SL lequiv ==> Sem_equiv SL lequiv)
-                e_star) by admit.
-      specialize (@iterated_base_app (expr sym) e_emp e_star (@Sem_equiv SL lequiv) _ _ H24 H25 H20 H21 H22 H23
-                                     l l0 us tvs).
-      rewrite H11.
-      destruct (@e_starOk us tvs _ _ _ _ H13 H15). destruct H26. rewrite H26; intros.
-      rewrite H4 , H3 , H2 , H12 , H14 , H16.
-      rewrite H28 , H19 , H18. rewrite H27.
-      admit.
-    Qed.
-*)
-
 
     Theorem SepLogArgsOk_conjunctives : SepLogArgsOk RSym_sym SL SepLogArgs_normalize SLS R_conjunctives.
     Proof.
