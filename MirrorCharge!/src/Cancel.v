@@ -157,34 +157,47 @@ Section cancel_state.
 
   Record conjunctives : Type :=
   { spatial : option (list (expr sym * list (expr sym)))
+  ; star_true : bool
   ; pure : list (expr sym)
   }.
 
   Definition mkEmpty : conjunctives :=
   {| spatial := Some (nil)
+   ; star_true := false
    ; pure := nil
    |}.
 
   Definition mkPure e : conjunctives :=
   {| spatial := None
+   ; star_true := false
    ; pure := e :: nil
    |}.
 
   Definition mkSpatial e es : conjunctives :=
   {| spatial := Some ((e,es) :: nil)
+   ; star_true := false
    ; pure := nil
    |}.
 
   Definition mkStar (l r : conjunctives) : conjunctives :=
-  {| spatial := match l.(spatial)  with
-                  | None => r.(spatial)
-                  | Some a => match r.(spatial) with
-                                | None => Some a
-                                | Some b => Some (a ++ b)
-                              end
-                end
-   ; pure := l.(pure) ++ r.(pure)
-   |}.
+    let pure' := l.(pure) ++ r.(pure) in
+    let spatial' :=
+        match l.(spatial) with
+          | None => r.(spatial)
+          | Some l => match r.(spatial) with
+                        | None => Some l
+                        | Some r => Some (l ++ r)
+                      end
+        end
+    in
+    let star_true' :=
+        orb match l.(spatial) with None => true | _ => l.(star_true) end
+            match r.(spatial) with None => true | _ => r.(star_true) end
+    in
+    {| spatial := spatial'
+     ; star_true := star_true'
+     ; pure := pure'
+     |}.
 
 
   Definition SepLogArgs_normalize : SepLogArgs sym conjunctives :=
@@ -219,10 +232,22 @@ Section cancel_state.
       match c.(spatial) with
         | None => iterated_base e_true e_and c.(pure)
         | Some s =>
-          let s := iterated_base e_emp e_star (map (fun x => apps (fst x) (snd x)) s) in
           match iterated e_and c.(pure) with
-            | None => s
-            | Some p => e_and p s
+            | None => match iterated e_star (map (fun x => apps (fst x) (snd x)) s) with
+                        | None => if c.(star_true) then e_true else e_emp
+                        | Some s => if c.(star_true) then
+                                      e_star s e_true
+                                    else
+                                      s
+                      end
+            | Some p =>
+              match iterated e_star (map (fun x => apps (fst x) (snd x)) s) with
+                | None => if c.(star_true) then p else e_and p e_emp
+                | Some s => if c.(star_true) then
+                              e_star p s
+                            else
+                              e_and p s
+              end
           end
       end.
 
@@ -234,7 +259,18 @@ Section cancel_state.
           end
       in
       let pur := iterated_base e_true e_and c.(pure) in
-      e_and pur spa.
+      e_and pur (e_star spa (if c.(star_true) then e_true else e_emp)).
+
+(*
+    Eval compute in conjunctives_to_expr mkEmpty.
+    Eval compute in conjunctives_to_expr' mkEmpty.
+    Eval compute in conjunctives_to_expr (mkPure (Var 0)).
+    Eval compute in conjunctives_to_expr' (mkPure (Var 0)).
+    Eval compute in conjunctives_to_expr (mkStar (mkSpatial (Var 2) nil) (mkPure e_true)).
+    Eval compute in conjunctives_to_expr' (mkStar (mkSpatial (Var 2) nil) (mkPure e_true)).
+    Eval compute in conjunctives_to_expr (mkStar (mkPure (Var 0)) (mkPure (Var 1))).
+    Eval compute in conjunctives_to_expr' (mkStar (mkPure (Var 0)) (mkPure (Var 1))).
+*)
 
     Definition R_conjunctives
                (e : expr sym) (c : conjunctives) (tus tvs : tenv typ) : Prop :=
@@ -339,16 +375,38 @@ Section cancel_state.
             | None => Q
           end.
 
+    Lemma exprD'_e_and_None
+    : forall us tvs a b,
+        exprD' us tvs (e_and a b) SL = None ->
+        exprD' us tvs a SL = None \/ exprD' us tvs b SL = None.
+    Proof.
+      intros.
+      consider (exprD' us tvs a SL); intros; auto.
+      consider (exprD' us tvs b SL); intros; auto.
+      exfalso.
+      specialize (@e_andOk _ _ _ _ _ _ H0 H1).
+      destruct e_andOk. intuition; congruence.
+    Qed.
+
+    Lemma exprD'_e_star_None
+    : forall us tvs a b,
+        exprD' us tvs (e_star a b) SL = None ->
+        exprD' us tvs a SL = None \/ exprD' us tvs b SL = None.
+    Proof.
+      intros.
+      consider (exprD' us tvs a SL); intros; auto.
+      consider (exprD' us tvs b SL); intros; auto.
+      exfalso.
+      specialize (@e_starOk _ _ _ _ _ _ H0 H1).
+      destruct e_starOk. intuition; congruence.
+    Qed.
+
     Ltac go_crazy :=
       match goal with
         | H : exprD' _ _ _ _ = _ , H' : _ |- _ =>
           rewrite H in H'
         | H : exprD' _ _ _ _ = _ |- _ =>
           rewrite H
-        | H : exprD' _ _ (e_and _ _) _ = _ |- _ =>
-          eapply e_andValid in H ; destruct H as [ ? [ ? [ ? [ ? ? ] ] ] ]
-        | H : exprD' _ _ (e_star _ _) _ = _ |- _ =>
-          eapply e_starValid in H ; destruct H as [ ? [ ? [ ? [ ? ? ] ] ] ]
         | H : exprD' _ _ ?C _ = _
         , H' : exprD' _ _ ?D _ = _
         |- context [ exprD' ?A ?B (e_and ?C ?D) ?T ] =>
@@ -357,6 +415,10 @@ Section cancel_state.
         , H' : exprD' _ _ ?D _ = _
         |- context [ exprD' ?A ?B (e_star ?C ?D) ?T ] =>
           destruct (@e_starOk _ _ _ _ _ _ H H') as [ ? [ ? ? ] ]
+        | H : exprD' _ _ (e_and _ _) _ = _ |- _ =>
+          eapply e_andValid in H ; destruct H as [ ? [ ? [ ? [ ? ? ] ] ] ]
+        | H : exprD' _ _ (e_star _ _) _ = _ |- _ =>
+          eapply e_starValid in H ; destruct H as [ ? [ ? [ ? [ ? ? ] ] ] ]
         | H : exprD' _ _ ?C _ = _
         , H' : exprD' _ _ ?D _ = _
         , H'' : context [ exprD' ?A ?B (e_star ?C ?D) ?T ]
@@ -374,6 +436,40 @@ Section cancel_state.
                 | erewrite (@e_andOk_None2 _ _ _ _ H) in * ]
       end.
 
+    Ltac go_crazy' :=
+      match goal with
+        | H : exprD' _ _ _ _ = _ , H' : _ |- _ =>
+          rewrite H in H'
+        | H : exprD' _ _ _ _ = _ |- _ =>
+          rewrite H
+        | H : exprD' _ _ ?C _ = _
+        , H' : exprD' _ _ ?D _ = _
+        |- context [ exprD' ?A ?B (e_and ?C ?D) ?T ] =>
+          destruct (@e_andOk _ _ _ _ _ _ H H') as [ ? [ ? ? ] ]
+        | H : exprD' _ _ ?C _ = _
+        , H' : exprD' _ _ ?D _ = _
+        |- context [ exprD' ?A ?B (e_star ?C ?D) ?T ] =>
+          destruct (@e_starOk _ _ _ _ _ _ H H') as [ ? [ ? ? ] ]
+        | H : exprD' _ _ (e_and _ _) _ = _ |- _ =>
+          eapply e_andValid in H ; destruct H as [ ? [ ? [ ? [ ? ? ] ] ] ]
+        | H : exprD' _ _ (e_star _ _) _ = _ |- _ =>
+          eapply e_starValid in H ; destruct H as [ ? [ ? [ ? [ ? ? ] ] ] ]
+        | H : exprD' _ _ ?C _ = _
+        , H' : exprD' _ _ ?D _ = _
+        , H'' : context [ exprD' ?A ?B (e_star ?C ?D) ?T ]
+        |- _ =>
+          destruct (@e_starOk _ _ _ _ _ _ H H') as [ ? [ ? ? ] ]
+        | H : exprD' _ _ ?C _ = _
+        , H' : exprD' _ _ ?D _ = _
+        , H'' : context [ exprD' ?A ?B (e_and ?C ?D) ?T ]
+        |- _ =>
+          destruct (@e_andOk _ _ _ _ _ _ H H') as [ ? [ ? ? ] ]
+        | H : exprD' _ _ _ _ = None |- _ =>
+          first [ congruence
+                | apply exprD'_e_star_None in H; destruct H; try congruence
+                | apply exprD'_e_and_None in H; destruct H; try congruence ]
+      end.
+
     Local Instance Reflexive_lentails : Reflexive lentails.
     Proof.
       destruct IL. destruct lentailsPre. auto.
@@ -381,39 +477,149 @@ Section cancel_state.
 
     Require Import MirrorCore.Ext.ExprSem.
 
+    Local Instance PureOp_it : @PureOp _  := slsok.(_PureOp).
+    Local Instance Pure_it : @Pure _ _ _ slsok.(_PureOp) := _Pure slsok.
+    Hypothesis pure_ltrue : Pure.pure ltrue.
+    Hypothesis pure_land : forall p q, Pure.pure p -> Pure.pure q -> Pure.pure (land p q).
+
+    Lemma ltrue_sep : ltrue ** ltrue -|- ltrue.
+    Proof.
+      constructor.
+      { apply ltrueR. }
+      { rewrite <- pureandsc by eauto with typeclass_instances.
+        apply landR; reflexivity. }
+    Qed.
+
+    Lemma pure_star_and_true : forall a b,
+                                 Pure.pure a ->
+                                 a ** b -|- a //\\ b ** ltrue.
+    Proof.
+      clear - BIL.
+      intros.
+      rewrite <- (landtrueR a) at 1.
+      rewrite pureandscD by eauto with typeclass_instances.
+      rewrite sepSPC. reflexivity.
+    Qed.
+
     Theorem conjunctives_to_expr_conjunctives_to_expr'
-    : forall e,
-        Sem_equiv _ SL lequiv (conjunctives_to_expr e) (conjunctives_to_expr' e).
+    : forall e us tvs,
+        match exprD' us tvs (conjunctives_to_expr e) SL
+            , exprD' us tvs (conjunctives_to_expr' e) SL
+        with
+          | Some l , Some r =>
+            forall vs,
+              well_formed e us (join_env vs) ->
+              l vs -|- r vs
+          | None , None => True
+          | _ , _ => False
+        end.
     Proof.
       destruct e.
       unfold conjunctives_to_expr, conjunctives_to_expr', iterated_base; simpl.
-      generalize (iterated e_and pure0); intros.
+      unfold well_formed; simpl; intros.
+      specialize (e_trueOk us tvs); destruct e_trueOk as [ ? [ ? ? ] ]; clear e_trueOk.
+      specialize (e_empOk us tvs); destruct e_empOk as [ ? [ ? ? ] ]; clear e_empOk.
+      assert (
+          List.Forall
+            (fun e : expr sym =>
+               exists val : _ -> typD ts nil SL,
+                 exprD' us tvs e SL = Some val) pure0 -> 
+            match iterated e_and pure0 with
+              | None => pure0 = nil
+              | Some z =>
+                exists p, exprD' us tvs z SL = Some p /\ 
+                          forall vs : hlist (typD ts nil) tvs,
+                            List.Forall
+                              (fun e : expr sym =>
+                                 exists val : _ -> typD ts nil SL,
+                                   exprD' us tvs e SL = Some val /\ Pure.pure (val vs)) pure0 ->
+                            Pure.pure (p vs)
+            end).
+      { induction 1; simpl; intros; auto.
+        destruct (iterated e_and l); forward_ex_and.
+        { repeat go_crazy. eexists; split; eauto. inv_all; subst.
+          intros. inversion H7; clear H7; subst.
+          eapply H6 in H13. forward_ex_and. rewrite H10.
+          rewrite H3 in *. inv_all; subst.
+          eapply pure_land; eauto. }
+        { subst. clear H4. eexists; split; eauto. intros.
+          inversion H4; clear H4; subst. forward_ex_and.
+          rewrite H3 in *. inv_all; subst; auto. } }
+      generalize dependent (iterated e_and pure0); intros.
       destruct spatial0.
-      { generalize (iterated e_star
-                             (map
-                                (fun x : expr sym * list (expr sym) =>
-                                   apps (fst x) (snd x)) l)).
-        intro.
-        generalize (match o0 with
-                      | Some l0 => l0
-                      | None => e_emp
-                    end); intro.
-        red. intros.
-        destruct o.
-        { forward. reflexivity. }
-        { destruct (e_trueOk us tvs). destruct H.
-          consider (exprD' us tvs e SL); intros; repeat go_crazy; auto.
-          inv_all; subst. intros. rewrite H3. rewrite H0.
-          rewrite landtrueL. reflexivity. } }
-      { red. intros.
-        generalize (match o with
-                      | Some l => l
-                      | None => e_true
-                    end); intros.
-        destruct (e_trueOk us tvs). destruct H.
-        consider (exprD' us tvs e SL); intros; repeat go_crazy; auto.
-        inv_all; subst. intros.
-        rewrite H5. rewrite H0. rewrite landtrueR. reflexivity. }
+      { destruct (iterated e_star
+                           (map
+                              (fun x1 : expr sym * list (expr sym) =>
+                                 apps (fst x1) (snd x1)) l));
+        destruct o; destruct star_true0; intros.
+        { consider (exprD' us tvs (e_star e0 e) SL); intros; forward.
+          { consider (exprD' us tvs (e_and e0 (e_star e e_true)) SL); intros; repeat go_crazy.
+            { inv_all; subst. rewrite H12. rewrite H8. rewrite H10.
+              rewrite H0.
+              assert (List.Forall
+                        (fun e : expr sym =>
+                           exists val : hlist (typD ts nil) tvs -> typD ts nil SL,
+                             exprD' us tvs e SL = Some val) pure0).
+              { admit. }
+              apply H3 in H5; clear H3. forward_ex_and. inv_all; subst.
+              assert (Pure.pure (x vs)) by admit.
+              eapply pure_star_and_true; auto. }
+            { apply exprD'_e_and_None in H5; destruct H5; try congruence.
+              apply exprD'_e_star_None in H5; destruct H5; congruence. } }
+          { do 4 go_crazy.
+            apply exprD'_e_star_None in H4; destruct H4; congruence. } }
+        { consider (exprD' us tvs (e_and e0 (e_star e e_emp)) SL); intros; forward; repeat go_crazy.
+          { inv_all; subst. intros.
+            rewrite H12. rewrite H6. rewrite H8. rewrite H2.
+            rewrite empSPR. reflexivity. }
+          { go_crazy'. go_crazy'. go_crazy'. congruence. } }
+        { generalize (e_star e e_true); intros.
+          consider (exprD' us tvs e0 SL); intros; forward; repeat go_crazy'; inv_all; subst.
+          intros. rewrite H6. rewrite H0. rewrite landtrueL. reflexivity. }
+        { consider (exprD' us tvs (e_and e_true (e_star e e_emp)) SL); intros;
+          forward; repeat go_crazy; inv_all; subst.
+          { intros.
+            rewrite H6. rewrite H0. rewrite H8. rewrite H2.
+            rewrite empSPR. rewrite landtrueL. reflexivity. }
+          { go_crazy'. go_crazy'. congruence. } }
+        { consider (exprD' us tvs e SL); intros; intros; forward;
+          repeat go_crazy'; inv_all; subst.
+          consider (exprD' us tvs (e_and e (e_star e_emp e_true)) SL);
+            intros.
+          { do 5 go_crazy'. inv_all; subst.
+            rewrite H8. rewrite H10. rewrite H0. rewrite H2.
+            rewrite empSPL. rewrite landtrueR. reflexivity. }
+          { go_crazy'. go_crazy'. congruence. } }
+        { consider (exprD' us tvs (e_and e (e_star e_emp e_emp)) SL); intros;
+          forward; repeat go_crazy; inv_all; subst; intros.
+          { rewrite H6; clear H6. rewrite H8. rewrite H12.
+            rewrite H2. rewrite empSPL. reflexivity. }
+          { go_crazy'. go_crazy'. } }
+        { consider (exprD' us tvs (e_and e_true (e_star e_emp e_true)) SL);
+          intros; forward; repeat go_crazy; inv_all; subst.
+          { subst. rewrite H8. rewrite H10. rewrite H2.
+            rewrite empSPL.
+            { split. apply landR; reflexivity. apply landL1. reflexivity. } }
+          { go_crazy'. go_crazy'. congruence. } }
+        { consider (exprD' us tvs (e_and e_true (e_star e_emp e_emp)) SL);
+          intros; forward; repeat go_crazy; inv_all; subst; intros.
+          { rewrite H8. rewrite H10. rewrite H2.
+            rewrite H0. rewrite empSPL. rewrite landtrueL. reflexivity. }
+          { go_crazy'. go_crazy'. } } }
+      { destruct o; destruct star_true0; simpl;
+        match goal with
+          | |- match _ with None => match ?X with _ => _ end | _ => _ end =>
+            consider X; intros; forward;
+            repeat go_crazy; inv_all; subst; intros
+        end; try solve [ do 2 go_crazy'; congruence ].
+        { rewrite H6. rewrite H8. rewrite H0.
+          rewrite ltrue_sep. rewrite landtrueR. reflexivity. }
+        { rewrite H6. rewrite H8. rewrite H2. rewrite H0.
+          rewrite empSPR. rewrite landtrueR. reflexivity. }
+        { subst. rewrite H8. rewrite H10. rewrite H0.
+          rewrite ltrue_sep. rewrite landtrueR. reflexivity. }
+        { subst. rewrite H8. rewrite H10. rewrite H0. rewrite H2.
+          rewrite empSPR. rewrite landtrueR. reflexivity. } }
     Qed.
 
     Lemma Sem_equiv_e_and_assoc
@@ -543,8 +749,8 @@ Section cancel_state.
       red; intros.
       destruct (e_trueOk us tvs) as [ ? [ ? ? ] ].
       consider (exprD' us tvs a SL); intros; repeat go_crazy; auto.
-      inv_all; subst; intros.
-      Cases.rewrite_all. clear - IL.
+      inv_all; subst; intros. clear pure_land pure_ltrue.
+      Cases.rewrite_all_goal. clear - IL.
       rewrite ltrue_unitL. reflexivity.
     Qed.
 
@@ -555,7 +761,7 @@ Section cancel_state.
       red; intros.
       destruct (e_trueOk us tvs) as [ ? [ ? ? ] ].
       consider (exprD' us tvs a SL); intros; repeat go_crazy; auto.
-      inv_all; subst; intros.
+      inv_all; subst; intros. clear pure_land pure_ltrue.
       Cases.rewrite_all. clear - IL.
       rewrite ltrue_unitR. reflexivity.
     Qed.
@@ -566,7 +772,7 @@ Section cancel_state.
       red; intros.
       destruct (e_trueOk us tvs) as [ ? [ ? ? ] ].
       consider (exprD' us tvs a SL); intros; repeat go_crazy; auto.
-      inv_all; subst; intros.
+      inv_all; subst; intros. clear pure_land pure_ltrue.
       Cases.rewrite_all. clear - IL.
       rewrite ltrue_unitL. reflexivity.
     Qed.
@@ -577,7 +783,7 @@ Section cancel_state.
       red; intros.
       destruct (e_trueOk us tvs) as [ ? [ ? ? ] ].
       consider (exprD' us tvs a SL); intros; repeat go_crazy; auto.
-      inv_all; subst; intros.
+      inv_all; subst; intros. clear pure_land pure_ltrue.
       Cases.rewrite_all. clear - IL.
       rewrite ltrue_unitR. reflexivity.
     Qed.
@@ -589,7 +795,7 @@ Section cancel_state.
       red; intros.
       destruct (e_empOk us tvs) as [ ? [ ? ? ] ].
       consider (exprD' us tvs a SL); intros; repeat go_crazy; auto.
-      inv_all; subst; intros.
+      inv_all; subst; intros. clear pure_land pure_ltrue.
       Cases.rewrite_all. clear - BIL IL.
       rewrite empSPL. reflexivity.
     Qed.
@@ -600,7 +806,7 @@ Section cancel_state.
       red; intros.
       destruct (e_empOk us tvs) as [ ? [ ? ? ] ].
       consider (exprD' us tvs a SL); intros; repeat go_crazy; auto.
-      inv_all; subst; intros.
+      inv_all; subst; intros. clear pure_land pure_ltrue.
       Cases.rewrite_all. clear - BIL.
       rewrite empSPR. reflexivity.
     Qed.
@@ -611,7 +817,7 @@ Section cancel_state.
       red; intros.
       destruct (e_empOk us tvs) as [ ? [ ? ? ] ].
       consider (exprD' us tvs a SL); intros; repeat go_crazy; auto.
-      inv_all; subst; intros.
+      inv_all; subst; intros. clear pure_land pure_ltrue.
       Cases.rewrite_all. clear - BIL.
       rewrite empSPL. reflexivity.
     Qed.
@@ -622,13 +828,10 @@ Section cancel_state.
       red; intros.
       destruct (e_empOk us tvs) as [ ? [ ? ? ] ].
       consider (exprD' us tvs a SL); intros; repeat go_crazy; auto.
-      inv_all; subst; intros.
+      inv_all; subst; intros. clear pure_land pure_ltrue.
       Cases.rewrite_all. clear - BIL.
       rewrite empSPR. reflexivity.
     Qed.
-
-    Local Instance PureOp_it : @PureOp _  := slsok.(_PureOp).
-    Local Instance Pure_it : @Pure _ _ _ slsok.(_PureOp) := _Pure slsok.
 
     Lemma something_smart
     : forall a b c d,
@@ -644,9 +847,6 @@ Section cancel_state.
       rewrite sepSPC. reflexivity.
     Qed.
 
-    Hypothesis pure_ltrue : Pure.pure ltrue.
-    Hypothesis pure_land : forall p q, Pure.pure p -> Pure.pure q -> Pure.pure (land p q).
-
     Lemma well_formed_pure
     : forall x us tvs (vs : hlist _ tvs),
         well_formed x us (join_env vs) ->
@@ -659,8 +859,7 @@ Section cancel_state.
       { unfold iterated_base in H. simpl in *.
         destruct (e_trueOk us tvs).
         rewrite H in *. destruct H0.
-        inv_all; subst. 
-rewrite H1.
+        inv_all; subst. rewrite H1.
         eapply pure_ltrue; eauto with typeclass_instances. }
       { unfold iterated_base in *. simpl in *.
         destruct (iterated e_and l); intros.
@@ -686,20 +885,7 @@ rewrite H1.
         { intuition. inversion H0; subst. constructor; eauto. eapply IHxs. auto. } }
     Qed.
 
-    Lemma exprD'_e_and_None
-    : forall us tvs a b,
-        exprD' us tvs (e_and a b) SL = None ->
-        exprD' us tvs a SL = None \/ exprD' us tvs b SL = None.
-    Proof.
-    Admitted.
-
-    Lemma exprD'_e_star_None
-    : forall us tvs a b,
-        exprD' us tvs (e_star a b) SL = None ->
-        exprD' us tvs a SL = None \/ exprD' us tvs b SL = None.
-    Proof.
-    Admitted.
-
+(*
     Lemma cte_mkStar
     : forall us tvs r_res l_res rval lval,
         exprD' us tvs (conjunctives_to_expr r_res) SL = Some rval ->
@@ -878,7 +1064,7 @@ rewrite H1.
           rewrite H16. rewrite H4 , H6. reflexivity. }
         { eapply H17. } }
     Qed.
-
+*)
   End conjunctivesD.
 
 (*
@@ -937,5 +1123,6 @@ rewrite H1.
   Definition cancel (rhs : expr ilfunc) : conjunctives -> (conjunctives * conjunctives).
 *)
   End with_monad.
+
 
 End cancel_state.
