@@ -1,5 +1,6 @@
 (** This file implements cancellation for separation logic.
  **)
+Require Import Morphisms.
 Require Import ExtLib.Data.Positive.
 Require Import ExtLib.Data.HList.
 Require Import ExtLib.Tactics.
@@ -8,7 +9,7 @@ Require Import MirrorCore.EnvI.
 Require Import MirrorCore.SymI.
 Require Import MirrorCore.Ext.Expr.
 Require Import MirrorCore.Ext.AppFull.
-Require Import MirrorCore.Iterated.
+Require Import Iterated.
 Require Import ILogicFunc SepLogFold.
 
 Set Implicit Arguments.
@@ -267,42 +268,6 @@ Section cancel_state.
                 | apply exprD'_e_star_None in H; destruct H; try congruence
                 | apply exprD'_e_and_None in H; destruct H; try congruence ]
       end.
-
-(*
-    Ltac go_crazy' :=
-      match goal with
-        | H : exprD' _ _ _ _ = _ , H' : _ |- _ =>
-          rewrite H in H'
-        | H : exprD' _ _ _ _ = _ |- _ =>
-          rewrite H
-        | H : exprD' _ _ ?C _ = _
-        , H' : exprD' _ _ ?D _ = _
-        |- context [ exprD' ?A ?B (e_and ?C ?D) ?T ] =>
-          destruct (@e_andOk _ _ _ _ _ _ H H') as [ ? [ ? ? ] ]
-        | H : exprD' _ _ ?C _ = _
-        , H' : exprD' _ _ ?D _ = _
-        |- context [ exprD' ?A ?B (e_star ?C ?D) ?T ] =>
-          destruct (@e_starOk _ _ _ _ _ _ H H') as [ ? [ ? ? ] ]
-        | H : exprD' _ _ (e_and _ _) _ = _ |- _ =>
-          eapply e_andValid in H ; destruct H as [ ? [ ? [ ? [ ? ? ] ] ] ]
-        | H : exprD' _ _ (e_star _ _) _ = _ |- _ =>
-          eapply e_starValid in H ; destruct H as [ ? [ ? [ ? [ ? ? ] ] ] ]
-        | H : exprD' _ _ ?C _ = _
-        , H' : exprD' _ _ ?D _ = _
-        , H'' : context [ match exprD' ?A ?B (e_star ?C ?D) ?T with _ => _ end ]
-        |- _ =>
-          destruct (@e_starOk _ _ _ _ _ _ H H') as [ ? [ ? ? ] ]
-        | H : exprD' _ _ ?C _ = _
-        , H' : exprD' _ _ ?D _ = _
-        , H'' : context [ match exprD' ?A ?B (e_and ?C ?D) ?T with _ => _ end ]
-        |- _ =>
-          destruct (@e_andOk _ _ _ _ _ _ H H') as [ ? [ ? ? ] ]
-        | H : exprD' _ _ _ _ = None |- _ =>
-          first [ congruence
-                | apply exprD'_e_star_None in H; destruct H; try congruence
-                | apply exprD'_e_and_None in H; destruct H; try congruence ]
-      end.
-*)
 
     Local Instance Reflexive_lentails : Reflexive lentails.
     Proof.
@@ -599,10 +564,12 @@ Section cancel_state.
     Proof.
       split; apply bilsep; eapply H.
     Qed.
+
     Lemma land_cancel : forall a b c, b -|- c -> a //\\ b -|- a //\\ c.
     Proof.
       intros. rewrite H. reflexivity.
     Qed.
+
     Lemma something_smart'
     : forall a b c d e f g,
         Pure.pure a -> Pure.pure b ->
@@ -822,164 +789,4 @@ Section cancel_state.
   End demo.
 *)
 
-  Require Import ExtLib.Structures.Monads.
-  Require Import ExtLib.Data.Monads.StateMonad.
-
-  Section with_monad.
-    Local Open Scope monad_scope.
-    Import MonadNotation.
-
-    Definition conjunctives_remove (c : conjunctives) (e : expr ilfunc)
-    : option conjunctives:= None.
-
-(*
-  Definition cancel_atomic (e : expr ilfunc) : state conjunctives conjunctives :=
-    (lhs <- get ;;
-     match conjunctives_remove lhs e with
-       | None => (** it wasn't found **)
-         ret (atomic e)
-       | Some r =>
-         put r ;;
-         ret empty
-     end)%monad.
-
-  Definition cancelArgs : AppFullFoldArgs ilfunc (state conjunctives conjunctives) :=
-  {| do_var := fun v _ _ => cancel_atomic (Var v)
-   ; do_uvar := fun u _ _ => cancel_atomic (UVar u)
-   ; do_inj := fun i _ _ => cancel_atomic (Inj i)
-   ;
-
-
-  Definition cancel (rhs : expr ilfunc) : conjunctives -> (conjunctives * conjunctives).
-*)
-  End with_monad.
-
 End cancel_state.
-
-
-(**
-    Theorem conjunctives_to_expr_conjunctives_to_expr'
-    : forall e us tvs,
-        match exprD' us tvs (conjunctives_to_expr e) SL
-            , exprD' us tvs (conjunctives_to_expr' e) SL
-        with
-          | Some l , Some r =>
-            forall vs,
-              well_formed e us (join_env vs) ->
-              l vs -|- r vs
-          | None , None => True
-          | _ , _ => False
-        end.
-    Proof.
-      destruct e.
-      unfold conjunctives_to_expr, conjunctives_to_expr', iterated_base; simpl.
-      unfold well_formed; simpl; intros.
-      specialize (e_trueOk us tvs); destruct e_trueOk as [ ? [ ? ? ] ]; clear e_trueOk.
-      specialize (e_empOk us tvs); destruct e_empOk as [ ? [ ? ? ] ]; clear e_empOk.
-      
-
-
-
-      assert (
-          List.Forall
-            (fun e : expr sym =>
-               exists val : _ -> typD ts nil SL,
-                 exprD' us tvs e SL = Some val) pure0 -> 
-            match iterated e_and pure0 with
-              | None => pure0 = nil
-              | Some z =>
-                exists p, exprD' us tvs z SL = Some p /\ 
-                          forall vs : hlist (typD ts nil) tvs,
-                            List.Forall
-                              (fun e : expr sym =>
-                                 exists val : _ -> typD ts nil SL,
-                                   exprD' us tvs e SL = Some val /\ Pure.pure (val vs)) pure0 ->
-                            Pure.pure (p vs)
-            end).
-      { induction 1; simpl; intros; auto.
-        destruct (iterated e_and l); forward_ex_and.
-        { repeat go_crazy. eexists; split; eauto. inv_all; subst.
-          intros. inversion H7; clear H7; subst.
-          eapply H6 in H13. forward_ex_and. rewrite H10.
-          rewrite H3 in *. inv_all; subst.
-          eapply pure_land; eauto. }
-        { subst. clear H4. eexists; split; eauto. intros.
-          inversion H4; clear H4; subst. forward_ex_and.
-          rewrite H3 in *. inv_all; subst; auto. } }
-      generalize dependent (iterated e_and pure0); intros.
-      destruct spatial0.
-      { destruct (iterated e_star
-                           (map
-                              (fun x1 : expr sym * list (expr sym) =>
-                                 apps (fst x1) (snd x1)) l));
-        destruct o; destruct star_true0; intros.
-        { consider (exprD' us tvs (e_star e0 e) SL); intros; forward.
-          { consider (exprD' us tvs (e_and e0 (e_star e e_true)) SL); intros; repeat go_crazy.
-            { inv_all; subst. rewrite H12. rewrite H8. rewrite H10.
-              rewrite H0.
-              assert (List.Forall
-                        (fun e : expr sym =>
-                           exists val : hlist (typD ts nil) tvs -> typD ts nil SL,
-                             exprD' us tvs e SL = Some val) pure0).
-              { admit. }
-              apply H3 in H5; clear H3. forward_ex_and. inv_all; subst.
-              assert (Pure.pure (x vs)) by admit.
-              eapply pure_star_and_true; auto. }
-            { apply exprD'_e_and_None in H5; destruct H5; try congruence.
-              apply exprD'_e_star_None in H5; destruct H5; congruence. } }
-          { do 4 go_crazy.
-            apply exprD'_e_star_None in H4; destruct H4; congruence. } }
-        { consider (exprD' us tvs (e_and e0 (e_star e e_emp)) SL); intros; forward; repeat go_crazy.
-          { inv_all; subst. intros.
-            rewrite H12. rewrite H6. rewrite H8. rewrite H2.
-            rewrite empSPR. reflexivity. }
-          { go_crazy'. go_crazy'. go_crazy'. congruence. } }
-        { generalize (e_star e e_true); intros.
-          consider (exprD' us tvs e0 SL); intros; forward; repeat go_crazy'; inv_all; subst.
-          intros. rewrite H6. rewrite H0. rewrite landtrueL. reflexivity. }
-        { consider (exprD' us tvs (e_and e_true (e_star e e_emp)) SL); intros;
-          forward; repeat go_crazy; inv_all; subst.
-          { intros.
-            rewrite H6. rewrite H0. rewrite H8. rewrite H2.
-            rewrite empSPR. rewrite landtrueL. reflexivity. }
-          { go_crazy'. go_crazy'. congruence. } }
-        { consider (exprD' us tvs e SL); intros; intros; forward;
-          repeat go_crazy'; inv_all; subst.
-          consider (exprD' us tvs (e_and e (e_star e_emp e_true)) SL);
-            intros.
-          { do 5 go_crazy'. inv_all; subst.
-            rewrite H8. rewrite H10. rewrite H0. rewrite H2.
-            rewrite empSPL. rewrite landtrueR. reflexivity. }
-          { go_crazy'. go_crazy'. congruence. } }
-        { consider (exprD' us tvs (e_and e (e_star e_emp e_emp)) SL); intros;
-          forward; repeat go_crazy; inv_all; subst; intros.
-          { rewrite H6; clear H6. rewrite H8. rewrite H12.
-            rewrite H2. rewrite empSPL. reflexivity. }
-          { go_crazy'. go_crazy'. } }
-        { consider (exprD' us tvs (e_and e_true (e_star e_emp e_true)) SL);
-          intros; forward; repeat go_crazy; inv_all; subst.
-          { subst. rewrite H8. rewrite H10. rewrite H2.
-            rewrite empSPL.
-            { split. apply landR; reflexivity. apply landL1. reflexivity. } }
-          { go_crazy'. go_crazy'. congruence. } }
-        { consider (exprD' us tvs (e_and e_true (e_star e_emp e_emp)) SL);
-          intros; forward; repeat go_crazy; inv_all; subst; intros.
-          { rewrite H8. rewrite H10. rewrite H2.
-            rewrite H0. rewrite empSPL. rewrite landtrueL. reflexivity. }
-          { go_crazy'. go_crazy'. } } }
-      { destruct o; destruct star_true0; simpl;
-        match goal with
-          | |- match _ with None => match ?X with _ => _ end | _ => _ end =>
-            consider X; intros; forward;
-            repeat go_crazy; inv_all; subst; intros
-        end; try solve [ do 2 go_crazy'; congruence ].
-        { rewrite H6. rewrite H8. rewrite H0.
-          rewrite ltrue_sep. rewrite landtrueR. reflexivity. }
-        { rewrite H6. rewrite H8. rewrite H2. rewrite H0.
-          rewrite empSPR. rewrite landtrueR. reflexivity. }
-        { subst. rewrite H8. rewrite H10. rewrite H0.
-          rewrite ltrue_sep. rewrite landtrueR. reflexivity. }
-        { subst. rewrite H8. rewrite H10. rewrite H0. rewrite H2.
-          rewrite empSPR. rewrite landtrueR. reflexivity. } }
-    Qed.
-**)

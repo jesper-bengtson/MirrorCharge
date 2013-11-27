@@ -18,7 +18,7 @@ override COQFLAGS += -R "/Users/jebe/git/mirror-core/src" "MirrorCore"
 override COQFLAGS += -R "/Users/jebe/git/mirror-core/coq-ext-lib/theories" "ExtLib"
 OBJECTS = \
         bin/ILogicFunc.vo \
-        bin/Cancel.vo \
+        bin/BILNormalize.vo \
         bin/ILFFold.vo \
         bin/SepLogFold.vo \
         bin/Iterated.vo \
@@ -33,6 +33,6 @@ bin/ILogicFunc.vo: src/ILogicFunc.v
 bin/SetoidRewrite.vo: src/SetoidRewrite.v
 bin/Tauto.vo: src/Tauto.v bin/ILogicFunc.vo
 bin/ILFFold.vo: src/ILFFold.v bin/ILogicFunc.vo
-bin/Cancel.vo: src/Cancel.v bin/SepLogFold.vo bin/ILogicFunc.vo bin/Iterated.vo
+bin/BILNormalize.vo: src/BILNormalize.v bin/SepLogFold.vo bin/ILogicFunc.vo bin/Iterated.vo
 bin/SepLogFold.vo: src/SepLogFold.v bin/ILogicFunc.vo
 bin/Iterated.vo: src/Iterated.v
