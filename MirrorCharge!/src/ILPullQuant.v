@@ -1,7 +1,3 @@
-Add Rec LoadPath "/Users/jebe/git/mirror-core/src/" as MirrorCore.
-Add Rec LoadPath "/Users/jebe/git/mirror-core/coq-ext-lib/theories" as ExtLib.
-Add Rec LoadPath "/Users/jebe/git/MirrorCharge/MirrorCharge!/bin".
-
 Require Import ILogic ILInsts ILogicFunc.
 Require Import MirrorCore.Ext.Types.
 Require Import MirrorCore.Ext.ExprCore.
@@ -60,11 +56,11 @@ Section PullQuant.
     end.
 
   Definition pq_exists (t t_logic : typ) (_ : expr ilfunc) (a : T) : T :=
-  	fun us vs => 
-  	match a us vs with
-  		| Some (ts, a) => Some (t :: ts, a)
-		| None => None
-	end.
+    fun us vs =>
+      match a us (t :: vs) with
+  	| Some (ts, a) => Some (t :: ts, a)
+	| None => None
+      end.
 	
     Definition pqArgs : AppFullFoldArgs ilfunc TT :=
       @Build_AppFullFoldArgs ilfunc TT pq_var pq_uvar pq_inj pq_abs pq_app.
@@ -126,7 +122,7 @@ Section PullQuant.
   Qed.
   
   Lemma Hex
-  : forall (tus : env (typD ts)) (tvs : tenv typ) t t_logic e (e_res : T) (HIL : ILogicOps (typD ts nil t)),
+  : forall (tus : env (typD ts)) (tvs : tenv typ) t t_logic e (e_res : T) (HIL : ILogicOps (typD ts nil t_logic)),
       typeof_expr (typeof_env tus) tvs (App (Inj (ilf_exists t t_logic)) (Abs t e)) = Some t_logic ->
       PQR e (e_res (typeof_env tus) (t :: tvs)) tus (t :: tvs) ->
       PQR 
@@ -139,7 +135,7 @@ Section PullQuant.
   	red_exprD; forward; inv_all; subst.
   	red_exprD.
   	unfold type_of_apply in H4; simpl in H4. forward. destruct H2; subst. inv_all; subst.
-  	remember (e_res (typeof_env tus) tvs) as o; destruct o; [| compute in H5; congruence].
+  	remember (e_res (typeof_env tus) (t :: tvs)) as o; destruct o; [| compute in H5; congruence].
   	destruct p; simpl in *.
   	unfold TD in H5; simpl in H5.
   	red_exprD; forward; inv_all. clear H12. revert H9; subst; intros.
@@ -148,6 +144,9 @@ Section PullQuant.
   	red_exprD. inv_all; subst.
   	clear H2 H3.
   	unfold TD, Teval in H0.
+        rewrite H5 in H0.
+        forward.
+        (** This looks a lot better **)
 
   	(* Here I would like to use Heqo to infer that 
   	   (e_res (typeof_env tus) (t :: tvs) = Some (l, Abs t e0))
