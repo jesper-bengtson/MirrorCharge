@@ -1,4 +1,3 @@
-Add Rec LoadPath "/Users/jebe/git/Charge/Charge!/bin".
 Add Rec LoadPath "/Users/jebe/git/mirror-core/src/" as MirrorCore.
 Add Rec LoadPath "/Users/jebe/git/mirror-core/coq-ext-lib/theories" as ExtLib.
 Add Rec LoadPath "/Users/jebe/git/MirrorCharge/MirrorCharge!/bin".
@@ -39,14 +38,14 @@ Section PullQuant.
 
   Local Instance RSym_sym : SymI.RSym (typD ts) ilfunc := RSym_ilfunc funcs gs es.
 
-  Let T := tenv typ -> tenv typ -> TT.
+  Let T:Type := tenv typ -> tenv typ -> TT.
   Definition atomic (e : expr ilfunc) : T := fun _ _ => Some (nil, e).
 
   Definition pq_var (v : var) : T := atomic (Var v).
   Definition pq_uvar (u : uvar) : T := atomic (UVar u).
   Definition pq_inj (s : ilfunc) : T := atomic (Inj s).
-  Definition pq_abs (x : typ) (e : expr ilfunc) (t : T) : T := 
-    fun us vs => t us (x::vs).
+  Definition pq_abs (x : typ) (e : expr ilfunc) (_ : T) : T := 
+    atomic (Abs x e).
 
   Definition pq_app (f : expr ilfunc) (_ : T) (args : list (expr ilfunc * T)) : T :=
     fun us vs =>
@@ -57,14 +56,16 @@ Section PullQuant.
           | Some (xs, a), Some (ys, b) => Some (xs ++ ys, App (App f a) (lift 0 (length xs) b))
           | _, _                       => None
         end
-      | Inj (ilf_exists x t), (_, f)::nil =>
-        match f us vs with
-          | Some (ys, f) => Some (x::ys, f) 
-          | _            => None
-        end
       | _, _ => None
     end.
 
+  Definition pq_exists (t t_logic : typ) (_ : expr ilfunc) (a : T) : T :=
+  	fun us vs => 
+  	match a us vs with
+  		| Some (ts, a) => Some (t :: ts, a)
+		| None => None
+	end.
+	
     Definition pqArgs : AppFullFoldArgs ilfunc TT :=
       @Build_AppFullFoldArgs ilfunc TT pq_var pq_uvar pq_inj pq_abs pq_app.
 
@@ -105,28 +106,71 @@ Section PullQuant.
         | _, _ => False
       end.
 
+	Lemma Hatomic tus tvs t e (H : typeof_expr (typeof_env tus) tvs e = Some t) 
+		{HILOps : ILogicOps (typD ts nil t)} {HIL : ILogic (typD ts nil t)} :
+      PQR e (atomic e (typeof_env tus) tvs) tus tvs.
+    Proof.
+    	unfold atomic, PQR; simpl.
+    	forward. unfold TD in H0; simpl in H0.
+    	rewrite H0. reflexivity.
+	Qed.    	
+
   Lemma Habs
     : forall tus tvs t t' e e_res {HIL : ILogicOps (typD ts nil t')} {HIL' : ILogicOps (typD ts nil (tyArr t t'))},
         typeof_expr (typeof_env tus) tvs (Abs t e) = Some (tyArr t t') ->
         @PQR t' _ e (e_res (typeof_env tus) (t :: tvs)) tus (t :: tvs) ->
         @PQR (tyArr t t') HIL' (Abs t e) (pq_abs t e e_res (typeof_env tus) tvs) tus tvs.
   Proof.
-    intros.
-    unfold PQR, pq_abs in *; simpl in *.
-    remember (exprD' tus tvs (Abs t e) (tyArr t t')) as o; destruct o.
-    rewrite exprD'_Abs in Heqo. rewrite typ_cast_typ_refl in Heqo.
-    remember (exprD' tus (t :: tvs) e t') as o; destruct o; [|inversion Heqo].
-    inv_all; subst.
-    unfold TD, Teval in *; simpl in *.
-    remember (e_res (typeof_env tus) (t :: tvs)) as o; destruct o; [|apply I].
-    destruct p; simpl in *.
-    induction l; simpl in *.
+  	intros; apply Hatomic; [assumption |].
+	admit. (* Must be an ILogic *)
+  Qed.
+  
+  Lemma Hex
+  : forall (tus : env (typD ts)) (tvs : tenv typ) t t_logic e (e_res : T) (HIL : ILogicOps (typD ts nil t)),
+      typeof_expr (typeof_env tus) tvs (App (Inj (ilf_exists t t_logic)) (Abs t e)) = Some t_logic ->
+      PQR e (e_res (typeof_env tus) (t :: tvs)) tus (t :: tvs) ->
+      PQR 
+          (App (Inj (ilf_exists t t_logic)) (Abs t e))
+          (@pq_exists t t_logic e e_res (typeof_env tus) tvs) tus tvs.
+  Proof.
+  	intros.
+  	unfold PQR, pq_exists in *; simpl in *.
+  	red_exprD; forward; inv_all; subst.
+  	red_exprD; forward; inv_all; subst.
+  	red_exprD.
+  	unfold type_of_apply in H4; simpl in H4. forward. destruct H2; subst. inv_all; subst.
+  	remember (e_res (typeof_env tus) tvs) as o; destruct o; [| compute in H5; congruence].
+  	destruct p; simpl in *.
+  	unfold TD in H5; simpl in H5.
+  	red_exprD; forward; inv_all. clear H12. revert H9; subst; intros.
+  	red_exprD; forward; inv_all; subst.
+  	simpl in *. forward. simpl in *. inv_all; subst.
+  	red_exprD. inv_all; subst.
+  	clear H2 H3.
+  	unfold TD, Teval in H0.
 
-    SearchAbout exprD' tyArr.
-    red_exprD.
-    admit.
+  	(* Here I would like to use Heqo to infer that 
+  	   (e_res (typeof_env tus) (t :: tvs) = Some (l, Abs t e0))
+  	   but since e_res is an arbitrary function I don't see any way
+  	   of doing this. I think the requisites for Hexists are too weak to prove
+  	   this. *)
+  	
+  	SearchAbout typeof_expr exprD'.
+  	destruct (typeof_expr_exprD'_impl _ _ _ _ H1).
+  	rewrite H2. simpl in *.
+  	
+  	unfold typ_cast_typ; simpl.
+  	
+  	
+  	SearchAbout typeof_expr exprD'.
+  	unfold TD in H0.
+  	unfold Teval in H0.
+  	 simpl in H0.
+  	admit. compute in H5.
+  	forward.
 
-    Lemma Hatomic
+ 
+ 	Lemma Hatomic
     : forall tus tvs v,
             PQtype (Var v) (pq_var v tus tvs) tus tvs
         /\ forall us vs,
