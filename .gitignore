@@ -3,3 +3,4 @@
 *.v.d
 *~
 .dir-locals.el
+CoqoonMakefile.vars
