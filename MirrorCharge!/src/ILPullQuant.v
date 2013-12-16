@@ -205,7 +205,8 @@ Qed.
    	  forward; inv_all; subst.
    	  red_exprD; forward; inv_all; subst.
 
-   	  	  
+   	    	  
+   	
    	  	
    	  Lemma PRQ_app tus tvs t p q tq l1 l2 dpq
    	  	(H : exprD' tus tvs (add_quants (l1 ++ l2) t (App p (lift 0 (length l1) q))) t = Some dpq)
