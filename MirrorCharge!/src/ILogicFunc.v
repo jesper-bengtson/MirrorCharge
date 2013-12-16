@@ -249,6 +249,7 @@ Section RFunc.
   }.
 End RFunc.
 
+(*
 Section demo.
   Context {T} `{ILT : ILogicOps T}.
   Context {U} `{ILU : ILogicOps U}.
@@ -312,6 +313,7 @@ Section demo.
   Eval cbv beta iota zeta delta - [ltrue land lforall] in testD tm2 (tyType 0).
 
 End demo.
+*)
 
 (*
 Section enhanced_resolution.

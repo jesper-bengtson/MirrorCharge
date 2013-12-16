@@ -54,7 +54,7 @@ Section cancel_state.
   Definition SepLogArgs_normalize : SepLogArgs sym conjunctives :=
   {| do_emp := mkEmpty
    ; do_star := mkStar
-   ; do_atomic_app := mkSpatial
+   ; do_other := fun f xs => mkSpatial f (List.map fst xs)
    ; do_pure := mkPure
    |}.
 
@@ -533,12 +533,12 @@ Section cancel_state.
       { unfold iterated_base in H. simpl in *.
         destruct (e_trueOk us tvs).
         rewrite H in *. destruct H0.
-        inv_all; subst. rewrite H1.
+        inv_all; subst. eapply Pure.pure_proper. eapply H1.
         eapply pure_ltrue; eauto with typeclass_instances. }
       { unfold iterated_base in *. simpl in *.
         destruct (iterated e_and l); intros.
         { go_crazy.
-          rewrite H3.
+          eapply Pure.pure_proper. eapply H3.
           destruct H. destruct H.
           eapply pure_land; eauto with typeclass_instances.
           unfold exprD in *. rewrite split_env_join_env in *.
@@ -682,7 +682,7 @@ Section cancel_state.
       constructor; unfold R_conjunctives; simpl; intros.
       { unfold mkSpatial, conjunctives_to_expr. simpl.
         unfold iterated_base. simpl.
-        consider (exprD' (join_env us) tvs (e_and e_true (e_star (apps e es) e_emp)) SL); intros;
+        consider (exprD' (join_env us) tvs (e_and e_true (e_star (apps e (map fst es)) e_emp)) SL); intros;
         repeat go_crazy; inv_all; subst.
         { eexists; split; eauto.
           intros.
@@ -690,14 +690,17 @@ Section cancel_state.
           destruct (e_trueOk (join_env us) tvs); clear e_trueOk.
           forward_ex_and.
           go_crazy. inv_all; subst.
-          rewrite H3 , H5. rewrite H7.
-          rewrite H4 in *. inv_all; subst. rewrite H8.
+          rewrite H5 in *. inv_all; subst.
+          repeat match goal with
+                   | H : forall x, _ -|- _ |- _ =>
+                     rewrite H
+                 end.
           rewrite empSPR. rewrite landtrueL. split.
           reflexivity. constructor. }
         { destruct (e_trueOk (join_env us) tvs).
-          destruct H2; congruence. } 
+          destruct H3; congruence. }
         { destruct (e_empOk (join_env us) tvs).
-          destruct H2; congruence. } }
+          destruct H3; congruence. } }
       { unfold conjunctives_to_expr, mkPure; simpl.
         unfold iterated_base. simpl.
         destruct (e_empOk (join_env us) tvs); clear e_empOk.

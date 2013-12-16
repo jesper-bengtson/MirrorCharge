@@ -1,0 +1,3 @@
+<*.ml4>: use_grammar
+<reify_ILogicFunc.*> or <reify_ILogicFunc_plugin.*>: coq, plugin_utils, cflags(-I,../../../mirror-core/src/_build), package(coq-plugin-utils)
+<reify_ILogicFunc_plugin.cmxs>: coq_plugin, lflags(-I,../../../mirror-core/src/_build,libReifyExt.cmxa), package(coq-plugin-utils)
