@@ -64,12 +64,15 @@ Section PullQuant.
 	
     Definition pqArgs : AppFullFoldArgs ilfunc TT :=
       @Build_AppFullFoldArgs ilfunc TT pq_var pq_uvar pq_inj pq_abs pq_app.
+      
+    Definition add_quants (xs : list typ) (t : typ) (e : expr ilfunc) :=
+    	fold_right (fun x a => App (Inj (ilf_exists x t)) 
+                                             (Abs x a)) e xs.
 
     Definition Teval (e : TT) (t : typ) :=
       match e with
           | Some (xs, a) => 
-            Some (fold_right (fun x a => App (Inj (ilf_exists x t)) 
-                                             (Abs x a)) a xs)
+            Some (add_quants xs t a)
           | None         => None
       end.
 
@@ -95,37 +98,36 @@ Section PullQuant.
         | None => True
       end.
 
-    Definition PQR (t : typ) {HIL : ILogicOps (typD ts nil t)} (e : expr ilfunc) (arg : TT) (us : env (typD ts)) (vs : tenv typ) :=
-      match TD t arg us vs, exprD' us vs e t with
-        | None, _ => True
-        | Some p, Some q => forall vs, (p vs) |-- (q vs)
-        | _, _ => False
+    Definition PQR (t : typ) (e : expr ilfunc) (arg : TT) (us : env (typD ts)) (vs : tenv typ) :=
+      match TD t arg us vs, exprD' us vs e t, gs t with
+        | None, _, _ => True
+        | _, _, None => True
+        | Some p, Some q, Some _ => forall vs, (p vs) |-- (q vs)
+        | _, _, _ => False
       end.
 
-	Lemma Hatomic tus tvs t e (H : typeof_expr (typeof_env tus) tvs e = Some t) 
-		{HILOps : ILogicOps (typD ts nil t)} {HIL : ILogic (typD ts nil t)} :
-      PQR e (atomic e (typeof_env tus) tvs) tus tvs.
+	Lemma Hatomic tus tvs t e (H : typeof_expr (typeof_env tus) tvs e = Some t) :
+      PQR t e (atomic e (typeof_env tus) tvs) tus tvs.
     Proof.
-    	unfold atomic, PQR; simpl.
-    	forward. unfold TD in H0; simpl in H0.
-    	rewrite H0. reflexivity.
+    	unfold atomic, PQR, TD; simpl. forward.
+    	assert (ILogic (typD ts nil t)) by admit. (* gs is sound *)
+    	reflexivity.
 	Qed.    	
 
   Lemma Habs
-    : forall tus tvs t t' e e_res {HIL : ILogicOps (typD ts nil t')} {HIL' : ILogicOps (typD ts nil (tyArr t t'))},
+    : forall tus tvs t t' e e_res,
         typeof_expr (typeof_env tus) tvs (Abs t e) = Some (tyArr t t') ->
-        @PQR t' _ e (e_res (typeof_env tus) (t :: tvs)) tus (t :: tvs) ->
-        @PQR (tyArr t t') HIL' (Abs t e) (pq_abs t e e_res (typeof_env tus) tvs) tus tvs.
-  Proof.
-  	intros; apply Hatomic; [assumption |].
-	admit. (* Must be an ILogic *)
-  Qed.
+        @PQR t' e (e_res (typeof_env tus) (t :: tvs)) tus (t :: tvs) ->
+        @PQR (tyArr t t') (Abs t e) (pq_abs t e e_res (typeof_env tus) tvs) tus tvs.
+    Proof.
+  	  intros; apply Hatomic; assumption.
+    Qed.
   
   Lemma Hex
-  : forall (tus : env (typD ts)) (tvs : tenv typ) t t_logic e (e_res : T) (HIL : ILogicOps (typD ts nil t_logic)),
+  : forall (tus : env (typD ts)) (tvs : tenv typ) t t_logic e (e_res : T),
       typeof_expr (typeof_env tus) tvs (App (Inj (ilf_exists t t_logic)) (Abs t e)) = Some t_logic ->
-      PQR e (e_res (typeof_env tus) (t :: tvs)) tus (t :: tvs) ->
-      PQR 
+      PQR t_logic e (e_res (typeof_env tus) (t :: tvs)) tus (t :: tvs) ->
+      PQR t_logic
           (App (Inj (ilf_exists t t_logic)) (Abs t e))
           (@pq_exists t t_logic e e_res (typeof_env tus) tvs) tus tvs.
   Proof.
@@ -134,71 +136,21 @@ Section PullQuant.
   	red_exprD; forward; inv_all; subst.
   	red_exprD; forward; inv_all; subst.
   	red_exprD.
-  	unfold type_of_apply in H4; simpl in H4. forward. destruct H2; subst. inv_all; subst.
-  	remember (e_res (typeof_env tus) (t :: tvs)) as o; destruct o; [| compute in H5; congruence].
+  	unfold type_of_apply in H2; simpl in H2. forward. destruct H2; subst. inv_all; subst.
+  	remember (e_res (typeof_env tus) (t :: tvs)) as o; destruct o; [| compute in H4; congruence].
   	destruct p; simpl in *.
-  	unfold TD in H5; simpl in H5.
+  	unfold TD in H4; simpl in H4. inv_all; subst.
   	red_exprD; forward; inv_all. clear H12. revert H9; subst; intros.
   	red_exprD; forward; inv_all; subst.
   	simpl in *. forward. simpl in *. inv_all; subst.
   	red_exprD. inv_all; subst.
   	clear H2 H3.
-  	unfold TD, Teval in H0.
-        rewrite H5 in H0.
-        forward.
-        (** This looks a lot better **)
-
-  	(* Here I would like to use Heqo to infer that 
-  	   (e_res (typeof_env tus) (t :: tvs) = Some (l, Abs t e0))
-  	   but since e_res is an arbitrary function I don't see any way
-  	   of doing this. I think the requisites for Hexists are too weak to prove
-  	   this. *)
-  	
-  	SearchAbout typeof_expr exprD'.
-  	destruct (typeof_expr_exprD'_impl _ _ _ _ H1).
-  	rewrite H2. simpl in *.
-  	
-  	unfold typ_cast_typ; simpl.
-  	
-  	
-  	SearchAbout typeof_expr exprD'.
-  	unfold TD in H0.
-  	unfold Teval in H0.
-  	 simpl in H0.
-  	admit. compute in H5.
+  	unfold TD, Teval in H1.
   	forward.
-
- 
- 	Lemma Hatomic
-    : forall tus tvs v,
-            PQtype (Var v) (pq_var v tus tvs) tus tvs
-        /\ forall us vs,
-             WellTyped_env tus us ->
-             WellTyped_env tvs vs ->
-             PQR (Var v) (pq_var v tus tvs) us vs.
-    Proof.
-      intros.
-      split.
-      unfold PQtype, pq_var, atomic, Ttype.
-      simpl.
-      remember (nth_error tvs v).
-      destruct e; [apply rel_dec_correct; reflexivity | apply I].
-      intros.
-      unfold PQR. simpl.
-      remember (nth_error (typeof_env vs) v).
-      destruct e; [|apply I].
-
-      unfold TD. remember (Teval (pq_var v tus tvs) t) as o; destruct o.
-      simpl in *. inv_all; subst. reflexivity.
-      simpl in *. inversion Heqo.
-    Qed.
-(*
-      Lemma typeof_expr_fold_cons uvs t t' vvs (f : typ -> expr ilfunc -> typ -> expr ilfunc) (e : expr ilfunc) l
-            (H : typeof_expr uvs (t::vvs) (fold_right (fun x e => f x e t') e l) = Some t') :
-            typeof_expr uvs vvs (fold_right (fun x e => f x e (tyArr t t')) e l) = Some (tyArr t t').
-        induction l; simpl in *.
-        induction e; simpl in *.
-*)
+  	assert (ILogic (typD ts nil t1)) by admit. (* gs is sound *)
+  	apply lexistsL; intro x. apply lexistsR with x.
+  	inv_all; subst. apply H3.
+Qed.
 
     Lemma typeof_expr_apps uvs vvs e lst (H: typeof_expr uvs vvs e = None) :
       typeof_expr uvs vvs (apps e lst) = None.
@@ -212,6 +164,372 @@ Section PullQuant.
     match goal with 
       | |- match ?o with | Some _ => _ | None => True end => destruct o; apply I
     end.
+
+  Lemma Happ
+  : forall tus tvs l (l_res : T) rs t ts,
+      typeof_expr (typeof_env tus) tvs (apps l (map fst rs)) = Some t ->
+      let ft := fold_right tyArr t ts in
+      PQR ft l (l_res (typeof_env tus) tvs) tus tvs ->
+      Forall2 (fun t x =>
+                    typeof_expr (typeof_env tus) tvs (fst x) = Some t
+                 /\ PQR t (fst x) (snd x (typeof_env tus) tvs) tus tvs)
+              ts rs ->
+      PQR t (apps l (map fst rs)) (pq_app l l_res rs (typeof_env tus) tvs) tus tvs.
+   Proof. 
+   	intros; unfold PQR, TD, Teval in *.
+   	destruct l; simpl in *; try apply I.
+   	destruct i; simpl in *; try apply I.
+   	* red_exprD; forward; inv_all; subst; simpl in *.
+   	  red_exprD; forward; inv_all; subst.
+   	  rewrite H0 in H5. inversion H5; subst.
+   	  assert (ILogic (typD ts nil t)) by admit.
+   	  reflexivity.
+   	* forward; inv_all; subst. simpl in *.
+   	  forward; inv_all; subst; simpl in *.
+   	  red_exprD; forward; inv_all; subst; simpl in *.
+   	  forward; inv_all; subst.
+   	  red_exprD; forward; inv_all; subst.
+   	  red_exprD; forward; inv_all; subst.
+   	  red_exprD; forward; inv_all; subst.
+   	  inversion H9; clear H9; simpl in *.
+   	  revert H0. revert ft. subst. intros.
+   	  inversion H10; clear H10; simpl in *.
+   	  revert H0. revert ft. subst. intros. simpl in *.
+   	  inversion H12; clear H12; revert H0; revert ft; subst; intros.
+   	  simpl in *.
+   	  destruct H8, H9.
+   	  forward; inv_all; subst.
+   	  rewrite H1 in H7; rewrite H2 in H4; inv_all;
+   	  revert H0; revert ft; subst; intros.
+   	  forward; inv_all; revert H0; revert ft; subst; intros.
+   	  forward; inv_all; subst.
+   	  red_exprD; forward; inv_all; subst.
+
+   	  	  
+   	  	
+   	  Lemma PRQ_app tus tvs t p q tq l1 l2 dpq
+   	  	(H : exprD' tus tvs (add_quants (l1 ++ l2) t (App p (lift 0 (length l1) q))) t = Some dpq)
+   	  	(Ht : typeof_expr (typeof_env tus) (l1 ++ tvs) p = Some (tyArr tq t)) :
+   	  exists dp dq, exprD' tus tvs (add_quants l1 t p) (tyArr tq t) = Some dp /\
+   	                exprD' tus tvs (add_quants l2 t q) tq = Some dq /\
+   	                match gs t with 
+   	                  | Some _ => forall vs, dpq vs |-- (dp vs) (dq vs)
+   	                  | None => True
+   	                 end.
+   	  Proof.
+    	generalize dependent dpq. generalize dependent tvs. 
+   	  	induction l2; simpl in *. 
+   	  	generalize dependent q. generalize dependent p.
+   	  	+ induction l1; simpl in *; intros.
+   	  	  * red_exprD; forward; inv_all; subst; simpl in *.
+   	  	    exists t3. exists t4. do 2 (split; [assumption|]).
+   	  	    forward. uip_all'.
+   	  	    assert (ILogic (typD ts nil t)) by admit.
+   	  	    reflexivity.
+   	  	  * red_exprD; forward; inv_all; revert H4; clear H7; subst.
+   	  	    red_exprD; forward; inv_all; subst; simpl in *.
+   	  	    forward; inv_all; subst.
+   	  	    assert (typeof_expr (typeof_env tus) (l1 ++ tvs) (Abs a p) = Some (tyArr a (tyArr tq t))).
+			simpl. forward.
+			specialize (IHl1 (Abs a p) (lift 0 1 q) tvs).
+   	  	    forward.
+   	  	    forward; inv_all; subst.
+   	  	    exists t3.
+   	  	  	SearchAbout typeof_expr.
+   	  	    unfold typeof_expr in H0; simpl in H0.
+   	  	    exists t3
+   	  	    red_exprD.
+   	  	  red_exprD; forward; inv_all; subst.
+   	  	    unfold type_of_apply in H6.
+   	  	    forward; inv_all; subst; simpl in *.
+   	  	    red_exprD; forward; inv_all; subst.
+   	  	    specialize (Hf _ _ _ _ H1 nil nil (tyArr tp (tyArr tq t)) _ He).
+   	  	    inv_all; subst.
+   	  	    exists t8; exists t4.
+   	  	    do 2 (split; [assumption |]). 
+   	  	    destruct (gs t); intros; [|apply I].
+   	  	    uip_all'. 
+   	  	    specialize (Hf' _ _ _ _ H1 nil nil _ He vs (HList.Hnil)).
+   	  	    rewrite Hf'. 
+   	  	    assert (ILogic (typD ts nil t)) by admit.
+   	  	    reflexivity.
+   	  	  * red_exprD; forward; inv_all; revert H4; clear H8; subst. 
+   	  	    red_exprD; forward; inv_all; subst. simpl in *.
+   	  	    forward; inv_all; subst. admit.
+   	  	+ intros.
+   	  	  red_exprD; forward; inv_all; subst. 
+   	  	  red_exprD; forward; inv_all; subst. simpl in *.
+   	  	  SearchAbout lower.
+   	  	  forward; inv_all; subst.
+ 
+   	  Lemma app_bin tus tvs t f p q tp tq l1 l2 df dpq 
+   	  	(H : exprD' tus tvs (fold_right (fun x a => App (Inj (ilf_exists x t)) (Abs x a))
+   	  								(App (App f p) (lift 0 (length l1) q))
+   	  								(l1 ++ l2)) t = Some dpq) 
+   	    (HILtp : ILogicOps (typD ts nil tp))
+   	    (gstp  : gs tp = Some HILtp)
+   	    (HILtq : ILogicOps (typD ts nil tq))
+   	    (gstq  : gs tq = Some HILtq)
+   	    (Ht : typeof_expr nil nil f = Some (tyArr tp (tyArr tq t))) 
+   	    (He : exprD' nil nil f (tyArr tp (tyArr tq t)) = Some df) 
+   	    (Hf : forall tus tvs t df, exprD' tus tvs f t = Some df -> forall tus' tvs' t' df', exprD' tus' tvs' f t' = Some df' -> t = t') 
+   	    (Hf' : forall tus tvs t df, exprD' tus tvs f t = Some df -> forall tus' tvs' df', exprD' tus' tvs' f t = Some df' -> forall vs vs', df vs = df' vs')
+ 		(HexL : forall T p q,  
+ 			match gs t with
+ 				| Some _ => Exists x : T, df HList.Hnil p (q x) |-- df HList.Hnil p (Exists x : T, q x)
+ 				| None => True
+ 			end)  
+		(HexR : forall T p q,  
+ 			match gs t with
+ 				| Some _ => Exists x : T, df HList.Hnil (p x) q |-- df HList.Hnil (Exists x : T, p x) q
+ 				| None => True
+ 			end)  :
+   	  exists dp dq, exprD' tus tvs (fold_right (fun x a => App (Inj (ilf_exists x tp)) (Abs x a))
+   	                              p l1) tp = Some dp /\
+   	                exprD' tus tvs (fold_right (fun x a => App (Inj (ilf_exists x tq)) (Abs x a))
+   	                              q l2) tq = Some dq /\
+   	                match gs t with 
+   	                  | Some _ => forall vs, dpq vs |-- (df HList.Hnil) (dp vs) (dq vs)
+   	                  | None => True
+   	                 end.
+   	  Proof.
+   	    generalize dependent dpq. generalize dependent tvs. 
+   	  	induction l2; simpl in *. generalize dependent p.
+   	  	+ induction l1; simpl in *; intros.
+   	  	  * red_exprD; forward; inv_all; subst.
+   	  	    unfold type_of_apply in H6.
+   	  	    forward; inv_all; subst; simpl in *.
+   	  	    red_exprD; forward; inv_all; subst.
+   	  	    specialize (Hf _ _ _ _ H1 nil nil (tyArr tp (tyArr tq t)) _ He).
+   	  	    inv_all; subst.
+   	  	    exists t8; exists t4.
+   	  	    do 2 (split; [assumption |]). 
+   	  	    destruct (gs t); intros; [|apply I].
+   	  	    uip_all'. 
+   	  	    specialize (Hf' _ _ _ _ H1 nil nil _ He vs (HList.Hnil)).
+   	  	    rewrite Hf'. 
+   	  	    assert (ILogic (typD ts nil t)) by admit.
+   	  	    reflexivity.
+   	  	  * red_exprD; forward; inv_all; revert H4; clear H8; subst. 
+   	  	    red_exprD; forward; inv_all; subst. simpl in *.
+   	  	    forward; inv_all; subst. admit.
+   	  	+ intros.
+   	  	  red_exprD; forward; inv_all; subst. 
+   	  	  red_exprD; forward; inv_all; subst. simpl in *.
+   	  	  SearchAbout lower.
+   	  	  forward; inv_all; subst.
+ 
+   	  	  Lemma blurb tus tvs p l1 a l2 t dp
+   	  	  (H : exprD' tus tvs
+      (fold_right
+         (fun (x : typ) (a : expr ilfunc) =>
+          App (Inj (ilf_exists x t)) (Abs x a))
+          p (l1 ++ a :: l2)) t = 
+    Some dp) :
+    	match gs t, lower (length l1) 1 p with
+    		| Some _, Some p => exists dp', exprD' tus tvs
+      (fold_right
+         (fun (x : typ) (a : expr ilfunc) =>
+          App (Inj (ilf_exists x t)) (Abs x a))
+          (lift 0 1 p) (a :: l1 ++ l2)) t = Some dp' /\ 
+          forall vs, dp vs |-- dp' vs
+            | _, None => False
+            | None, _ => True
+    	end.
+    	Proof.
+    		generalize dependent tvs; induction l1; simpl in *; intros.
+    		+ red_exprD; forward; inv_all; revert H4; clear H7; subst.
+    		  red_exprD; forward; inv_all; subst; simpl in *.
+    		  forward; inv_all; subst.
+    		  exists (fun vs => Exists x, t1 (HList.Hcons x vs)).
+    		  uip_all. split; reflexivity. 
+    		+ red_exprD; forward; inv_all; revert H6; clear H9; subst.
+    		  red_exprD; forward; inv_all; subst; simpl in *.
+    		  rewrite typ_cast_typ_refl.
+    		  forward; inv_all; subst.
+    		  destruct (IHl1 _ _ H2) as [dp' [Hdp' Hm]].
+    		  exists (fun vs => Exists x, dp' (HList.Hcons x vs)).
+    		  red_exprD; forward; inv_all; revert Hdp'; clear H9; subst.
+    		  rewrite typ_cast_typ_refl.
+    		  red_exprD; forward; inv_all; subst; simpl in *.
+    		  forward; inv_all; subst. uip_all'. intros.
+    		  unfold typeof_sym in H0.
+    		  red_exprD; forward; inv_all; subst.
+    		  red_exprD; forward; inv_all; subst.
+    		  forward; inv_all; subst.
+    		  rewrite typ_cast_typ_refl.
+   	  	  
+   	  	   admit.
+   	  	    rewrite typ_cast_typ_refl.
+   	  	    destruct (IHl1 _ _ _ H2) as [dp [dq [Hdp [Hdq Hent]]]]; clear IHl1.
+   	  	    exists (fun vs => Exists x, dp (HList.Hcons x vs)).
+   	  	    exists (fun vs => Exists x, dq (HList.Hcons x vs)).
+   	  	    forward; inv_all; subst. 
+   	  	    split. reflexivity.
+   	  	    split.
+   	  	    specialize (IHl2 (lift 0 1 p)).
+   	  	    rewrite lift_lift in IHl1. 
+			replace (length l1 + 1) with (S (length l1)) in IHl1 by omega.
+   	  	    destruct (IHl1 _ _ H2) as [dp [dq [Hdp [Hdq Hent]]]]; clear IHl1.
+   	  	    simpl in Hdq. 
+   	  	    exists (fun vs => Exists x, dp (HList.Hcons x vs)).
+   	  	    pose proof (exprD'_lift RSym_sym tus nil (a::nil) tvs q tq).
+   	  	    simpl in H0. simpl in Hdq. rewrite Hdq in H0.
+   	  	    forward. inv_all; subst.
+   	  	    exists t0. 
+   	  	    do 2 (split; [reflexivity|]).
+   	  	    intros. uip_all'.
+   	  	    assert (ILogic (typD ts nil t)) by admit.
+   	  	    apply lexistsL; intros x.
+   	  	    rewrite Hent. 
+   	  	    specialize (H1 (HList.Hnil) (HList.Hcons x HList.Hnil) vs).
+   	  	    simpl in H1. rewrite <- H1.
+   	  	    specialize (HexL (typD ts nil a) (dp (HList.Hcons x vs)) (fun x => dq (HList.Hcons x vs))).
+   	  	    rewrite <- HexR.
+   	  	    apply lexistsR with x. reflexivity.
+   	  	+ intros.
+   	  	  red_exprD; forward; inv_all; subst.
+   	  	  red_exprD; forward; inv_all; subst; simpl in *.
+   	  	  rewrite typ_cast_typ_refl.
+   	  	  red_exprD; forward; inv_all; subst; simpl in *.
+   	  	  forward; inv_all; subst.
+   	  	  destruct (IHl1 _ _ H2) as [dp [dq [Hdp [Hfi Hent]]]]; clear IHl1.
+   	  	  rewrite typ_cast_typ_refl.
+   	  	  exists dp.
+   	  	  autorewrite with exprD_rw.
+   	  	  Print Ltac red_exprD.
+   	  	  revert IHl2. red_exprD; forward.
+   	  	    red_exprD; forward; inv_all; revert H5; clear H8. subst.  
+   	  	    red_exprD; forward; inv_all; subst. simpl in *.
+   	  	    forward; inv_all; subst.
+   	  	    specialize (IHl2 (lift 0 1 p)).
+   	  	    rewrite lift_lift in IHl2. 
+			replace (length l2 + 1) with (S (length l2)) in IHl2 by omega.
+   	  	    destruct (IHl2 _ _ H3) as [dp [dq [Hdp [Hfi Hent]]]]; clear IHl2.
+   	  	    pose proof (exprD'_lift RSym_sym tus nil (a::nil) tvs p tp).
+   	  	    simpl in H1. simpl in Hdp. rewrite Hdp in H1.
+   	  	    forward.
+   	  	    
+   	  	     exists t0.
+   	  	    eexists.
+   	  	    split.
+   	  	    reflexivity.
+   	  	    forward.
+   	  	    rewrite Hfi.
+   	  	    rewrite Hdp in H1.
+   	  	    Check exprD'_lift.
+   	  	    SearchAbout exprD'.
+   	  	    assert (typeof_expr ((typeof_env tus) ++ nil) (tvs ++ (a::nil)) f = Some (tyArr tp (tyArr tq t))).
+   	  	    apply typeof_expr_weaken. apply Ht.
+   	  	    Lemma blurb tus tvs f tp tq t a 
+   	  	    	(H : typeof_expr tus tvs f = Some (tyArr tp (tyArr tq t))) :
+   	  	    	typeof_expr tus (a::tvs) f = Some (tyArr (tyArr a tp) (tyArr (tyArr a tq) (tyArr a t))).
+   	  	    Proof.
+   	  	    	SearchAbout typeof_expr.
+   	  	    	forward.
+   	  	    Check df.
+   	  	    specialize (IHl2 tvs df Ht He).
+   	  	    assert (ILogicOps (typD ts nil (tyArr a t))) by admit.
+   	  	    assert (ILogic (typD ts nil (tyArr a t))) by admit.
+   	  	    specialize (IHl2 _ X _ tvs df Ht He t4).
+   	  	    red_exprD; forward; inv_all; subst. simpl in *.
+   	  	    forward; inv_all; subst.
+   	  	    specialize (IHl2 tvs df Ht He).
+   	  	    unfo
+   	  	    SearchAbout exprD' typeof_expr.
+   	  	admit.*)
+   	  Qed.
+   	  assert (exprD' nil nil (Inj (ilf_and x0)) (tyArr x0 (tyArr x0 x0)) = Some (fun vs => @land (typD ts nil x0) i)).
+   	  red_exprD. simpl. forward. inv_all; subst. simpl. red_exprD.
+   	  reflexivity.
+   	  assert (typeof_expr nil nil (Inj (ilf_and x0)) = Some (tyArr x0 (tyArr x0 x0))).
+   	  simpl. rewrite H. reflexivity.
+
+	  assert (forall tus tvs t df, exprD' tus tvs (Inj (ilf_and x0)) t = Some df -> forall tus' tvs' t' df', exprD' tus' tvs' (Inj (ilf_and x0)) t' = Some df' -> t = t').
+	  intros. clear -H5 H7 H.
+	  red_exprD; forward. unfold typeof_sym in *; simpl in *.
+	  forward. inv_all; subst. reflexivity.
+	  
+	  assert (forall tus tvs t df, exprD' tus tvs (Inj (ilf_and x0)) t = Some df -> forall tus' tvs' df', exprD' tus' tvs' (Inj (ilf_and x0)) t = Some df' -> forall vs vs', df vs = df' vs').
+	  intros. clear -H7 H8 H.
+	  red_exprD; forward; inv_all; subst; simpl in *.
+	  reflexivity.
+	  
+	  assert (forall T p q,  
+ 			match gs x0 with
+ 				| Some _ => Exists x : T, (fun (vs : HList.hlist (typD ts nil) nil) => @land (typD ts nil x0) i) HList.Hnil p (q x) |-- (fun (vs : HList.hlist (typD ts nil) nil) => @land (typD ts nil x0) i) HList.Hnil p (Exists x : T, q x)
+ 				| None => True
+ 			end).
+ 	  intros. rewrite H. admit.
+	  
+   	  pose proof (@app_bin _ _ _ _ _ _ _ _ _ _ _ _ H3 _ H _ H H4 H0 H5 H7). 
+   	  simpl in *.
+   	  Lemma mp P Q (HQ : P -> Q) (HP : P) : Q. 
+   	  Proof.
+   	  	firstorder.
+   	  Qed.
+
+	Ltac mp H :=
+		match type of H with
+			| ?P -> ?Q => let H1 := fresh "H" in
+							assert P as H1; [|specialize (H H1); clear H1]
+		end.
+		
+	  mp H12.
+	  intros. rewrite H. admit.
+	  destruct H12 as [dp [dq [Hdp [Hdq H12]]]].
+	  rewrite H in H12.
+	  forward; inv_all; subst.
+   	  apply (@mp _ _) in H12. 
+   	  specialize (H12 H8).
+   	  as [dp [dq [Hdp [Hdq H8]]]].
+   	  rewrite Hdq in H10. rewrite Hdp in H14.
+   	  forward. 
+   	  assert (@ILogic _ i) by admit.
+   	  rewrite H8, H12, H14. reflexivity.
+   	  etransitivity; [eapply H4|].
+   	  clear ft.
+   	  
+generalize dependent ft.
+      forward. inv_all; subst; forward.
+   	  pose proof (@app_bin tus tvs x0 (tyArr x0 x0) _ _ _ _ _ _ H3 H0).
+   	  assert 
+   	  simpl in H0.
+   	  
+   	  	induction l1; simpl in *.
+   	  Lemma app_unop tus tvs t p q l tpq (HIL : ILogicOps (typD ts nil t))
+   	  	(H : exprD' tus tvs (fold_right (fun x a => App (Inj (ilf_exists x t)) (Abs x a))
+   	  		                (App p q) l) t = Some tpq) : 
+   	    exists tq, exprD' tus tvs (fold_right (fun x a => App (Inj (ilf_exists x t)) 
+   	                                          (Abs x a)) q l) t = Some tq /\
+   	               forall vs, tpq vs |-- tq vs.
+   	  Proof.
+   	  	assert (ILogic (typD ts nil t)) by admit.
+   	  	induction l; simpl in *.
+   	  	+ red_exprD; forward; inv_all; subst; simpl in *.
+   	      exists (fun vs => t3 vs (t4 vs)).
+   	  	  split; [|reflexivity]. rewrite H3.
+   	  	exists t3.
+   	  	red_exprD.
+   	  	exists
+   	  	induction l2; simpl in *.
+   	  clear H0.
+   	  progress (red_exprD; forward; inv_all; subst).
+   	  progress (forward; inv_all; subst).
+   	  rewrite <- H7 in *.
+   	  generalize dependent ts0.
+   	  inversion H10; clear H10; simpl in *.
+   	  subst.
+   	  inversion H9.
+   	  destruct rs; simpl in *; [|]. admit. 
+   	  unfold TD, Teval in H2; simpl in *.
+   	  red_exprD; forward; inv_all; subst.
+   	destruct l; simpl.
+   	unfold PQR; simpl.
+   	destruct l; simpl; try PQtype_elim.
+   	unfold PQR, TD, Teval in *.
+   	red_exprD; forward; inv_all; subst; simpl in *.
+   	progress (red_exprD; forward; inv_all; subst).
 
     Lemma Happ
     : forall tus tvs l l_res rs,
