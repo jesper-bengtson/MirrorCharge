@@ -1,6 +1,8 @@
 Require Import ExtLib.Structures.Monads.
 Require Import ExtLib.Structures.Monad.
+Require Import ExtLib.Structures.CoMonad.
 Require Import ExtLib.Structures.MonadPlus.
+Require Import ExtLib.Data.Lazy.
 Require Import MirrorCore.TypesI.
 Require Import MirrorCore.SymI.
 Require Import MirrorCore.Subst.
@@ -22,6 +24,8 @@ Section canceller.
   (** The basic procedure takes two [conjunctives]
    ** and cancels the spatial terms that occur in both.
    **)
+  Let Delay := Lazy.
+  Let CoMonad_Delay : CoMonad Delay := _.
   Variable m : Type -> Type.
   Context {Monad_m : Monad m}.
   Context {MonadPlus_m : MonadPlus m}.
@@ -33,49 +37,65 @@ Section canceller.
   Definition facts_add (f : expr) (es : list expr) : facts -> facts :=
     cons (f, es).
 
-  Notation "'lazy' val" := (fun x : unit => match x with
-                                              | tt => val
-                                            end) (at level 50, val at next level).
+  Notation "'lazy' val" := (fun x : unit => val) (at level 50, val at next level).
   Notation "'force' val" := (val tt) (at level 50).
 
   Section fold.
     Variable b : Type.
-    Variable cmd : expr -> list expr -> (unit -> facts) -> m b -> m b.
+    Variable cmd : expr -> list expr -> Lazy facts -> (Delay (m b)) -> Delay (m b).
 
-    Fixpoint fold_rest (rem f : facts) (acc : m b) : m b :=
+    Fixpoint fold_rest (rem f : facts) (acc : Delay (m b)) : Delay (m b) :=
       match f with
         | nil => acc
         | fes :: f' =>
-          let '(f,es) := fes in
-          (fold_rest (fes :: rem) f')
-                     (cmd f es (lazy (List.rev_append rem f')) acc)
+          cobind acc (fun acc =>
+                        let '(f,es) := fes in
+                        coret ((fold_rest (fes :: rem) f')
+                                 (cmd f es (lazy (List.rev_append rem f')) acc)))
       end.
 
-    Definition foldM (acc : m b) (f : facts) : m b :=
+    Definition foldM (acc : Delay (m b)) (f : facts) : Delay (m b) :=
       fold_rest nil f acc.
   End fold.
 
   Import MonadNotation.
   Local Open Scope monad_scope.
 
-  Fixpoint cancel_from (ls : list (expr * list expr))
-           (rhs : facts) (rem : facts) : m (facts * facts) :=
+  Variable wmjoin : forall T, (Delay (m T)) -> (Delay (m T)) -> Delay (m T).
+
+  Fixpoint cancel_from' (ls : list (expr * list expr))
+           (rhs : facts) (rem : facts) : Delay (m (facts * facts)) :=
     match ls with
-      | nil => ret (rem, rhs)
+      | nil => fun _ => ret (rem, rhs)
       | (lf,largs) :: ls =>
         foldM (fun f args rest =>
-                 mjoin (u <- unify lf largs f args ;;
-                        if u
-                        then cancel_from ls (force rest) rem
-                        else mzero))
-              (cancel_from ls rhs (facts_add lf largs rem))
+                 wmjoin (fun x =>
+                           u <- unify lf largs f args ;;
+                           if u then (cancel_from' ls (force rest) rem) x else mzero))
+              (cancel_from' ls rhs (facts_add lf largs rem))
               rhs
     end.
+
+  Fixpoint cancel_from'' (ls : list (expr * list expr))
+           (rhs : facts) (rem : facts) : Delay (m (facts * facts)) :=
+    match ls with
+      | nil => fun _ => ret (rem, rhs)
+      | (lf,largs) :: ls =>
+        foldM (fun f args rest =>
+                 wmjoin (cobind (cancel_from'' ls (force rest) rem)
+                                (fun x =>
+                                   u <- unify lf largs f args ;;
+                                   if u then coret x else mzero)))
+              (fun x => cancel_from'' ls rhs (facts_add lf largs rem) x)
+              rhs
+    end.
+
+  Definition cancel_from :=
+    Eval cbv beta iota zeta delta [ cancel_from'' cobind coret CoMonad_Lazy _lazy ] in
+      cancel_from''.
+
 End canceller.
 
-(** Demo: This definition suffers from huge performance problems
- ** because vm_compute is call-by-value.
- **)
 Module demo.
   Require Import ExtLib.Data.Monads.StateMonad.
   Require Import ExtLib.Data.Monads.OptionMonad.
@@ -186,18 +206,35 @@ Module demo.
     Local Existing Instance MonadState_m.
     Local Existing Instance MonadZero_m.
 
+    Definition wmjoin {T} (a b : Lazy (m T)) : Lazy (m T) :=
+      fun x : unit => @mkStateT _ _ _ (fun s =>
+                                         match runStateT (a x) s with
+                                           | Some x => Some x
+                                           | None => runStateT (b x) s
+                                         end).
+
     Definition test_single (a : list (expr func * list (expr func))) (b : facts func)
     : option ((facts func * facts func) * subst) :=
-      runStateT (@cancel_from func m _ _ _ (@unify _ _ _) a b nil) nil.
+      runStateT (force (@cancel_from func m _ _ (@unify _ _ _) (@wmjoin) a b nil)) nil.
+
+    Definition test_single' (a : list (expr func * list (expr func))) (b : facts func)
+    : option ((facts func * facts func) * subst) :=
+      runStateT (force (@cancel_from'' func m _ _ (@unify _ _ _) (@wmjoin) a b nil)) nil.
 
     Eval compute in ptsto_chain UVar 1.
     Eval compute in ptsto_chain Var 1.
 
     Eval vm_compute in test_single (ptsto_chain Var 4) (List.rev (ptsto_chain UVar 4)).
-    Time Eval lazy in match test_single (ptsto_chain Var 80) (List.rev (ptsto_chain UVar 80)) with
+    Time Eval vm_compute in match test_single' (ptsto_chain Var 200) (List.rev (ptsto_chain UVar 200)) with
                          | None => false
                          | Some _ => true
                        end.
+
+    Time Eval vm_compute in match test_single (ptsto_chain Var 500) (List.rev (ptsto_chain UVar 500)) with
+                         | None => false
+                         | Some _ => true
+                       end.
+
   End single.
 
   Section multi.
@@ -212,11 +249,13 @@ Module demo.
     Local Existing Instance MonadState_m.
     Local Existing Instance MonadZero_m.
 
-
+    Definition wmjoin_list {T} (a b : Lazy (m T)) : Lazy (m T) :=
+      fun x : unit => @mkStateT _ _ _ (fun s =>
+                                         runStateT (a x) s ++ runStateT (b x) s).
     Definition test_multi (a : list (expr func * list (expr func))) (b : facts func)
     : list ((facts func * facts func) * subst) :=
-      runStateT (@cancel_from func m _ _ _ (@unify _ _ _) a b nil) nil.
+      runStateT (@cancel_from func m _ _ (@unify _ _ _) (@wmjoin_list) a b nil tt) nil.
 
-    Eval vm_compute in test_multi (ptsto_chain Var 2) (List.rev (ptsto_chain UVar 2)).
+    Eval vm_compute in test_multi (ptsto_chain Var 4) (List.rev (ptsto_chain UVar 4)).
   End multi.
 End demo.
