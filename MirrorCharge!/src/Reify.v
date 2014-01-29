@@ -2,7 +2,7 @@ Require Import MirrorCore.Ext.Expr.
 Require Import ILogicFunc.
 Require Import ILogic.
 
-Add ML Path "../plugins".
+Add ML Path "plugins".
 Declare ML Module "reify_ILogicFunc_plugin".
 
 Set Printing All.
@@ -51,14 +51,16 @@ intro. reify_goal.
 refine (fun x => x).
 Qed.
 
-Goal False.
+Goal True -> True.
 reify_goal.
+refine (fun x => x).
+Qed.
 
 Goal False -> False.
 reify_goal.
 (** There seems to be a bug in Coq if you solve this using:
  **   [fun x => match x with end]
- ** or I am constructing a bad term, but I can't tell. 
+ ** or I am constructing a bad term, but I can't tell.
  **)
 refine (fun x => x).
 Qed.
