@@ -57,7 +57,8 @@ reify_goal.
 Goal False -> False.
 reify_goal.
 (** There seems to be a bug in Coq if you solve this using:
- ** [fun x => match x with end]
+ **   [fun x => match x with end]
+ ** or I am constructing a bad term, but I can't tell. 
  **)
 refine (fun x => x).
 Qed.
