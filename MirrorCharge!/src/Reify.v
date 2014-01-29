@@ -3,6 +3,7 @@ Require Import ILogicFunc.
 Require Import ILogic.
 
 Add ML Path "plugins".
+Add ML Path "../plugins".
 Declare ML Module "reify_ILogicFunc_plugin".
 
 Set Printing All.
