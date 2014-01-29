@@ -56,6 +56,15 @@ Proof.
          end; intuition.
 Qed.
 
+(** TODO: Build an ordered map over types **)
+(** the canonical implementation doesn't work!
+Inductive tree : (typ -> Type) -> Type :=
+| Node : forall F, option (F tyProp) ->
+         tree (fun t => tree (fun u => F (tyArr t u))) ->
+         tree F
+| Empty : forall F, tree F.
+**)
+
 Section RFunc.
   Variable ts : types.
 
@@ -248,6 +257,55 @@ Section RFunc.
   ; symD := funcD
   }.
 End RFunc.
+
+Section RFunc_ctor.
+  Variable ts : types.
+
+  Record tc_logic_opt : Type :=
+  { logic_typ : typ
+  ; logicD : ILogicOps (typD ts nil logic_typ) }.
+  Definition tc_map := list tc_logic_opt.
+
+  Fixpoint tc_map_to_logic_ops (ls : list tc_logic_opt) (t : typ) : option (ILogicOps (typD ts nil t)) :=
+    match ls with
+      | nil => None
+      | {| logic_typ := lt ; logicD := logic |} :: ls =>
+        match typ_eq_odec lt t with
+          | Some pf => Some match pf in _ = t return ILogicOps (typD ts nil t) with
+                              | eq_refl => logic
+                            end
+          | None => tc_map_to_logic_ops ls t
+        end
+    end.
+
+  Record embed_opt : Type :=
+  { embed_from : typ
+  ; embed_to : typ
+  ; embedD : EmbedOp (typD ts nil embed_from) (typD ts nil embed_to) }.
+
+  Fixpoint embed_map_to_embed_ops (ls : list embed_opt) (t u: typ) : option (EmbedOp (typD ts nil t) (typD ts nil u)) :=
+    match ls with
+      | nil => None
+      | {| embed_from := ef ; embed_to := et ; embedD := embed |} :: ls =>
+        match typ_eq_odec ef t , typ_eq_odec et u with
+          | Some pf , Some pf' =>
+            Some match pf in _ = t , pf' in _ = u
+                       return EmbedOp (typD ts nil t) (typD ts nil u) with
+                   | eq_refl , eq_refl => embed
+                 end
+          | _ , _ => None
+        end
+    end.
+
+  Definition RSym_ilfunc_ctor (fm : PositiveMap.t (function ts)) (tm : list tc_logic_opt) (em : list embed_opt)
+  : RSym (@typD ts) ilfunc :=
+    let to := tc_map_to_logic_ops tm in
+    let eo := embed_map_to_embed_ops em in
+  {| typeof_sym := @typeof_func ts fm to eo
+  ; sym_eqb := fun a b => Some (rel_dec a b)
+  ; symD := @funcD ts fm to eo
+  |}.
+End RFunc_ctor.
 
 (*
 Section demo.
