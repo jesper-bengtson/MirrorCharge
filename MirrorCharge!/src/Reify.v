@@ -10,14 +10,6 @@ Set Printing All.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Fixpoint to_containers {T} (f : FMapPositive.PositiveMap.tree T)
-: MapPositive.PositiveMap.tree T :=
-  match f with
-    | FMapPositive.PositiveMap.Leaf => MapPositive.PositiveMap.Leaf _
-    | FMapPositive.PositiveMap.Node a b c =>
-      MapPositive.PositiveMap.Node (to_containers a) b (to_containers c)
-  end.
-
 Definition Provable a b c d e f : Prop :=
   match @exprD a b c d e f tyProp with
     | Some x => x
@@ -31,7 +23,7 @@ Ltac reify_goal :=
           idtac e ;
           pose e ;
           let funcs := fresh "funcs" in
-          try pose (funcs := @RSym_ilfunc_ctor t (to_containers f) l nil) ;
+          try pose (funcs := @RSym_ilfunc_ctor t f l nil) ;
           (try change (@Provable t ilfunc funcs nil nil e))
       in
       reify_expr X k

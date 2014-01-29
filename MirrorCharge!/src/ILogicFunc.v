@@ -21,6 +21,7 @@ Inductive ilfunc :=
 | ilf_impl : typ -> ilfunc
 | ilf_exists : typ -> typ -> ilfunc
 | ilf_forall : typ -> typ -> ilfunc
+(** It may be a little nicer to remove embed **)
 | ilf_embed (from to : typ)
 | fref (fi : positive).
 
@@ -72,6 +73,17 @@ Section RFunc.
     option (ILogicOps (typD ts nil t)).
   Definition embed_ops := forall (t u : typ),
     option (EmbedOp (typD ts nil t) (typD ts nil u)).
+  Definition logic_opsOk (l : logic_ops) : Prop :=
+    forall g, match l g return Prop with
+                | Some T => @ILogic _ T
+                | None => True
+              end.
+  Definition embed_opsOk (ls : logic_ops) (es : embed_ops) : Prop :=
+    forall t t',
+      match ls t , ls t' , es t t' return Prop with
+        | Some a , Some b , Some T => @Embed _ _ _ _ T
+        | _ , _ , _ => True
+      end.
 
   Record function := F
   { ftype : typ
@@ -277,13 +289,29 @@ Section RFunc_ctor.
           | None => tc_map_to_logic_ops ls t
         end
     end.
+  Definition tc_mapOk (t : tc_map) : Prop :=
+    @List.Forall tc_logic_opt (fun x => @ILogic _ (logicD x)) t.
+
+  Theorem tc_mapOk_to_logic_opsOk
+  : forall t, tc_mapOk t -> logic_opsOk (tc_map_to_logic_ops t).
+  Proof.
+    induction 1; simpl.
+    { red. auto. }
+    { red. intros.
+      destruct x.
+      destruct (typ_eq_odec logic_typ0 g).
+      { subst. apply H. }
+      { eapply IHForall. } }
+  Qed.
+
 
   Record embed_opt : Type :=
   { embed_from : typ
   ; embed_to : typ
   ; embedD : EmbedOp (typD ts nil embed_from) (typD ts nil embed_to) }.
+  Definition embed_map := list embed_opt.
 
-  Fixpoint embed_map_to_embed_ops (ls : list embed_opt) (t u: typ) : option (EmbedOp (typD ts nil t) (typD ts nil u)) :=
+  Fixpoint embed_map_to_embed_ops (ls : embed_map) (t u: typ) : option (EmbedOp (typD ts nil t) (typD ts nil u)) :=
     match ls with
       | nil => None
       | {| embed_from := ef ; embed_to := et ; embedD := embed |} :: ls =>
@@ -296,6 +324,23 @@ Section RFunc_ctor.
           | _ , _ => None
         end
     end.
+  Definition embed_mapOk (t : tc_map) (e : embed_map) : Prop :=
+    let gettc := tc_map_to_logic_ops t in
+    @List.Forall _ (fun x =>
+                      match gettc x.(embed_from) , gettc x.(embed_to) with
+                        | Some a , Some b => @Embed _ a _ b x.(embedD)
+                        | _ , _ => False
+                      end) e.
+  Theorem embed_mapOk_to_embed_opsOk
+  : forall t e, embed_mapOk t e ->
+                embed_opsOk (tc_map_to_logic_ops t) (embed_map_to_embed_ops e).
+  Proof.
+    induction 1.
+    { red. simpl. intros. Require Import ExtLib.Tactics. forward. }
+    { red. simpl. forward.
+      inv_all. subst. simpl in *.
+      rewrite H1 in *. rewrite H2 in *. inv_all. subst. assumption. }
+  Qed.
 
   Definition RSym_ilfunc_ctor (fm : PositiveMap.t (function ts)) (tm : list tc_logic_opt) (em : list embed_opt)
   : RSym (@typD ts) ilfunc :=
@@ -306,72 +351,6 @@ Section RFunc_ctor.
   ; symD := @funcD ts fm to eo
   |}.
 End RFunc_ctor.
-
-(*
-Section demo.
-  Context {T} `{ILT : ILogicOps T}.
-  Context {U} `{ILU : ILogicOps U}.
-  Context {T_U_embed : EmbedOp T U}.
-
-  Definition ts : types := (default_type T)::(default_type U)::(default_type nat)::nil.
-
-  Definition logics : logic_ops ts :=
-    fun t => match t with
-               | tyType 0 => Some ILT
-               | tyType 1 => Some ILU
-               | tyProp => Some _
-               | _ => None
-             end.
-
-  Definition embeds : embed_ops ts :=
-    fun t u =>
-      match t , u with
-        | tyProp , tyProp => Some {| embed := fun x => x |}
-        | tyType 0 , tyType 0 => Some {| embed := fun x => x |}
-        | tyType 1 , tyType 1 => Some {| embed := fun x => x |}
-        | tyType 0 , tyType 1 => Some _
-        | _ , _ => None
-      end.
-
-  Variable eq_nat : nat -> nat -> T.
-
-  Let T_T := tyType 0.
-  Let T_U := tyType 1.
-  Let T_nat := tyType 2.
-
-  Definition eq_nat_emb := F ts (tyArr T_nat (tyArr T_nat (tyType 0))) (eq_nat).
-
-  Definition funcs : fun_map ts := PositiveMap.add (1%positive) (eq_nat_emb) (PositiveMap.empty _).
-
-  Definition inj_and (p q : expr ilfunc) : expr ilfunc := App (App (Inj (ilf_and (tyType 0))) p) q.
-  Definition inj_or (p q : expr ilfunc) : expr ilfunc := App (App (Inj (ilf_or (tyType 0))) p) q.
-  Definition inj_impl (p q : expr ilfunc) : expr ilfunc := App (App (Inj (ilf_impl (tyType 0))) p) q.
-  Definition inj_true : expr ilfunc := Inj (ilf_true (tyType 0)).
-  Definition inj_false : expr ilfunc := Inj (ilf_false (tyType 0)).
-  Definition inj_exists (a : typ) (f : expr ilfunc) : expr ilfunc :=
-  	App (Inj (ilf_exists a (tyType 0))) (Abs a f).
-  Definition inj_forall (a : typ) (f : expr ilfunc) : expr ilfunc :=
-  	App (Inj (ilf_forall a (tyType 0))) (Abs a f).
-  Definition inj_eq_nat (a b : expr ilfunc) : expr ilfunc :=
-    App (App (Inj (fref (1%positive))) a) b.
-
-  Definition tm : expr ilfunc := inj_and inj_true inj_true.
-  Definition tm2 : expr ilfunc := inj_forall T_nat (inj_eq_nat (Var 0) (Var 0)).
-
-
-  (** TODO: Here we run into a problem because the [expr] type is
-   ** fixed to the [typ] defined in [MirrorCore.Ext.Types].
-   ** - To solve this problem, we need to abstract [expr] with respect to
-   **   types.
-   **)
-
-  Definition testD := @exprD ts _ (@RSym_ilfunc ts funcs logics embeds) nil nil.
-
-  Eval cbv beta iota zeta delta - [ltrue land] in testD tm (tyType 0).
-  Eval cbv beta iota zeta delta - [ltrue land lforall] in testD tm2 (tyType 0).
-
-End demo.
-*)
 
 (*
 Section enhanced_resolution.

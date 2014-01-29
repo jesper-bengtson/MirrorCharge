@@ -19,15 +19,8 @@ Set Strict Implicit.
 
 Section Tauto.
   Context (ts : types) (funcs : fun_map ts) (gs : logic_ops ts) (es : embed_ops ts).
-  Context (H : forall g, match gs g return Type with
-                             | Some T => @ILogic _ T
-                             | None => unit
-                           end).
-  Context (Hembed : forall t t',
-                      match gs t , gs t' , es t t' return Type with
-                        | Some a , Some b , Some T => @Embed _ _ _ _ T
-                        | _ , _ , _ => unit
-                      end).
+  Context (H : logic_opsOk gs).
+  Context (Hembed : embed_opsOk gs es).
 
   Local Notation "P //\\ Q" := (App (App (Inj (ilf_and _)) P) Q).
 

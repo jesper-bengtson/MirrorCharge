@@ -449,10 +449,12 @@ let build_types (ls : Term.constr option list) =
 ;;
 
 let ctor_branch =
-  lazy (resolve_symbol ["Coq";"FSets";"FMapPositive";"PositiveMap"] "Node")
+  lazy (resolve_symbol ["Containers";"MapPositive";"PositiveMap"] "Node")
+(*  lazy (resolve_symbol ["Coq";"FSets";"FMapPositive";"PositiveMap"] "Node") *)
 
 let ctor_leaf =
-  lazy (resolve_symbol ["Coq";"FSets";"FMapPositive";"PositiveMap"] "Leaf")
+  lazy (resolve_symbol ["Containers";"MapPositive";"PositiveMap"] "Leaf")
+(*  lazy (resolve_symbol ["Coq";"FSets";"FMapPositive";"PositiveMap"] "Leaf") *)
 
 let e_function =
   lazy (resolve_symbol ilfunc_pkg "function")
