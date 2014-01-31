@@ -192,7 +192,7 @@ Qed.
    	  rewrite H0 in H5. inversion H5; subst.
    	  assert (ILogic (typD ts nil t)) by admit.
    	  reflexivity.
-   	* forward; inv_all; subst. simpl in *.
+   	* forward; inv_all; subst; simpl in *.
    	  forward; inv_all; subst; simpl in *.
    	  red_exprD; forward; inv_all; subst; simpl in *.
    	  forward; inv_all; subst.
@@ -212,802 +212,111 @@ Qed.
    	  forward; inv_all; revert H0; revert ft; subst; intros.
    	  forward; inv_all; subst.
    	  red_exprD; forward; inv_all; subst.
-          clear H0.
+      clear H0.
+      
+      Lemma add_quants_app xs tIL ys p :
+      	add_quants xs tIL (add_quants ys tIL p) = add_quants (xs ++ ys) tIL p.
+      Proof.
+      	induction xs; simpl in *; [|rewrite IHxs]; reflexivity.
+      Qed.
+      
+      Lemma add_quants_sub tus tvs p q xs t d tIL 
+        (H: forall d, exprD' tus ((rev xs)++tvs) p t = Some d -> match exprD' tus ((rev xs)++tvs) q t, gs t with
+      		    | Some d', Some _ => forall vs, d vs |-- d' vs
+      		    | Some _, None    => True
+      		    | _, _            => False
+      		  end)
+        (Hp : exprD' tus tvs (add_quants xs tIL p) t = Some d) :
+        match exprD' tus tvs (add_quants xs tIL q) t, gs t with
+        	| Some d', Some _ => forall vs, d vs |-- d' vs
+        	| Some _, None    => True
+        	| _, _            => False
+        end.
+        Proof.
+        	generalize dependent tvs; induction xs; simpl in *; intros.
+        	+ apply H; assumption.
+        	+ red_exprD; forward; inv_all; revert Hp; subst; simpl in *; intros.
+        	  red_exprD; forward; inv_all; simpl in *; subst.
+              red_exprD; forward; inv_all; simpl in *; subst.
+              uip_all'; intros.
+              rewrite <- app_assoc in H1; simpl in H1.
+              specialize (IHxs (a::tvs) t0 H1).
+              forward.
+              specialize (IHxs H0). 
+              assert (ILogic (typD ts nil t)) by admit.
+              setoid_rewrite IHxs. reflexivity.
+        Qed.      
 
-          Lemma test tus tvs xs ys tIL p q t d
+           Lemma lift_lift2 (A : Type) (e : expr A) (a b c : nat) : lift a (b + c) e = lift (a + b) c (lift a b e).
+           Proof.
+           	admit.
+           Qed.
+           
+           Lemma lift_appL tus tvs xs ys tIL p q t d 
+           		(H : exprD' tus tvs (add_quants (xs ++ ys) tIL
+           			(App (lift (length xs) (length ys) p)
+           				(lift 0 (length xs) q))) t = Some d) :
+           		match exprD' tus tvs (add_quants ys tIL (App (lift 0 (length ys) (add_quants xs tIL p)) q))  t, gs t with
+           		| Some d', Some _ => forall vs, d vs |-- d' vs
+   				| Some _, None => True
+   				| None, _ => False
+   				end.
+   			Proof.
+   				generalize dependent tvs. generalize dependent ys.
+   				induction xs; intros; simpl in *.
+   				+ rewrite H. forward. 
+			      assert (ILogic (typD ts nil t)) by admit.
+			      reflexivity.
+			    + red_exprD; forward; inv_all; revert H4; subst; simpl in *; intros.
+			      red_exprD; forward; inv_all; simpl in *; subst.
+			      red_exprD; forward; inv_all; simpl in *; subst.
+			      specialize (IHxs ys (a :: tvs) t0).
+			      admit.
+   			Qed.
+
+        
+           Lemma lift_appR tus tvs xs ys tIL p q t d
+           		(H : exprD' tus tvs (add_quants (xs ++ ys) tIL
+           			(App (lift (length xs) (length ys) p)
+           				(lift 0 (length xs) q))) t = Some d) :
+           		match exprD' tus tvs (add_quants xs tIL (App p (lift 0 (length xs) (add_quants ys tIL q)))) t, gs t with
+           		| Some d', Some _ => forall vs, d vs |-- d' vs
+   				| Some _, None => True
+   				| None, _ => False
+   				end.
+   		   Proof.
+			  generalize dependent xs. generalize dependent p. generalize dependent q.
+			  induction ys; intros.
+			  + replace (xs ++ nil) with xs in H by (rewrite app_nil_r; reflexivity).
+			    simpl in *; rewrite H. forward. 
+			    assert (ILogic (typD ts nil t)) by admit.
+			    reflexivity.
+			  + specialize (IHys q (lift (length xs) 1 p) (xs ++ (a::nil))).
+			    replace (xs ++ a :: ys) with ((xs ++ a::nil) ++ ys) in H by (rewrite <- app_assoc; reflexivity).
+			    rewrite app_length in *; simpl in *.
+			    Check lift_lift.
+			    rewrite <- lift_lift' in *.
+			    rewrite <- lift_lift2 in IHys.
+			    simpl in *.
+		        admit.
+		  Qed.
+
+          Lemma lift_app tus tvs xs ys tIL p q t d
                 (H : exprD' tus tvs (add_quants (xs ++ ys) tIL
-                                                     (App (lift 0 (length xs) (length ys) p))
+                                                     (App (lift (length xs) (length ys) p)
                                                           (lift 0 (length xs) q))) t = Some d) :
-            match exprD' tus tvs (add_quants xs tIL (App p
-                                                               (lift 0 (length xs) 
-                                                                     (add_quants zs tIL q)))) t, 
+            match exprD' tus tvs (App (add_quants xs tIL p) (add_quants ys tIL q)) t, 
                   gs t with
               | Some d', Some _ => forall vs, d vs |-- d' vs
               | Some _, None => True
               | None, _ => False
             end.
           Proof.
-            generalize dependent xs; generalize dependent q.
-            induction ys; simpl in *.
-            + induction zs; simpl in *; intros.
-              * forward; inv_all; subst. 
-                assert (ILogic (typD ts nil t)) by admit.
-                reflexivity.
-              * specialize (IHzs (lift 0 1 q) (xs ++ (a::nil))).
-                rewrite app_nil_r in *.
-                rewrite <- app_assoc in IHzs; simpl in *.
-                replace (length xs + 0) with (length xs) in * by omega.
-                rewrite lift_lift in IHzs.
-                rewrite app_length in *; simpl in *.
-                rewrite NPeano.Nat.add_0_r in IHzs.
-                specialize (IHzs H).
-                SearchAbout 0 plus.
-                SearchAbout length List.app.
-                SearchAbout List.nil List.app.
-                replace
-
-red_exprD; forward; inv_all; revert H4; subst; intros; simpl in *.
-                red_exprD; forward; inv_all; subst; simpl in *.
-                forward; inv_all; subst.
-(*                specialize (IHxs (lift 0 1 q) (a::tvs) t0).
-                rewrite lift_lift in IHxs; simpl in IHxs.
-                replace (length xs + 1) with (S (length xs)) in IHxs by omega.
-                specialize (IHxs H).
-                red_exprD; forward; inv_all; subst.
-                pose proof (exprD'_lift RSym_sym tus nil (a::nil) tvs q t) as H2.
-                simpl in H2.
-                admit.
-                forward; inv_all; subst.
-                red_exprD; forward; inv_all; subst.
-                red_exprD; forward; inv_all; subst.
-                rewrite typ_cast_typ_refl.
-                assert (t = t3) by admit; subst.
-                red_exprD; forward; inv_all; subst.
-                uip_all.
-                assert (ILogic (typD ts nil t3)) by admit.
-                apply lexistsL; intro y.
-                specialize (H7 HList.Hnil (HList.Hcons y HList.Hnil) vs).
-                rewrite IHys. simpl in H7. rewrite <- H7.*)
-                admit.
-            + intros; simpl in *. 
-              SearchAbout lift.
-              red_exprD; forward; inv_all; revert H4; subst; simpl in *; intros.
-              red_exprD; forward; inv_all; subst.
-              forward; inv_all; subst.
-              simpl in H1. forward; inv_all; subst.
-              specialize (IHys (lift (length xs) 1 p) (a::tvs) t0).
-              rewrite lift_lift in IHys.
-              replace (length ys + 1) with (S (length ys)) in IHys by omega.
-              simpl in IHys. specialize (IHys H).
-              red_exprD; forward; inv_all; subst; simpl in *.
-              progress forward.
-              pose proof (exprD'_lift RSym_sym tus nil (a::nil) tvs p t 
-              SearchAbout lift exprD'.
-              red_exprD; forward; inv_all; subst.
-              
-                assert (t5 (HList.Hcons y vs) (t6 (HList.Hcons y vs)) = 
-rewrite <- H7.
-                progress (red_exprD; forward; inv_all; subst).
-                forward.
-                SearchAbout typeof_expr lift.
-                red_exprD.
-                forward.
-                Check lift_lift.
-            simpl in *.
-                
-
-          Definition add_quants_pull_left p :=
-            forall tus a tvs l tq t dp q dq,
-              exprD' tus (a :: tvs) (add_quants l (tyArr tq t) p) (tyArr tq t) =
-              Some dp ->
-              exprD' tus tvs q tq = Some dq  ->
-              match gs t, gs (tyArr tq t)  with
-                | Some _, Some _ => forall vs, Exists x, (dp (HList.Hcons x vs)) (dq vs) |--
-                                               (Exists x, dp (HList.Hcons x vs)) (dq vs)
-                | _, _ => True
-              end.
-
-          Definition add_quants_pull_right p :=
-            forall tus a tvs l tq t dp q dq,
-              exprD' tus tvs p (tyArr tq t) = Some dp ->
-              exprD' tus (a::tvs) (add_quants l tq q) tq = Some dq  ->
-              match gs t, gs tq  with
-                | Some _, Some _ => forall vs, Exists x, (dp vs) (dq (HList.Hcons x vs)) |--
-                                               (dp vs) (Exists x, dq (HList.Hcons x vs))
-                | _, _ => True
-              end.
-
-        Lemma add_quants_pull_lift_left p n m (H : add_quants_pull_left p) : add_quants_pull_left (lift n m p).
-        Proof.
-          admit.
-        Qed.
-
-        Lemma add_quants_pull_lift_right p n m (H : add_quants_pull_right p) : add_quants_pull_right (lift n m p).
-        Proof.
-          admit.
-        Qed.
-
-
-   	Lemma PRQ_app tus tvs t p q tq l1 l2 dpq
-   	      (H : exprD' tus tvs (add_quants (l1 ++ l2) t 
-                                              (App (lift (length l1) (length l2) p)
-                                                   (lift 0 (length l1) q))) t = Some dpq)
-   	      (Htp : typeof_expr (typeof_env tus) ((rev l1) ++ (rev l2) ++ tvs) 
-                                 (lift (length l1) (length l2) p) = Some (tyArr tq t))
-              (HpullL : add_quants_pull_left p) 
-              (HpullR : add_quants_pull_right p) :
-   	  exists dp dq, exprD' tus tvs (add_quants l1 (tyArr tq t) p) (tyArr tq t) = Some dp /\
-   	                exprD' tus tvs (add_quants l2 tq q) tq = Some dq /\
-   	                match gs t with 
-   	                  | Some _ => forall vs, dpq vs |-- (dp vs) (dq vs)
-   	                  | None => True
-   	                end.
-   	Proof.
-            assert (exists i, gs tq = Some i) by admit; destruct H0 as [i1 Hi1].
-     	    generalize dependent tvs; generalize dependent p.
-   	    induction l2; simpl in *. intros p HpullL HpullR; generalize dependent q.
-   	    + induction l1; simpl in *; intros.
-   	      * red_exprD; forward; inv_all; subst; simpl in *.
-   	  	exists t3. exists t4. do 2 (split; [assumption|]).
-   	  	forward. uip_all'.
-   	  	assert (ILogic (typD ts nil t)) by admit.
-   	  	reflexivity.
-   	      * red_exprD; forward; inv_all; revert H4; clear H7; subst.
-   	  	red_exprD; forward; inv_all; subst; simpl in *.
-   	  	forward; inv_all; subst; simpl.
-                replace (l1 ++ nil) with l1 in H2, IHl1 by admit.
-                
-                replace ((rev l1 ++ a :: nil) ++ tvs) with (rev l1 ++ a :: tvs) in Htp 
-                  by (rewrite <- app_assoc; reflexivity).
-		specialize (IHl1 (lift 0 1 q) (a::tvs)).
-                rewrite lift_lift in IHl1.
-                replace (length l1 + 1) with (S (length l1)) in IHl1 by omega.
-                destruct (IHl1 _ H2 Htp) as [dp [dq [Hdp [Hdq Heq]]]]; clear IHl1.
-
-                pose proof (exprD'_lift RSym_sym tus nil (a::nil) tvs q tq).
-                simpl in H0. unfold lift in Hdq. rewrite Hdq in H0.
-                forward; inv_all; subst.
-                simpl in t1.
-                assert (exists ILApp, gs (tyArr tq t) = Some ILApp) by admit.
-                destruct H3 as [ILApp HILApp].
-                forward. rewrite typ_cast_typ_refl. 
-                exists (fun vs => Exists x, dp (HList.Hcons x vs)); exists t0.
-                uip_all.
-                red_exprD; forward; inv_all; subst.
-                red_exprD; forward; inv_all; subst.
-                do 2 (split; [reflexivity|]).
-                intros.
-                assert (ILogic (typD ts nil t)) by admit.
-                apply lexistsL; intro x.
-                rewrite Heq.
-                specialize (H1 HList.Hnil (HList.Hcons x HList.Hnil) vs).
-                unfold add_quants_pull_left in HpullL.
-                specialize (HpullL tus a tvs l1 tq t dp q t0 H5 H0).
-                rewrite H in HpullL; rewrite H3 in HpullL.
-                rewrite <- HpullL. apply lexistsR with x.
-                simpl in H1. rewrite <- H1. reflexivity.
-            + intros.
-              red_exprD; forward; inv_all; subst.
-              red_exprD; forward; inv_all; subst.
-              red_exprD; forward; inv_all; subst.
-SearchAbout lift exprD'.
-              Lemma lift_add_quants tus tvs l1 l2 l3 p q t tIL :
-                exprD' tus tvs (add_quants (l1 ++ l2 ++ l3) tIL
-                                           (App (lift (length l1) (length l2 + length l3) p)
-                                                (lift 0 (length l1) q))) t =
-                exprD' tus (l2 ++ tvs) (add_quants (l1 ++ l3) tIL (App (lift (length l1) (length l3) p)
-                                                                   (add_quants l2 tIL q))) t.
-
-              replace ((rev l2 ++ a:: nil) ++ rev l1 ++ tvs) with 
-                      (rev l2 ++ (rev l1 ++ (a::nil)) ++ tvs) in Htp.
-              Check lift_lift.
-              SearchAbout add_quants
-              red_exprD; forward; inv_all; subst.
-              forward; inv_all; subst.
-              rewrite typ_cast_typ_refl.
-              unfold typeof_sym in H; simpl in H.
-              forward; inv_all; subst. uip_all. clear x.
-              replace (rev l2 ++ (rev l1 ++ a :: nil) ++ tvs) with (rev l2 ++ rev l1 ++ a :: tvs) in Htp 
-                 by (rewrite <- app_assoc; reflexivity).
-              specialize (IHl1 (a::tvs) t1).
-              Print subst.
-              SearchAbout lift.
-              Lemma liftS (func : Type) (e : expr func) (a b d : nat) :
-                lift a b  = lift a (S b) e.
-              Print lower'.
-              SearchAbout lift.
-              SearchAbout lower.
-              Check lift_lift.
-              progress forward.
-     	    generalize dependent dpq. generalize dependent tvs. 
-   	    induction l2; simpl in *. 
-   	    generalize dependent q.
-            assert (exists i, gs tq = Some i) by admit; destruct H0 as [i1 Hi1].
-     	    (*generalize dependent dpq.*) generalize dependent tvs. 
-   	    induction l1; simpl in *. generalize dependent p.
-   	    + induction l2; simpl in *; intros.
-   	      * red_exprD; forward; inv_all; subst; simpl in *.
-   	  	exists t3. exists t4. do 2 (split; [assumption|]).
-   	  	forward. uip_all'.
-   	  	assert (ILogic (typD ts nil t)) by admit.
-   	  	reflexivity.
-   	      * red_exprD; forward; inv_all; revert H4. clear H8; subst.
-   	  	red_exprD; forward; inv_all; subst; simpl in *.
-   	  	forward; inv_all; subst.
-		simpl. rewrite typ_cast_typ_refl.
-                replace ((rev l2 ++ a :: nil) ++ tvs) with (rev l2 ++ a :: tvs) in Htp 
-                  by (rewrite <- app_assoc; reflexivity).
-                assert (add_quants_pull_left (lift 0 1 p)) as HpullL' 
-                  by (apply add_quants_pull_lift_left; apply HpullL).
-                assert (add_quants_pull_right (lift 0 1 p)) as HpullR'
-                  by (apply add_quants_pull_lift_right; apply HpullR).
-		specialize (IHl2 (lift 0 1 p) HpullL' HpullR' (a::tvs)).
-                rewrite lift_lift in IHl2.
-                replace (length l2 + 1) with (S (length l2)) in IHl2 by omega.
-                destruct (IHl2 _ H2 Htp) as [dp [dq [Hdp [Hdq Heq]]]]; clear IHl2.
-                pose proof (exprD'_lift RSym_sym tus nil (a::nil) tvs p (tyArr tq t)).
-                simpl in H0. unfold lift in Hdp. rewrite Hdp in H0.
-                forward; inv_all; subst.
-                exists t0; exists (fun vs => Exists x, dq (HList.Hcons x vs)).
-                do 2 (split; [reflexivity|]).
-                intros. uip_all.
-                assert (ILogic (typD ts nil t)) by admit.
-                apply lexistsL; intros.
-                rewrite Heq.
-                specialize (H1 HList.Hnil (HList.Hcons x0 HList.Hnil) vs).
-                unfold add_quants_pull_right in HpullR.
-                specialize (HpullR tus a tvs l2 tq t t0 q dq H0 H3).
-                rewrite H in HpullR. rewrite H5 in HpullR.
-                simpl in H1.
-                rewrite <- HpullR, <- H1.
-                apply lexistsR with x0. reflexivity.
-            + intros.
-              SearchAbout lift.
-              assert (exists i, gs (tyArr tq t) = Some i) by admit; destruct H0 as [i2 Hi2].
-              red_exprD; forward; inv_all; revert H4; clear H8; subst.
-              red_exprD; forward; inv_all; subst.
-              forward; inv_all; subst.
-              rewrite typ_cast_typ_refl.
-              unfold typeof_sym in H; simpl in H.
-              forward; inv_all; subst. uip_all. clear x.
-              replace (rev l2 ++ (rev l1 ++ a :: nil) ++ tvs) with (rev l2 ++ rev l1 ++ a :: tvs) in Htp 
-                 by (rewrite <- app_assoc; reflexivity).
-              specialize (IHl1 (a::tvs) t1).
-              Print subst.
-              SearchAbout lift.
-              Lemma liftS (func : Type) (e : expr func) (a b d : nat) :
-                lift a b  = lift a (S b) e.
-              Print lower'.
-              SearchAbout lift.
-              SearchAbout lower.
-              Check lift_lift.
-              progress forward.
-     	    generalize dependent dpq. generalize dependent tvs. 
-   	    induction l2; simpl in *. 
-   	    generalize dependent q.
-   	    + induction l1; simpl in *; intros.
-   	      * red_exprD; forward; inv_all; subst; simpl in *.
-   	  	exists t3. exists t4. do 2 (split; [assumption|]).
-   	  	forward. uip_all'.
-   	  	assert (ILogic (typD ts nil t)) by admit.
-   	  	reflexivity.
-   	      * assert (exists ILOps', gs (tyArr tq t) = Some ILOps') by admit.
-                destruct H0.
-                red_exprD; forward; inv_all; revert H5; clear H9; subst.
-   	  	red_exprD; forward; inv_all; subst; simpl in *.
-   	  	forward; inv_all; subst.
-		simpl. forward.
-                replace ((rev l1 ++ a :: nil) ++ tvs) with (rev l1 ++ a :: tvs) in Htp 
-                  by (rewrite <- app_assoc; reflexivity).
-                rewrite typ_cast_typ_refl.
-		specialize (IHl1 (lift 0 1 q) (a::tvs) Htp t1).
-                rewrite lift_lift in IHl1.
-                unfold lift in IHl1.
-                replace (length l1 + 1) with (S (length l1)) in IHl1 by omega.
-                destruct (IHl1 H3) as [dp [dq [Hdp [Hdq Heq]]]]; clear IHl1.
-                pose proof (exprD'_lift RSym_sym tus nil (a::nil) tvs q tq).
-                simpl in H1. rewrite Hdq in H1.
-                forward. inv_all; subst.
-                exists (fun vs => Exists x, dp (HList.Hcons x vs)); exists t0.
-                do 2 (split; [reflexivity|]).
-                intros. uip_all.
-                assert (ILogic (typD ts nil t)) by admit.
-                apply lexistsL; intros.
-                rewrite Heq.
-                specialize (H2 HList.Hnil (HList.Hcons x1 HList.Hnil) vs).
-                specialize (Hpull tus a tvs l1 tq t dp q t0 H4 H1).
-                rewrite H in Hpull. rewrite H0 in Hpull.
-                simpl in H2.
-                rewrite <- Hpull, <- H2.
-                apply lexistsR with x1. reflexivity.
-            + intros.
-              
-   	    generalize dependent q.
-   	  Lemma app_bin tus tvs t f p q tp tq l1 l2 df dpq 
-   	  	(H : exprD' tus tvs (fold_right (fun x a => App (Inj (ilf_exists x t)) (Abs x a))
-   	  								(App (App f p) (lift 0 (length l1) q))
-   	  								(l1 ++ l2)) t = Some dpq) 
-   	    (HILtp : ILogicOps (typD ts nil tp))
-   	    (gstp  : gs tp = Some HILtp)
-   	    (HILtq : ILogicOps (typD ts nil tq))
-   	    (gstq  : gs tq = Some HILtq)
-   	    (Ht : typeof_expr nil nil f = Some (tyArr tp (tyArr tq t))) 
-   	    (He : exprD' nil nil f (tyArr tp (tyArr tq t)) = Some df) 
-   	    (Hf : forall tus tvs t df, exprD' tus tvs f t = Some df -> forall tus' tvs' t' df', exprD' tus' tvs' f t' = Some df' -> t = t') 
-   	    (Hf' : forall tus tvs t df, exprD' tus tvs f t = Some df -> forall tus' tvs' df', exprD' tus' tvs' f t = Some df' -> forall vs vs', df vs = df' vs')
- 		(HexL : forall T p q,  
- 			match gs t with
- 				| Some _ => Exists x : T, df HList.Hnil p (q x) |-- df HList.Hnil p (Exists x : T, q x)
- 				| None => True
- 			end)  
-		(HexR : forall T p q,  
- 			match gs t with
- 				| Some _ => Exists x : T, df HList.Hnil (p x) q |-- df HList.Hnil (Exists x : T, p x) q
- 				| None => True
- 			end)  :
-   	  exists dp dq, exprD' tus tvs (fold_right (fun x a => App (Inj (ilf_exists x tp)) (Abs x a))
-   	                              p l1) tp = Some dp /\
-   	                exprD' tus tvs (fold_right (fun x a => App (Inj (ilf_exists x tq)) (Abs x a))
-   	                              q l2) tq = Some dq /\
-   	                match gs t with 
-   	                  | Some _ => forall vs, dpq vs |-- (df HList.Hnil) (dp vs) (dq vs)
-   	                  | None => True
-   	                 end.
-   	  Proof.
-   	    generalize dependent dpq. generalize dependent tvs. 
-   	  	induction l2; simpl in *. generalize dependent p.
-   	  	+ induction l1; simpl in *; intros.
-   	  	  * red_exprD; forward; inv_all; subst.
-   	  	    unfold type_of_apply in H6.
-   	  	    forward; inv_all; subst; simpl in *.
-   	  	    red_exprD; forward; inv_all; subst.
-   	  	    specialize (Hf _ _ _ _ H1 nil nil (tyArr tp (tyArr tq t)) _ He).
-   	  	    inv_all; subst.
-   	  	    exists t8; exists t4.
-   	  	    do 2 (split; [assumption |]). 
-   	  	    destruct (gs t); intros; [|apply I].
-   	  	    uip_all'. 
-   	  	    specialize (Hf' _ _ _ _ H1 nil nil _ He vs (HList.Hnil)).
-   	  	    rewrite Hf'. 
-   	  	    assert (ILogic (typD ts nil t)) by admit.
-   	  	    reflexivity.
-   	  	  * red_exprD; forward; inv_all; revert H4; clear H8; subst. 
-   	  	    red_exprD; forward; inv_all; subst. simpl in *.
-   	  	    forward; inv_all; subst. admit.
-   	  	+ intros.
-   	  	  red_exprD; forward; inv_all; subst. 
-   	  	  red_exprD; forward; inv_all; subst. simpl in *.
-   	  	  SearchAbout lower.
-   	  	  forward; inv_all; subst.
- 
-   	  	  Lemma blurb tus tvs p l1 a l2 t dp
-   	  	  (H : exprD' tus tvs
-      (fold_right
-         (fun (x : typ) (a : expr ilfunc) =>
-          App (Inj (ilf_exists x t)) (Abs x a))
-          p (l1 ++ a :: l2)) t = 
-    Some dp) :
-    	match gs t, lower (length l1) 1 p with
-    		| Some _, Some p => exists dp', exprD' tus tvs
-      (fold_right
-         (fun (x : typ) (a : expr ilfunc) =>
-          App (Inj (ilf_exists x t)) (Abs x a))
-          (lift 0 1 p) (a :: l1 ++ l2)) t = Some dp' /\ 
-          forall vs, dp vs |-- dp' vs
-            | _, None => False
-            | None, _ => True
-    	end.
-    	Proof.
-    		generalize dependent tvs; induction l1; simpl in *; intros.
-    		+ red_exprD; forward; inv_all; revert H4; clear H7; subst.
-    		  red_exprD; forward; inv_all; subst; simpl in *.
-    		  forward; inv_all; subst.
-    		  exists (fun vs => Exists x, t1 (HList.Hcons x vs)).
-    		  uip_all. split; reflexivity. 
-    		+ red_exprD; forward; inv_all; revert H6; clear H9; subst.
-    		  red_exprD; forward; inv_all; subst; simpl in *.
-    		  rewrite typ_cast_typ_refl.
-    		  forward; inv_all; subst.
-    		  destruct (IHl1 _ _ H2) as [dp' [Hdp' Hm]].
-    		  exists (fun vs => Exists x, dp' (HList.Hcons x vs)).
-    		  red_exprD; forward; inv_all; revert Hdp'; clear H9; subst.
-    		  rewrite typ_cast_typ_refl.
-    		  red_exprD; forward; inv_all; subst; simpl in *.
-    		  forward; inv_all; subst. uip_all'. intros.
-    		  unfold typeof_sym in H0.
-    		  red_exprD; forward; inv_all; subst.
-    		  red_exprD; forward; inv_all; subst.
-    		  forward; inv_all; subst.
-    		  rewrite typ_cast_typ_refl.
-   	  	  
-   	  	   admit.
-   	  	    rewrite typ_cast_typ_refl.
-   	  	    destruct (IHl1 _ _ _ H2) as [dp [dq [Hdp [Hdq Hent]]]]; clear IHl1.
-   	  	    exists (fun vs => Exists x, dp (HList.Hcons x vs)).
-   	  	    exists (fun vs => Exists x, dq (HList.Hcons x vs)).
-   	  	    forward; inv_all; subst. 
-   	  	    split. reflexivity.
-   	  	    split.
-   	  	    specialize (IHl2 (lift 0 1 p)).
-   	  	    rewrite lift_lift in IHl1. 
-			replace (length l1 + 1) with (S (length l1)) in IHl1 by omega.
-   	  	    destruct (IHl1 _ _ H2) as [dp [dq [Hdp [Hdq Hent]]]]; clear IHl1.
-   	  	    simpl in Hdq. 
-   	  	    exists (fun vs => Exists x, dp (HList.Hcons x vs)).
-   	  	    pose proof (exprD'_lift RSym_sym tus nil (a::nil) tvs q tq).
-   	  	    simpl in H0. simpl in Hdq. rewrite Hdq in H0.
-   	  	    forward. inv_all; subst.
-   	  	    exists t0. 
-   	  	    do 2 (split; [reflexivity|]).
-   	  	    intros. uip_all'.
-   	  	    assert (ILogic (typD ts nil t)) by admit.
-   	  	    apply lexistsL; intros x.
-   	  	    rewrite Hent. 
-   	  	    specialize (H1 (HList.Hnil) (HList.Hcons x HList.Hnil) vs).
-   	  	    simpl in H1. rewrite <- H1.
-   	  	    specialize (HexL (typD ts nil a) (dp (HList.Hcons x vs)) (fun x => dq (HList.Hcons x vs))).
-   	  	    rewrite <- HexR.
-   	  	    apply lexistsR with x. reflexivity.
-   	  	+ intros.
-   	  	  red_exprD; forward; inv_all; subst.
-   	  	  red_exprD; forward; inv_all; subst; simpl in *.
-   	  	  rewrite typ_cast_typ_refl.
-   	  	  red_exprD; forward; inv_all; subst; simpl in *.
-   	  	  forward; inv_all; subst.
-   	  	  destruct (IHl1 _ _ H2) as [dp [dq [Hdp [Hfi Hent]]]]; clear IHl1.
-   	  	  rewrite typ_cast_typ_refl.
-   	  	  exists dp.
-   	  	  autorewrite with exprD_rw.
-   	  	  Print Ltac red_exprD.
-   	  	  revert IHl2. red_exprD; forward.
-   	  	    red_exprD; forward; inv_all; revert H5; clear H8. subst.  
-   	  	    red_exprD; forward; inv_all; subst. simpl in *.
-   	  	    forward; inv_all; subst.
-   	  	    specialize (IHl2 (lift 0 1 p)).
-   	  	    rewrite lift_lift in IHl2. 
-			replace (length l2 + 1) with (S (length l2)) in IHl2 by omega.
-   	  	    destruct (IHl2 _ _ H3) as [dp [dq [Hdp [Hfi Hent]]]]; clear IHl2.
-   	  	    pose proof (exprD'_lift RSym_sym tus nil (a::nil) tvs p tp).
-   	  	    simpl in H1. simpl in Hdp. rewrite Hdp in H1.
-   	  	    forward.
-   	  	    
-   	  	     exists t0.
-   	  	    eexists.
-   	  	    split.
-   	  	    reflexivity.
-   	  	    forward.
-   	  	    rewrite Hfi.
-   	  	    rewrite Hdp in H1.
-   	  	    Check exprD'_lift.
-   	  	    SearchAbout exprD'.
-   	  	    assert (typeof_expr ((typeof_env tus) ++ nil) (tvs ++ (a::nil)) f = Some (tyArr tp (tyArr tq t))).
-   	  	    apply typeof_expr_weaken. apply Ht.
-   	  	    Lemma blurb tus tvs f tp tq t a 
-   	  	    	(H : typeof_expr tus tvs f = Some (tyArr tp (tyArr tq t))) :
-   	  	    	typeof_expr tus (a::tvs) f = Some (tyArr (tyArr a tp) (tyArr (tyArr a tq) (tyArr a t))).
-   	  	    Proof.
-   	  	    	SearchAbout typeof_expr.
-   	  	    	forward.
-   	  	    Check df.
-   	  	    specialize (IHl2 tvs df Ht He).
-   	  	    assert (ILogicOps (typD ts nil (tyArr a t))) by admit.
-   	  	    assert (ILogic (typD ts nil (tyArr a t))) by admit.
-   	  	    specialize (IHl2 _ X _ tvs df Ht He t4).
-   	  	    red_exprD; forward; inv_all; subst. simpl in *.
-   	  	    forward; inv_all; subst.
-   	  	    specialize (IHl2 tvs df Ht He).
-   	  	    unfo
-   	  	    SearchAbout exprD' typeof_expr.
-   	  	admit.
-   	  Qed.
-   	  assert (exprD' nil nil (Inj (ilf_and x0)) (tyArr x0 (tyArr x0 x0)) = Some (fun vs => @land (typD ts nil x0) i)).
-   	  red_exprD. simpl. forward. inv_all; subst. simpl. red_exprD.
-   	  reflexivity.
-   	  assert (typeof_expr nil nil (Inj (ilf_and x0)) = Some (tyArr x0 (tyArr x0 x0))).
-   	  simpl. rewrite H. reflexivity.
-
-	  assert (forall tus tvs t df, exprD' tus tvs (Inj (ilf_and x0)) t = Some df -> forall tus' tvs' t' df', exprD' tus' tvs' (Inj (ilf_and x0)) t' = Some df' -> t = t').
-	  intros. clear -H5 H7 H.
-	  red_exprD; forward. unfold typeof_sym in *; simpl in *.
-	  forward. inv_all; subst. reflexivity.
-	  
-	  assert (forall tus tvs t df, exprD' tus tvs (Inj (ilf_and x0)) t = Some df -> forall tus' tvs' df', exprD' tus' tvs' (Inj (ilf_and x0)) t = Some df' -> forall vs vs', df vs = df' vs').
-	  intros. clear -H7 H8 H.
-	  red_exprD; forward; inv_all; subst; simpl in *.
-	  reflexivity.
-	  
-	  assert (forall T p q,  
- 			match gs x0 with
- 				| Some _ => Exists x : T, (fun (vs : HList.hlist (typD ts nil) nil) => @land (typD ts nil x0) i) HList.Hnil p (q x) |-- (fun (vs : HList.hlist (typD ts nil) nil) => @land (typD ts nil x0) i) HList.Hnil p (Exists x : T, q x)
- 				| None => True
- 			end).
- 	  intros. rewrite H. admit.
-	  
-   	  pose proof (@app_bin _ _ _ _ _ _ _ _ _ _ _ _ H3 _ H _ H H4 H0 H5 H7). 
-   	  simpl in *.
-   	  Lemma mp P Q (HQ : P -> Q) (HP : P) : Q. 
-   	  Proof.
-   	  	firstorder.
-   	  Qed.
-
-	Ltac mp H :=
-		match type of H with
-			| ?P -> ?Q => let H1 := fresh "H" in
-							assert P as H1; [|specialize (H H1); clear H1]
-		end.
-		
-	  mp H12.
-	  intros. rewrite H. admit.
-	  destruct H12 as [dp [dq [Hdp [Hdq H12]]]].
-	  rewrite H in H12.
-	  forward; inv_all; subst.
-   	  apply (@mp _ _) in H12. 
-   	  specialize (H12 H8).
-   	  as [dp [dq [Hdp [Hdq H8]]]].
-   	  rewrite Hdq in H10. rewrite Hdp in H14.
-   	  forward. 
-   	  assert (@ILogic _ i) by admit.
-   	  rewrite H8, H12, H14. reflexivity.
-   	  etransitivity; [eapply H4|].
-   	  clear ft.
-   	  
-generalize dependent ft.
-      forward. inv_all; subst; forward.
-   	  pose proof (@app_bin tus tvs x0 (tyArr x0 x0) _ _ _ _ _ _ H3 H0).
-   	  assert 
-   	  simpl in H0.
-   	  
-   	  	induction l1; simpl in *.
-   	  Lemma app_unop tus tvs t p q l tpq (HIL : ILogicOps (typD ts nil t))
-   	  	(H : exprD' tus tvs (fold_right (fun x a => App (Inj (ilf_exists x t)) (Abs x a))
-   	  		                (App p q) l) t = Some tpq) : 
-   	    exists tq, exprD' tus tvs (fold_right (fun x a => App (Inj (ilf_exists x t)) 
-   	                                          (Abs x a)) q l) t = Some tq /\
-   	               forall vs, tpq vs |-- tq vs.
-   	  Proof.
-   	  	assert (ILogic (typD ts nil t)) by admit.
-   	  	induction l; simpl in *.
-   	  	+ red_exprD; forward; inv_all; subst; simpl in *.
-   	      exists (fun vs => t3 vs (t4 vs)).
-   	  	  split; [|reflexivity]. rewrite H3.
-   	  	exists t3.
-   	  	red_exprD.
-   	  	exists
-   	  	induction l2; simpl in *.
-   	  clear H0.
-   	  progress (red_exprD; forward; inv_all; subst).
-   	  progress (forward; inv_all; subst).
-   	  rewrite <- H7 in *.
-   	  generalize dependent ts0.
-   	  inversion H10; clear H10; simpl in *.
-   	  subst.
-   	  inversion H9.
-   	  destruct rs; simpl in *; [|]. admit. 
-   	  unfold TD, Teval in H2; simpl in *.
-   	  red_exprD; forward; inv_all; subst.
-   	destruct l; simpl.
-   	unfold PQR; simpl.
-   	destruct l; simpl; try PQtype_elim.
-   	unfold PQR, TD, Teval in *.
-   	red_exprD; forward; inv_all; subst; simpl in *.
-   	progress (red_exprD; forward; inv_all; subst).
-*)
-    Lemma Happ
-    : forall tus tvs l l_res rs,
-        PQtype l (l_res tus tvs) tus tvs ->
-        List.Forall (fun x => PQtype (fst x) (snd x tus tvs) tus tvs) rs ->
-           PQtype (apps l (map fst rs)) (pq_app l l_res rs tus tvs) tus tvs
-        /\ forall us vs,
-             PQR l (l_res tus tvs) us vs ->
-             List.Forall (fun x => PQR (fst x) (snd x tus tvs) us vs) rs ->
-             PQR (apps l (map fst rs))
-                 (pq_app l l_res rs tus tvs)
-                 us vs.
-      Proof.
-        intros; split.
-        + unfold PQtype in *.
-          remember (typeof_expr tus tvs l) as o; destruct o.
-          - destruct l; simpl; try PQtype_elim.
-            destruct i; simpl; try PQtype_elim.
-            * destruct rs; simpl; try PQtype_elim.
-              remember (gs t0) as o; destruct o; [|apply I].
-              unfold atomic, Ttype; simpl. rewrite <- Heqo0.
-              apply rel_dec_correct. reflexivity.
-            * destruct rs; simpl; try PQtype_elim.
-              destruct p; simpl in *.
-              destruct rs; simpl; try PQtype_elim. 
-              destruct p; simpl in *.
-              destruct rs; simpl; try PQtype_elim.
-              destruct (gs t0); [|apply I].
-              inv_all; subst.
-              simpl.
-              inversion H0; subst; clear H0.
-              inversion H4; subst; clear H4.
-              simpl in *. clear H5.
-              remember (typeof_expr tus tvs e) as o; destruct o; [|apply I].
-              remember (typ_eqb t0 t) as b; destruct b; [|apply I].
-              remember (typeof_expr tus tvs e0) as o; destruct o; [|apply I].
-              simpl. 
-              remember (typ_eqb t0 t3) as b; destruct b; [|apply I].
-              remember (t1 tus tvs) as o; destruct o; [|apply I]; destruct p; simpl.
-              remember (t2 tus tvs) as o; destruct o; [|apply I]; destruct p; simpl.
-              remember (Ttype tus tvs
-                              (Some
-                                 (l ++ l0, App (App (Inj (ilf_and t0)) e1) 
-                                               (lift 0 (length l) e2)))
-                              t0) as o; destruct o; [|apply I].
-              symmetry in Heqb; symmetry in Heqb0.
-              apply typ_eqb_true in Heqb; apply typ_eqb_true in Heqb0; do 2 subst.
-              clear -Heqo3 Heqo Heqo0.
-              induction l. simpl in *.
-              induction l0; simpl in *.
-              unfold Ttype in *; simpl in *.
-              destruct (gs t3); [|congruence].
-              rewrite <- Heqo0.
-              admit.
-              remember (t2 tus tvs) as o; destruct o; [|apply I]; destruct p; simpl.
-              simpl.
-              Set Printing All.
-              rewrite <- Heqo1.
-              admit.
-              remember (typ_eqb t0 tx) as b; destruct b.
-inversion H0; subst. destruct p; simpl in *.
-              
-            simpl.
-            remember (typeof_expr tus tvs (apps (Var v) (map fst rs))) as o; destruct o; apply I.
-            admit.
-            intuition.
-            unfold Ttype; simpl.
-            remember (map fst rs).clear Heql.
-            destruct rs; simpl in *.
-
-             Print List.Forall.
-            induction l. simpl.
-            simpl.
-          - rewrite typeof_expr_apps; intuition.
-          
-          Eval compute in apps (Var 0) (Var 1::Var 2::Var 3::nil).
-
-        unfold PQtype in *; destruct l; simpl.
-        destruct rs. simpl.
-        admit. simpl. destruct p; simpl.
-        unfold apps. simpl.
-        unfold pq_app.
-        destruct l.
-        split.
-Print apps.
-        unfold PQtype in *.
-        simpl in *.
-        unfold PQtype in *.v
-
-    Lemma Habs : forall tus tvs t e e_res,
-        PQtype e (e_res tus (t :: tvs)) tus (t :: tvs) ->
-           PQtype (Abs t e) (pq_abs t e e_res tus tvs) tus tvs
-        /\ forall us vs,
-             WellTyped_env tus us ->
-             WellTyped_env tvs vs ->
-             (forall x,
-                PQR e (e_res tus (t :: tvs)) us (@existT _ _ t x :: vs)) ->
-             PQR (Abs t e) (pq_abs t e e_res tus tvs) us vs.
-    Proof.
-      intros.
-      split.
-      unfold PQtype, pq_abs in *.
-      simpl. remember (typeof_expr tus (t :: tvs) e) as o; destruct o; [|apply I].
-      unfold Ttype, Teval in *; simpl in *.
-      remember (e_res tus (t :: tvs)) as o; destruct o; [|destruct H].
-      destruct p.
-      
-      
-      remember (typeof_expr tus (t::tvs) (fold_right
-          (fun (x : typ) (a : expr ilfunc) =>
-           App (Inj (ilf_exists x t0)) (Abs x a)) e0 l)) as o.
-      destruct o; [|destruct H].
-
-
-Print typeof_expr.
-        simpl.
-
-      SearchAbout typeof_expr.
-      pose proof (typeof_expr_lift RSym_sym tus nil (t::nil) tvs
-                                   ((fold_right
-               (fun (x : typ) (a : expr ilfunc) =>
-                App (Inj (ilf_exists x (tyArr t t0))) (Abs x a)) e0 l))).
-      simpl in H0. rewrite <- H0. clear H0.
-      
-      
-      remember 
-      admit.
-      forward.
-      simpl in *.
-      simpl.
-      
-
-      remember (typeof_expr tus tvs (Abs t e)) as o; destruct o; [|apply I].
-      simpl in *.
-      red_exprD.
-
-
-
-    Lemma Hatomic : forall us tvs t e val,
-                   exprD' us tvs e t = Some val ->
-                   forall vs,
-                     @PQR t (val vs) (atomic e (typeof_env us) tvs) us (join_env vs).    
-    Proof.
-      intros; unfold PQR; simpl. 
-      match goal with 
-        | |- ?x = _ => let x' := eval red in x in change x with x'
-      end;
-      rewrite split_env_join_env, H; reflexivity.
-    Qed.
-
-    Definition PQvar us tvs t v val := @Hatomic us tvs t (Var v) val.
-    Definition PQuvar us tvs t u val := @Hatomic us tvs t (UVar u) val.
-    Definition PQinj us tvs t i val := @Hatomic us tvs t (Inj i) val.
-
-    Require Import ExtLib.Data.HList.
-
-    Lemma PQabs : forall us tvs t t' e e_res val,
-                        exprD' us (t :: tvs) e t' = Some val ->
-                        forall (vs : hlist (typD ts nil) tvs),
-                          (forall x,
-                             @PQR t' (val (Hcons x vs)) (e_res (typeof_env us) (t :: tvs))
-                               us ((@existT _ (typD ts nil) t x) :: join_env vs)) ->
-                          @PQR (tyArr t t') (fun x => val (Hcons x vs))
-                            (pq_abs t e e_res (typeof_env us) tvs) us (join_env vs).
-    Proof.
-      intros.
-      unfold PQR, TD, pq_abs in *.
-
-      forward.
-      SearchAbout exprD' cons.
-      simpl in *. unfold pq_abs.
-      assert (tvs <> nil). {
-        intros Htvs.
-        remember (e_res (typeof_env us) (t :: tvs)) as o.
-        destruct o; simpl in *.
-        admit.
-        rewrite Htvs in *.        
-      }.
-      assert (~(length tvs = 0)). {
-        intro Htvs.
-        assert (tvs = nil).
-      assert (length tvs > 0).
-      destruct o; simpl in *; try congruence.
-      destruct p; simpl in *.
-      admit. 
-      Check e_res.
-      unfold e_res in Heqo.
-      Print 
-specialize (
-      forward.
-    Qed.
-
-    Lemma PQapp
-    : forall us tvs l l_res (rs : list (expr ilfunc * T)) t
-             (tvals : list {t : typ & hlist (typD ts nil) tvs -> typD ts nil t}) val,
-        exprD' us tvs l (fold_left (fun x y => tyArr y x) (map (@projT1 _ _) tvals) t) = Some val ->
-        Forall2 (fun e tval => exprD' us tvs (fst e) (projT1 tval) = Some (projT2 tval))
-                rs
-                tvals ->
-        forall vs : hlist (typD ts nil) tvs,
-          @PQR (fold_left (fun x y => tyArr y x) (map (@projT1 _ _) tvals) t)
-             (val vs) (l_res (typeof_env us) tvs) us (join_env vs) ->
-          Forall2 (fun x (t : {t : typ & hlist (typD ts nil) tvs -> typD ts nil t}) =>
-                     @PQR (projT1 t) (projT2 t vs) (snd x (typeof_env us) tvs) us (join_env vs))
-                  rs
-                  tvals ->
-          @PQR t (@apply ts _ vs tvals t (val vs))
-             (pq_app l l_res rs (typeof_env us) tvs)
-             us (join_env vs).
-    Proof.
-      admit.
-    Qed.
-
-      Check @semArgsOk ts ilfunc RSym_sym TT pq_var pq_uvar pq_inj pq_abs pq_app (@PQR)
-            (@PQvar) (@PQuvar) (@PQinj) (@PQabs) (@PQapp).
-
-
+          	red_exprD; forward; inv_all; subst.
+			admit.
+		  Qed.
+	admit.
+	Qed.
 End PullQuant.
 
 Section TestPullQuant.
