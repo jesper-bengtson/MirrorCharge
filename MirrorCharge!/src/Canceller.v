@@ -256,6 +256,91 @@ Module demo.
     : list ((facts func * facts func) * subst) :=
       runStateT (@cancel_from func m _ _ (@unify _ _ _) (@wmjoin_list) a b nil tt) nil.
 
-    Eval vm_compute in test_multi (ptsto_chain Var 4) (List.rev (ptsto_chain UVar 4)).
+    Time Eval vm_compute in match test_multi (ptsto_chain Var 8) (List.rev (ptsto_chain UVar 8)) with
+                              | l :: _ => Some l
+                              | nil => None
+                            end.
   End multi.
+
+  Section multi_stream.
+    Inductive inc_list (T : Type) : Type :=
+    | Done
+    | After : T -> Lazy (inc_list T) -> inc_list T.
+
+    Fixpoint inc_list_append {T} (ls : inc_list T) (ls' : Lazy (inc_list T)) (u : unit) : inc_list T :=
+      match ls with
+        | Done => ls' u
+        | After l ls =>
+          After l (fun u => inc_list_append (ls u) ls' u)
+      end.
+
+    Fixpoint inc_list_join {T U} (f : T -> inc_list U) (ls : inc_list T) : inc_list U :=
+      match ls with
+        | Done => Done _
+        | After l ls =>
+          inc_list_append (f l) (fun u => inc_list_join f (ls u)) tt
+      end.
+
+    Fixpoint from_list {T} (ls : list T) : inc_list T :=
+      match ls with
+        | nil => Done _
+        | l :: ls =>
+          After l (fun _ => from_list ls)
+      end.
+
+    Eval simpl in inc_list_join (fun u => from_list (u :: u :: nil))
+                                (from_list (1 :: 2 :: 3 :: nil)).
+
+
+    Instance Monad_inc_list : Monad inc_list :=
+    { ret := fun _ x => After x (fun _ => @Done _)
+    ; bind := fun _ _ c f =>
+                inc_list_join f c
+    }.
+    Require Import ExtLib.Structures.Functor.
+
+    Section map.
+      Context {A B : Type} (f : A -> B).
+
+      Fixpoint map_inc_list (ls : inc_list A) : inc_list B :=
+        match ls with
+          | Done => Done _
+          | After l ls => After (f l) (fun u => map_inc_list (ls u))
+        end.
+    End map.
+
+    Instance Functor_inc_list : Functor inc_list :=
+    { fmap := @map_inc_list }.
+
+    Instance MonadPlus_inc_list : MonadPlus inc_list :=
+    { mplus := fun _ _ l r =>
+                 inc_list_append (map_inc_list (@inl _ _) l) (fun _ => map_inc_list (@inr _ _) r) tt
+    }.
+    Instance MoandZero_inc_list : MonadZero inc_list :=
+    { mzero := fun _ => Done _ }.
+
+    Let m : Type -> Type := stateT subst inc_list.
+
+    Let Monad_m : Monad m := Monad_stateT _ _.
+    Let MonadPlus_m : MonadPlus m := MonadPlus_stateT _ _ _.
+    Let MonadState_m : MonadState subst m := MonadState_stateT _ _.
+    Let MonadZero_m : MonadZero m := MonadZero_stateT _ _ _.
+    Local Existing Instance Monad_m.
+    Local Existing Instance MonadPlus_m.
+    Local Existing Instance MonadState_m.
+    Local Existing Instance MonadZero_m.
+
+    Definition wmjoin_stream {T} (a b : Lazy (m T)) : Lazy (m T) :=
+      fun x : unit => @mkStateT _ _ _ (fun s =>
+                                         inc_list_append (runStateT (a x) s)  (fun _ => runStateT (b x) s) tt).
+    Definition test_multi_stream (a : list (expr func * list (expr func))) (b : facts func)
+    : inc_list ((facts func * facts func) * subst) :=
+      runStateT (@cancel_from func m _ _ (@unify _ _ _) (@wmjoin_stream) a b nil tt) nil.
+
+    Time Eval vm_compute in match test_multi_stream (ptsto_chain Var 8) (List.rev (ptsto_chain UVar 8)) with
+                              | After x _ => Some x
+                              | Done => None
+                            end.
+  End multi_stream.
+
 End demo.
