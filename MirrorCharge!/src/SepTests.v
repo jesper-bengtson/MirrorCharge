@@ -100,4 +100,42 @@ Section SepTests.
     prep.
   Admitted.
 
+  (** With existentials **)
+  Goal forall w x,
+         PT w x |-- lexists (fun y : nat => PT w y).
+  Proof.
+    prep.
+  Admitted.
+
+  Goal forall w x y,
+         PT w x ** PT x y |-- lexists (fun x : nat => PT w x ** lexists (fun y : nat => PT x y)).
+  Proof.
+    prep.
+  Admitted.
+
+  Goal forall w x y,
+         PT w x ** PT x y |-- lexists (fun x : nat => lexists (fun y : nat => PT x y ** PT w x)).
+  Proof.
+    prep.
+  Admitted.
+
+  Goal forall w x y,
+         PT w x ** PT x y |-- lexists (fun x => x).
+  Proof.
+    prep.
+  Admitted.
+
+  Goal forall w x y,
+         PT w x ** PT x y |-- lexists (fun x => x) ** PT x y.
+  Proof.
+    prep.
+  Admitted.
+
+  Goal forall w x y,
+         PT w x ** PT x y |-- lexists (fun x => x) ** PT w x.
+  Proof.
+    prep.
+  Admitted.
+
+
 End SepTests.
