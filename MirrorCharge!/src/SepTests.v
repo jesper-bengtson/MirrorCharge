@@ -108,34 +108,45 @@ Section SepTests.
   Admitted.
 
   Goal forall w x y,
-         PT w x ** PT x y |-- lexists (fun x : nat => PT w x ** lexists (fun y : nat => PT x y)).
+         PT w x ** PT x y |-- Exists x : nat, PT w x ** Exists y : nat, PT x y.
   Proof.
     prep.
   Admitted.
 
   Goal forall w x y,
-         PT w x ** PT x y |-- lexists (fun x : nat => lexists (fun y : nat => PT x y ** PT w x)).
+         PT w x ** PT x y |-- Exists x, Exists y, PT x y ** PT w x.
   Proof.
     prep.
   Admitted.
 
   Goal forall w x y,
-         PT w x ** PT x y |-- lexists (fun x => x).
+         PT w x ** PT x y |-- Exists x, x.
   Proof.
     prep.
   Admitted.
 
   Goal forall w x y,
-         PT w x ** PT x y |-- lexists (fun x => x) ** PT x y.
+         PT w x ** PT x y |-- (Exists x, x) ** PT x y.
   Proof.
     prep.
   Admitted.
 
   Goal forall w x y,
-         PT w x ** PT x y |-- lexists (fun x => x) ** PT w x.
+         PT w x ** PT x y |-- (Exists x, x) ** PT w x.
   Proof.
     prep.
   Admitted.
 
+  (** With existentials & pure premises **)
+  Goal forall w x y,
+         PT w x ** PT x y |--
+         Exists w', Exists x', Exists y', Exists z',
+           PT w' x' ** PT y' z' //\\ embed (w = w') //\\ embed (y' = x).
+  Proof.
+    (** This is potentially very difficult because you have to propagate information
+     ** from the right-hand-side pure facts before solving the unification problem.
+     **)
+    prep.
+  Admitted.
 
 End SepTests.
