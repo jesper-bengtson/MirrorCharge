@@ -50,7 +50,7 @@ Module PropTests.
         @Provable_True ts ilfunc (@RSym_ilfunc_ctor ts fs gs es) us vs goal.
   Proof.
     intros.
-    red. 
+    red.
     Require Import ExtLib.Tactics.
     forward.
     generalize I.

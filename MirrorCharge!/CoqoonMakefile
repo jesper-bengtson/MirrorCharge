@@ -11,22 +11,28 @@ include CoqoonMakefile.vars
 
 bin/%.vo: src/%.v
 	$(_COQCMD)
+# TODO: These should be compiled under the [MirrorCharge] namespace
 override COQFLAGS += -R src ""
 override COQFLAGS += -R bin ""
 override COQFLAGS += $(DK_ITU_SDG_KOPITIAM_LP_COQ_8_4_FLAGS)
 override COQFLAGS += $(CHARGE_FLAGS)
-override COQFLAGS += -R $(MIRRORCORE_PATH) MirrorCore
-override COQFLAGS += -R $(EXTLIB_PATH) ExtLib
+# These need -I rather than -R
+override COQFLAGS += -I $(MIRRORCORE_PATH) -as MirrorCore
+override COQFLAGS += -I $(EXTLIB_PATH) -as ExtLib
 OBJECTS = \
 	bin/BILNormalize.vo \
 	bin/ILFFold.vo \
-	bin/ILPullQuant.vo \
 	bin/ILogicFunc.vo \
 	bin/Iterated.vo \
 	bin/Reify.vo \
+	bin/SynSepLog.vo \
 	bin/SepLogFold.vo \
-	bin/SetoidRewrite.vo \
-	bin/Tauto.vo
+	bin/SepLogFoldWithAnd.vo \
+	bin/Tauto.vo \
+	bin/TautoTests.vo
+# (these do not compile)
+#	bin/ILPullQuant.vo
+#	bin/SetoidRewrite.vo 
 
 all: $(OBJECTS)
 clean:

@@ -1,4 +1,13 @@
-(** This file implements cancellation for separation logic.
+(** This file implements normalization for separation lgoic formulas.
+ ** The normal form is:
+ **   (a /\ b /\ c) /\ (P * Q * R [* true]?)
+ ** The final [* true] is optional and is likely to never occur in
+ ** practice but is necessary to make the algorithm total.
+ **
+ ** In this format, all of [a], [b], and [c] are pure which means that
+ ** the above equation is equivalent to:
+ **  Inj a * Inj b * Inj c * P * Q * R [* true]?
+ ** where [Inj p = p /\ emp]
  **)
 Require Import Morphisms.
 Require Import ExtLib.Data.Positive.
