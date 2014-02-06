@@ -20,9 +20,51 @@ Require Import MirrorCore.Ext.Expr.
 Require Import MirrorCore.Ext.AppFull.
 Require Import Iterated.
 Require Import ILogicFunc SepLogFold.
+Require Import SynSepLog.
 
 Set Implicit Arguments.
 Set Strict Implicit.
+
+(** TODO: These should really be moved to Charge! **)
+Section lemmas.
+  Variable P : Type.
+  Variable ILogicOps_P : ILogicOps P.
+  Variable ILogic_P : ILogic P.
+  Variable BILOperators_P : BILOperators P.
+  Variable BILogic_P : BILogic P.
+  Variable PureOp_P : @PureOp P.
+  Variable Pure_P : Pure PureOp_P.
+
+  Lemma ltrue_sep : pure ltrue -> ltrue ** ltrue -|- ltrue.
+  Proof.
+    constructor.
+    { apply ltrueR. }
+    { rewrite <- pureandsc by eauto with typeclass_instances.
+      apply landR; reflexivity. }
+  Qed.
+
+  Lemma pure_star_and_true
+  : forall a b,
+      Pure.pure a ->
+      a ** b -|- a //\\ b ** ltrue.
+  Proof.
+    intros.
+    rewrite <- (landtrueR a) at 1.
+    rewrite pureandscD by eauto with typeclass_instances.
+    rewrite sepSPC. reflexivity.
+  Qed.
+
+  Lemma lequiv_sep_cancel : forall a b c,
+                              a -|- b -> a ** c -|- b ** c.
+  Proof.
+    split; apply bilsep; eapply H.
+  Qed.
+
+  Lemma land_cancel : forall a b c, b -|- c -> a //\\ b -|- a //\\ c.
+  Proof.
+    intros. rewrite H. reflexivity.
+  Qed.
+End lemmas.
 
 Section cancel_state.
   Variable ts : types.
@@ -70,28 +112,77 @@ Section cancel_state.
   Variable SL : typ.
 
   Section conjunctivesD.
-    Variable SLS : SepLogSpec sym.
     Variable ILO : ILogicOps (typD ts nil SL).
     Variable BILO : BILOperators (typD ts nil SL).
     Variable IL : @ILogic _ ILO.
     Variable BIL : @BILogic _ ILO BILO.
 
-    Variable slsok : SepLogSpecOk RSym_sym SL SLS ILO BILO.
-
-    Variable e_star : expr sym -> expr sym -> expr sym.
-    Variable e_and : expr sym -> expr sym -> expr sym.
-    Variable e_emp : expr sym.
-    Variable e_true : expr sym.
-
-    Definition well_formed (c : conjunctives) (us vs : env (typD ts)) : Prop :=
+    Definition well_formed (PO : PureOp)
+               (c : conjunctives) (us vs : env (typD ts)) : Prop :=
       List.Forall (fun e =>
                      exists val, exprD us vs e SL = Some val
-                              /\ @Pure.pure _ slsok.(_PureOp) val) c.(pure).
+                              /\ @Pure.pure _ PO val) c.(pure).
+
+
+    Variable SSL : SynSepLog sym.
+    Variable SSLO : @SynSepLogOk ts sym _ SL _ _ SSL.
+
 
     Definition conjunctives_to_expr (c : conjunctives) : expr sym :=
-      let spa := iterated_base e_emp e_star (map (fun x => apps (fst x) (snd x)) c.(spatial)) in
-      let pur := iterated_base e_true e_and c.(pure) in
-      e_and pur (e_star spa (if c.(star_true) then e_true else e_emp)).
+      let spa := iterated_base SSL.(e_emp) SSL.(e_star) (map (fun x => apps (fst x) (snd x)) c.(spatial)) in
+      let pur := iterated_base SSL.(e_true) SSL.(e_and) c.(pure) in
+      SSL.(e_and) pur (SSL.(e_star) spa (if c.(star_true) then SSL.(e_true) else SSL.(e_emp))).
+
+    Definition conjunctives_to_expr_star (c : conjunctives) : expr sym :=
+      let spa := iterated_base SSL.(e_emp) SSL.(e_star) (map (fun x => apps (fst x) (snd x)) c.(spatial)) in
+      let pur := iterated_base SSL.(e_emp) SSL.(e_star) (map (SSL.(e_and) SSL.(e_emp)) c.(pure)) in
+      SSL.(e_star) pur (SSL.(e_star) spa (if c.(star_true) then SSL.(e_true) else SSL.(e_emp))).
+
+    Require Import MirrorCore.Ext.ExprSem.
+
+    Theorem conjunctives_to_expr_conjunctives_to_expr_star
+    : forall (PO : PureOp) (P : Pure PO) vs us c,
+        well_formed PO c us vs ->
+        Sem_equiv _ SL lequiv us vs
+                  (conjunctives_to_expr c)
+                  (conjunctives_to_expr_star c).
+    Proof.
+      unfold well_formed, conjunctives_to_expr, conjunctives_to_expr_star, Sem_equiv.
+      destruct c; simpl.
+      intros.
+      generalize (e_star SSL
+           (iterated_base (e_emp SSL) (e_star SSL)
+              (map
+                 (fun x : expr sym * list (expr sym) => apps (fst x) (snd x))
+                 spatial0)) (if star_true0 then e_true SSL else e_emp SSL)).
+      intros.
+      induction H.
+      { simpl. unfold iterated_base. simpl.
+        consider (exprD us vs (e_and SSL (e_true SSL) e) SL); intros; forward.
+        { intros.
+          unfold exprD in *. destruct (split_env vs).
+          forward. inv_all; subst.
+          consider (exprD' us x (e_star SSL (e_emp SSL) e) SL); intros.
+          { repeat go_crazy SSL SSLO.
+            inv_all; subst.
+            destruct (SSLO.(e_empOk) us x).
+            destruct (SSLO.(e_trueOk) us x).
+            rewrite H0 in *. destruct H3.
+            rewrite H in *. destruct H5.
+            inv_all; subst.
+            Cases.rewrite_all_goal.
+            rewrite empSPL. rewrite landtrueL.
+            reflexivity. }
+          { repeat go_crazy SSL SSLO.
+            destruct (SSLO.(e_empOk) us x). destruct H3. congruence. } }
+        { unfold exprD in *. destruct (split_env vs).
+          forward; inv_all; subst.
+          repeat go_crazy SSL SSLO.
+          destruct (SSLO.(e_trueOk) us x).
+          destruct H4.
+          congruence. } }
+      { simpl.
+    Admitted.
 
 (*
     Definition conjunctives_to_expr (c : conjunctives) : expr sym :=
@@ -109,6 +200,14 @@ Section cancel_state.
       end.
 *)
 
+    Variable SLS : SepLogSpec sym.
+    Variable slsok : SepLogSpecOk RSym_sym SL SLS ILO BILO.
+
+    Local Instance PureOp_it : @PureOp _  := slsok.(_PureOp).
+    Local Instance Pure_it : @Pure _ _ _ slsok.(_PureOp) := _Pure slsok.
+    Hypothesis pure_ltrue : Pure.pure ltrue.
+    Hypothesis pure_land : forall p q, Pure.pure p -> Pure.pure q -> Pure.pure (land p q).
+
     Definition R_conjunctives
                (e : expr sym) (c : conjunctives) (tus tvs : tenv typ) : Prop :=
       forall us : hlist _ tus,
@@ -117,40 +216,7 @@ Section cancel_state.
         exists val',
              exprD' (join_env us) tvs (conjunctives_to_expr c) SL = Some val'
           /\ (forall vs,
-                (val vs -|- val' vs) /\ well_formed c (join_env us) (join_env vs)).
-
-    Hypothesis e_empOk : forall us tvs,
-                         exists val,
-                           exprD' us tvs e_emp SL = Some val /\
-                           forall vs, val vs -|- empSP.
-    Hypothesis e_trueOk : forall us tvs,
-                          exists val,
-                            exprD' us tvs e_true SL = Some val /\
-                            forall vs, val vs -|- ltrue.
-    Hypothesis e_starOk : forall us tvs x y valx valy,
-                            exprD' us tvs x SL = Some valx ->
-                            exprD' us tvs y SL = Some valy ->
-                            exists val,
-                              exprD' us tvs (e_star x y) SL = Some val /\
-                              forall vs, val vs -|- valx vs ** valy vs.
-    Hypothesis e_starValid : forall us tvs x y val,
-                               exprD' us tvs (e_star x y) SL = Some val ->
-                               exists valx valy,
-                                 exprD' us tvs x SL = Some valx /\
-                                 exprD' us tvs y SL = Some valy /\
-                                 forall vs, val vs -|- valx vs ** valy vs.
-    Hypothesis e_andOk : forall us tvs x y valx valy,
-                            exprD' us tvs x SL = Some valx ->
-                            exprD' us tvs y SL = Some valy ->
-                            exists val,
-                              exprD' us tvs (e_and x y) SL = Some val /\
-                              forall vs, val vs -|- valx vs //\\ valy vs.
-    Hypothesis e_andValid : forall us tvs x y val,
-                              exprD' us tvs (e_and x y) SL = Some val ->
-                              exists valx valy,
-                                exprD' us tvs x SL = Some valx /\
-                                exprD' us tvs y SL = Some valy /\
-                                forall vs, val vs -|- valx vs //\\ valy vs.
+                (val vs -|- val' vs) /\ well_formed _ c (join_env us) (join_env vs)).
 
     Ltac forward_ex_and :=
       repeat match goal with
@@ -158,363 +224,12 @@ Section cancel_state.
                | H : _ /\ _ |- _ => destruct H
              end.
 
-    Lemma e_andOk_None1
-    : forall us tvs x y,
-        exprD' us tvs x SL = None ->
-        exprD' us tvs (e_and x y) SL = None.
-    Proof.
-      intros.
-      consider (exprD' us tvs (e_and x y) SL); auto; intros.
-      exfalso.
-      eapply e_andValid in H0. forward_ex_and. congruence.
-    Qed.
-
-    Lemma e_andOk_None2
-    : forall us tvs x y,
-        exprD' us tvs y SL = None ->
-        exprD' us tvs (e_and x y) SL = None.
-    Proof.
-      intros.
-      consider (exprD' us tvs (e_and x y) SL); auto; intros.
-      exfalso.
-      eapply e_andValid in H0. forward_ex_and. congruence.
-    Qed.
-
-    Lemma e_starOk_None1
-    : forall us tvs x y,
-        exprD' us tvs x SL = None ->
-        exprD' us tvs (e_star x y) SL = None.
-    Proof.
-      intros.
-      consider (exprD' us tvs (e_star x y) SL); auto; intros.
-      exfalso.
-      eapply e_starValid in H0. forward_ex_and. congruence.
-    Qed.
-
-    Lemma e_starOk_None2
-    : forall us tvs x y,
-        exprD' us tvs y SL = None ->
-        exprD' us tvs (e_star x y) SL = None.
-    Proof.
-      intros.
-      consider (exprD' us tvs (e_star x y) SL); auto; intros.
-      exfalso.
-      eapply e_starValid in H0. forward_ex_and. congruence.
-    Qed.
-
-    Definition Sem_ext (t : typ) (P : typD ts nil t -> Prop) (Q : Prop)
-    : expr sym -> Prop :=
-      fun e =>
-        forall us tvs,
-          match exprD' us tvs e t with
-            | Some val =>
-              forall vs, P (val vs)
-            | None => Q
-          end.
-
-    Lemma exprD'_e_and_None
-    : forall us tvs a b,
-        exprD' us tvs (e_and a b) SL = None ->
-        exprD' us tvs a SL = None \/ exprD' us tvs b SL = None.
-    Proof.
-      intros.
-      consider (exprD' us tvs a SL); intros; auto.
-      consider (exprD' us tvs b SL); intros; auto.
-      exfalso.
-      specialize (@e_andOk _ _ _ _ _ _ H0 H1).
-      destruct e_andOk. intuition; congruence.
-    Qed.
-
-    Lemma exprD'_e_star_None
-    : forall us tvs a b,
-        exprD' us tvs (e_star a b) SL = None ->
-        exprD' us tvs a SL = None \/ exprD' us tvs b SL = None.
-    Proof.
-      intros.
-      consider (exprD' us tvs a SL); intros; auto.
-      consider (exprD' us tvs b SL); intros; auto.
-      exfalso.
-      specialize (@e_starOk _ _ _ _ _ _ H0 H1).
-      destruct e_starOk. intuition; congruence.
-    Qed.
-
-    Ltac go_crazy :=
-      match goal with
-        | H : exprD' _ _ _ _ = _ , H' : _ |- _ =>
-          rewrite H in H'
-        | H : exprD' _ _ _ _ = _ |- _ =>
-          rewrite H
-        | H : exprD' _ _ ?C _ = _
-        , H' : exprD' _ _ ?D _ = _
-        |- context [ exprD' ?A ?B (e_and ?C ?D) ?T ] =>
-          destruct (@e_andOk _ _ _ _ _ _ H H') as [ ? [ ? ? ] ]
-        | H : exprD' _ _ ?C _ = _
-        , H' : exprD' _ _ ?D _ = _
-        |- context [ exprD' ?A ?B (e_star ?C ?D) ?T ] =>
-          destruct (@e_starOk _ _ _ _ _ _ H H') as [ ? [ ? ? ] ]
-        | H : exprD' _ _ (e_and _ _) _ = _ |- _ =>
-          eapply e_andValid in H ; destruct H as [ ? [ ? [ ? [ ? ? ] ] ] ]
-        | H : exprD' _ _ (e_star _ _) _ = _ |- _ =>
-          eapply e_starValid in H ; destruct H as [ ? [ ? [ ? [ ? ? ] ] ] ]
-        | H : exprD' _ _ ?C _ = _
-        , H' : exprD' _ _ ?D _ = _
-        , H'' : context [ exprD' ?A ?B (e_star ?C ?D) ?T ]
-        |- _ =>
-          destruct (@e_starOk _ _ _ _ _ _ H H') as [ ? [ ? ? ] ]
-        | H : exprD' _ _ ?C _ = _
-        , H' : exprD' _ _ ?D _ = _
-        , H'' : context [ exprD' ?A ?B (e_and ?C ?D) ?T ]
-        |- _ =>
-          destruct (@e_andOk _ _ _ _ _ _ H H') as [ ? [ ? ? ] ]
-        | H : exprD' _ _ _ _ = None |- _ =>
-          first [ erewrite (@e_starOk_None1 _ _ _ _ H) in *
-                | erewrite (@e_starOk_None2 _ _ _ _ H) in *
-                | erewrite (@e_andOk_None1 _ _ _ _ H) in *
-                | erewrite (@e_andOk_None2 _ _ _ _ H) in * ]
-
-        | H : exprD' _ _ _ _ = None |- _ =>
-          first [ congruence
-                | apply exprD'_e_star_None in H; destruct H; try congruence
-                | apply exprD'_e_and_None in H; destruct H; try congruence ]
-      end.
-
     Local Instance Reflexive_lentails : Reflexive lentails.
     Proof.
       destruct IL. destruct lentailsPre. auto.
     Qed.
 
     Require Import MirrorCore.Ext.ExprSem.
-
-    Local Instance PureOp_it : @PureOp _  := slsok.(_PureOp).
-    Local Instance Pure_it : @Pure _ _ _ slsok.(_PureOp) := _Pure slsok.
-    Hypothesis pure_ltrue : Pure.pure ltrue.
-    Hypothesis pure_land : forall p q, Pure.pure p -> Pure.pure q -> Pure.pure (land p q).
-
-    Lemma ltrue_sep : ltrue ** ltrue -|- ltrue.
-    Proof.
-      constructor.
-      { apply ltrueR. }
-      { rewrite <- pureandsc by eauto with typeclass_instances.
-        apply landR; reflexivity. }
-    Qed.
-
-    Lemma pure_star_and_true : forall a b,
-                                 Pure.pure a ->
-                                 a ** b -|- a //\\ b ** ltrue.
-    Proof.
-      clear - BIL.
-      intros.
-      rewrite <- (landtrueR a) at 1.
-      rewrite pureandscD by eauto with typeclass_instances.
-      rewrite sepSPC. reflexivity.
-    Qed.
-
-    Lemma Sem_equiv_e_and_assoc
-    : forall a b c : expr sym,
-        Sem_equiv _ SL lequiv (e_and a (e_and b c)) (e_and (e_and a b) c).
-    Proof.
-      clear - IL e_andOk e_andValid. intros.
-      red. intros.
-      consider (exprD' us tvs (e_and a (e_and b c)) SL);
-        consider (exprD' us tvs (e_and (e_and a b) c) SL); intros; auto.
-      { eapply e_andValid in H. eapply e_andValid in H0.
-        do 2 destruct H; do 2 destruct H0.
-        destruct H0. destruct H1. destruct H. destruct H3.
-        eapply e_andValid in H. do 3 destruct H. destruct H5.
-        eapply e_andValid in H1. do 3 destruct H1. destruct H7.
-        rewrite H4. rewrite H2. rewrite H6. rewrite H8.
-        rewrite H0 in *. rewrite H5 in *. rewrite H7 in *.
-        inv_all; subst.
-        symmetry. eapply landA. }
-      { eapply e_andValid in H0.
-        do 3 destruct H0. destruct H1.
-        eapply e_andValid in H1.
-        do 3 destruct H1. destruct H3.
-        destruct (@e_andOk _ _ _ _ _ _ H0 H1). destruct H5.
-        destruct (@e_andOk _ _ _ _ _ _ H5 H3). destruct H7.
-        congruence. }
-      { eapply e_andValid in H.
-        do 3 destruct H. destruct H1.
-        eapply e_andValid in H.
-        do 3 destruct H. destruct H3.
-        destruct (@e_andOk _ _ _ _ _ _ H3 H1). destruct H5.
-        destruct (@e_andOk _ _ _ _ _ _ H H5). destruct H7.
-        congruence. }
-    Qed.
-
-    Lemma Sem_equiv_e_star_assoc
-    : forall a b c : expr sym,
-        Sem_equiv _ SL lequiv (e_star a (e_star b c)) (e_star (e_star a b) c).
-    Proof.
-      clear - IL BIL e_starOk e_starValid. intros.
-      red. intros.
-      consider (exprD' us tvs (e_star a (e_star b c)) SL);
-        consider (exprD' us tvs (e_star (e_star a b) c) SL); intros; auto.
-      { eapply e_starValid in H. eapply e_starValid in H0.
-        do 2 destruct H; do 2 destruct H0.
-        destruct H0. destruct H1. destruct H. destruct H3.
-        eapply e_starValid in H. do 3 destruct H. destruct H5.
-        eapply e_starValid in H1. do 3 destruct H1. destruct H7.
-        rewrite H4. rewrite H2. rewrite H6. rewrite H8.
-        rewrite H0 in *. rewrite H5 in *. rewrite H7 in *.
-        inv_all; subst.
-        symmetry. eapply sepSPA. }
-      { eapply e_starValid in H0.
-        do 3 destruct H0. destruct H1.
-        eapply e_starValid in H1.
-        do 3 destruct H1. destruct H3.
-        destruct (@e_starOk _ _ _ _ _ _ H0 H1). destruct H5.
-        destruct (@e_starOk _ _ _ _ _ _ H5 H3). destruct H7.
-        congruence. }
-      { eapply e_starValid in H.
-        do 3 destruct H. destruct H1.
-        eapply e_starValid in H.
-        do 3 destruct H. destruct H3.
-        destruct (@e_starOk _ _ _ _ _ _ H3 H1). destruct H5.
-        destruct (@e_starOk _ _ _ _ _ _ H H5). destruct H7.
-        congruence. }
-    Qed.
-
-    Lemma Sem_equiv_Proper_e_and
-    : Proper (Sem_equiv _ SL lequiv ==> Sem_equiv _ SL lequiv ==> Sem_equiv _ SL lequiv) e_and.
-    Proof.
-      unfold Sem_equiv; repeat red; simpl; intros.
-      specialize (H us tvs). specialize (H0 us tvs).
-      match goal with
-        | |- match ?X with _ => _ end =>
-          consider X; intros
-      end; repeat go_crazy; forward; repeat go_crazy.
-      { inv_all; subst.
-        intros. rewrite H3. rewrite H4. rewrite H9.
-        rewrite H5. reflexivity. }
-    Qed.
-
-    Lemma Sem_equiv_Proper_e_star
-    : Proper (Sem_equiv _ SL lequiv ==> Sem_equiv _ SL lequiv ==> Sem_equiv _ SL lequiv) e_star.
-    Proof.
-      unfold Sem_equiv; repeat red; simpl; intros.
-      specialize (H us tvs). specialize (H0 us tvs).
-      match goal with
-        | |- match ?X with _ => _ end =>
-          consider X; intros
-      end; repeat go_crazy; forward; repeat go_crazy.
-      { inv_all; subst.
-        intros. rewrite H3. rewrite H4. rewrite H9.
-        rewrite H5. reflexivity. }
-    Qed.
-
-    Lemma ltrue_unitL : forall a, land ltrue a -|- a.
-    Proof.
-      clear - IL; intros.
-      split.
-      { eapply landL2. reflexivity. }
-      { eapply landR; try reflexivity. eapply ltrueR. }
-    Qed.
-
-    Lemma ltrue_unitR : forall a, land a ltrue -|- a.
-    Proof.
-      clear - IL; intros.
-      split.
-      { eapply landL1. reflexivity. }
-      { eapply landR; try reflexivity. eapply ltrueR. }
-    Qed.
-
-    Lemma empSPR : forall a, a ** empSP -|- a.
-    Proof.
-      clear - BIL IL; intros.
-      rewrite sepSPC. rewrite empSPL. reflexivity.
-    Qed.
-
-    Lemma Sem_equiv_e_true_e_and_unitLL
-    : forall a : expr sym,
-        Sem_equiv _ SL lequiv (e_and e_true a) a.
-    Proof.
-      red; intros.
-      destruct (e_trueOk us tvs) as [ ? [ ? ? ] ].
-      consider (exprD' us tvs a SL); intros; repeat go_crazy; auto.
-      inv_all; subst; intros. clear pure_land pure_ltrue.
-      Cases.rewrite_all_goal. clear - IL.
-      rewrite ltrue_unitL. reflexivity.
-    Qed.
-
-    Lemma Sem_equiv_e_true_e_and_unitLR
-    : forall a : expr sym,
-        Sem_equiv _ SL lequiv (e_and a e_true) a.
-    Proof.
-      red; intros.
-      destruct (e_trueOk us tvs) as [ ? [ ? ? ] ].
-      consider (exprD' us tvs a SL); intros; repeat go_crazy; auto.
-      inv_all; subst; intros. clear pure_land pure_ltrue.
-      Cases.rewrite_all. clear - IL.
-      rewrite ltrue_unitR. reflexivity.
-    Qed.
-    Lemma Sem_equiv_e_true_e_and_unitRL
-    : forall a : expr sym,
-        Sem_equiv _ SL lequiv a (e_and e_true a).
-    Proof.
-      red; intros.
-      destruct (e_trueOk us tvs) as [ ? [ ? ? ] ].
-      consider (exprD' us tvs a SL); intros; repeat go_crazy; auto.
-      inv_all; subst; intros. clear pure_land pure_ltrue.
-      Cases.rewrite_all. clear - IL.
-      rewrite ltrue_unitL. reflexivity.
-    Qed.
-    Lemma Sem_equiv_e_true_e_and_unitRR
-    : forall a : expr sym,
-        Sem_equiv _ SL lequiv a (e_and a e_true).
-    Proof.
-      red; intros.
-      destruct (e_trueOk us tvs) as [ ? [ ? ? ] ].
-      consider (exprD' us tvs a SL); intros; repeat go_crazy; auto.
-      inv_all; subst; intros. clear pure_land pure_ltrue.
-      Cases.rewrite_all. clear - IL.
-      rewrite ltrue_unitR. reflexivity.
-    Qed.
-
-    Lemma Sem_equiv_e_emp_e_star_unitLL
-    : forall a : expr sym,
-        Sem_equiv _ SL lequiv (e_star e_emp a) a.
-    Proof.
-      red; intros.
-      destruct (e_empOk us tvs) as [ ? [ ? ? ] ].
-      consider (exprD' us tvs a SL); intros; repeat go_crazy; auto.
-      inv_all; subst; intros. clear pure_land pure_ltrue.
-      Cases.rewrite_all. clear - BIL IL.
-      rewrite empSPL. reflexivity.
-    Qed.
-    Lemma Sem_equiv_e_emp_e_star_unitLR
-    : forall a : expr sym,
-        Sem_equiv _ SL lequiv (e_star a e_emp) a.
-    Proof.
-      red; intros.
-      destruct (e_empOk us tvs) as [ ? [ ? ? ] ].
-      consider (exprD' us tvs a SL); intros; repeat go_crazy; auto.
-      inv_all; subst; intros. clear pure_land pure_ltrue.
-      Cases.rewrite_all. clear - BIL.
-      rewrite empSPR. reflexivity.
-    Qed.
-    Lemma Sem_equiv_e_emp_e_star_unitRL
-    : forall a : expr sym,
-        Sem_equiv _ SL lequiv a (e_star e_emp a).
-    Proof.
-      red; intros.
-      destruct (e_empOk us tvs) as [ ? [ ? ? ] ].
-      consider (exprD' us tvs a SL); intros; repeat go_crazy; auto.
-      inv_all; subst; intros. clear pure_land pure_ltrue.
-      Cases.rewrite_all. clear - BIL.
-      rewrite empSPL. reflexivity.
-    Qed.
-    Lemma Sem_equiv_e_emp_e_star_unitRR
-    : forall a : expr sym,
-        Sem_equiv _ SL lequiv a (e_star a e_emp).
-    Proof.
-      red; intros.
-      destruct (e_empOk us tvs) as [ ? [ ? ? ] ].
-      consider (exprD' us tvs a SL); intros; repeat go_crazy; auto.
-      inv_all; subst; intros. clear pure_land pure_ltrue.
-      Cases.rewrite_all. clear - BIL.
-      rewrite empSPR. reflexivity.
-    Qed.
 
     Lemma something_smart
     : forall a b c d,
@@ -532,21 +247,21 @@ Section cancel_state.
 
     Lemma well_formed_pure
     : forall x us tvs (vs : hlist _ tvs),
-        well_formed x us (join_env vs) ->
+        well_formed _ x us (join_env vs) ->
         forall x7,
-          exprD' us tvs (iterated_base e_true e_and (pure x)) SL = Some x7 ->
+          exprD' us tvs (iterated_base SSL.(e_true) SSL.(e_and) (pure x)) SL = Some x7 ->
           Pure.pure (x7 vs).
     Proof.
       unfold well_formed. destruct x; simpl.
       induction 1; simpl; intros.
       { unfold iterated_base in H. simpl in *.
-        destruct (e_trueOk us tvs).
+        destruct (SSLO.(e_trueOk) us tvs).
         rewrite H in *. destruct H0.
         inv_all; subst. eapply Pure.pure_proper. eapply H1.
         eapply pure_ltrue; eauto with typeclass_instances. }
       { unfold iterated_base in *. simpl in *.
-        destruct (iterated e_and l); intros.
-        { go_crazy.
+        destruct (iterated SSL.(e_and) l); intros.
+        { go_crazy SSL SSLO.
           eapply Pure.pure_proper. eapply H3.
           destruct H. destruct H.
           eapply pure_land; eauto with typeclass_instances.
@@ -558,25 +273,15 @@ Section cancel_state.
           auto. } }
     Qed.
 
-    Lemma Forall_app : forall T (P : T -> Prop) xs ys,
-                         List.Forall P (xs ++ ys) <-> (List.Forall P xs /\ List.Forall P ys).
+    Lemma Forall_app
+    : forall T (P : T -> Prop) xs ys,
+        List.Forall P (xs ++ ys) <-> (List.Forall P xs /\ List.Forall P ys).
     Proof.
       clear. induction xs; simpl; intros.
       { intuition. }
       { split; intros.
         { inversion H; subst. rewrite IHxs in H3. intuition. }
         { intuition. inversion H0; subst. constructor; eauto. eapply IHxs. auto. } }
-    Qed.
-
-    Lemma lequiv_sep_cancel : forall a b c,
-                                a -|- b -> a ** c -|- b ** c.
-    Proof.
-      split; apply bilsep; eapply H.
-    Qed.
-
-    Lemma land_cancel : forall a b c, b -|- c -> a //\\ b -|- a //\\ c.
-    Proof.
-      intros. rewrite H. reflexivity.
     Qed.
 
     Lemma something_smart'
@@ -588,11 +293,11 @@ Section cancel_state.
     Proof.
       clear - BIL pure_land pure_ltrue. intros. rewrite H1. clear H1.
       transitivity ((a //\\ b) //\\ (c ** f) ** d ** g).
-      { apply land_cancel.
+      { apply land_cancel; eauto with typeclass_instances.
         repeat rewrite sepSPA.
         rewrite (sepSPC c).
         rewrite (sepSPC c).
-        apply lequiv_sep_cancel.
+        apply lequiv_sep_cancel; eauto with typeclass_instances.
         repeat rewrite <- sepSPA.
         rewrite (sepSPC d f). reflexivity. }
       { rewrite something_smart by eauto. reflexivity. }
@@ -605,24 +310,26 @@ Section cancel_state.
         exists val,
           exprD' us tvs (conjunctives_to_expr (mkStar l_res r_res)) SL = Some val /\
           forall vs,
-            well_formed l_res us (join_env vs) ->
-            well_formed r_res us (join_env vs) ->
+            well_formed _ l_res us (join_env vs) ->
+            well_formed _ r_res us (join_env vs) ->
             (val vs -|- lval vs ** rval vs) /\
-            well_formed (mkStar l_res r_res) us (join_env vs).
+            well_formed _ (mkStar l_res r_res) us (join_env vs).
     Proof.
+(*
       intros.
       consider (exprD' us tvs (conjunctives_to_expr (mkStar l_res r_res)) SL);
         intros; unfold conjunctives_to_expr, mkStar in *; simpl in *.
       { eexists; split; eauto. intros.
         split.
-        { destruct (e_empOk us tvs); clear e_empOk.
-          destruct (e_trueOk us tvs); clear e_trueOk.
+        { destruct (SSLO.(e_empOk) us tvs).
+          destruct (SSLO.(e_trueOk) us tvs).
           rewrite map_app in *.
           forward_ex_and.
-          generalize (@iterated_base_app _ e_true e_and (Sem_equiv _ SL lequiv)
-                 (@Reflexive_Sem_equiv _ _ _ SL lequiv _)
-                 (@Transitive_Sem_equiv _ _ _ SL lequiv _)
-                 Sem_equiv_e_and_assoc Sem_equiv_Proper_e_and
+          generalize (@iterated_base_app _ SSL.(e_true) SSL.(e_and)
+                        (Sem_equiv _ SL lequiv us (join_env vs))
+                 (@Reflexive_Sem_equiv _ _ _ SL lequiv _ us (join_env vs))
+                 (@Transitive_Sem_equiv _ _ _ SL lequiv _ us (join_env vs))
+                 (Sem_equiv_e_and_assoc _ SSLO) Sem_equiv_Proper_e_and
                  Sem_equiv_e_true_e_and_unitLL
                  Sem_equiv_e_true_e_and_unitLR
                  Sem_equiv_e_true_e_and_unitRL
@@ -685,57 +392,57 @@ Section cancel_state.
         destruct l_res.(star_true); destruct r_res.(star_true); simpl in *;
         repeat go_crazy; congruence. }
     Qed.
+*) Admitted.
 
-    Theorem SepLogArgsOk_conjunctives : SepLogArgsOk RSym_sym SL SepLogArgs_normalize SLS R_conjunctives.
+    Theorem SepLogArgsOk_conjunctives
+    : SepLogArgsOk RSym_sym SL SepLogArgs_normalize SLS R_conjunctives.
     Proof.
       constructor; unfold R_conjunctives; simpl; intros.
       { unfold mkSpatial, conjunctives_to_expr. simpl.
         unfold iterated_base. simpl.
-        consider (exprD' (join_env us) tvs (e_and e_true (e_star (apps e (map fst es)) e_emp)) SL); intros;
-        repeat go_crazy; inv_all; subst.
+        consider (exprD' (join_env us) tvs (SSL.(e_and) SSL.(e_true) (SSL.(e_star) (apps e (map fst es)) SSL.(e_emp))) SL); intros;
+        repeat (go_crazy SSL SSLO); inv_all; subst.
         { eexists; split; eauto.
           intros.
-          destruct (e_empOk (join_env us) tvs); clear e_empOk.
-          destruct (e_trueOk (join_env us) tvs); clear e_trueOk.
+          destruct (SSLO.(e_empOk) (join_env us) tvs).
+          destruct (SSLO.(e_trueOk) (join_env us) tvs).
           forward_ex_and.
-          go_crazy. inv_all; subst.
-          rewrite H5 in *. inv_all; subst.
+          repeat (go_crazy SSL SSLO).
+          inv_all; subst.
           repeat match goal with
                    | H : forall x, _ -|- _ |- _ =>
                      rewrite H
                  end.
-          rewrite empSPR. rewrite landtrueL. split.
+          rewrite empSPR; eauto with typeclass_instances.
+          rewrite landtrueL. split.
           reflexivity. constructor. }
-        { destruct (e_trueOk (join_env us) tvs).
-          destruct H3; congruence. }
-        { destruct (e_empOk (join_env us) tvs).
-          destruct H3; congruence. } }
+        { destruct (SSLO.(e_trueOk) (join_env us) tvs) as [ ? [ ? ? ] ]. congruence. }
+        { destruct (SSLO.(e_empOk) (join_env us) tvs) as [ ? [ ? ? ] ]. congruence. } }
       { unfold conjunctives_to_expr, mkPure; simpl.
         unfold iterated_base. simpl.
-        destruct (e_empOk (join_env us) tvs); clear e_empOk.
-        destruct (e_trueOk (join_env us) tvs); clear e_trueOk.
+        destruct (SSLO.(e_empOk) (join_env us) tvs).
+        destruct (SSLO.(e_trueOk) (join_env us) tvs).
         forward_ex_and.
-        consider (exprD' (join_env us) tvs (e_and e (e_star e_emp e_true)) SL);
-          intros; do 3 go_crazy; try congruence.
+        consider (exprD' (join_env us) tvs (SSL.(e_and) e (SSL.(e_star) SSL.(e_emp) SSL.(e_true))) SL);
+          intros; do 5 (go_crazy SSL SSLO); try congruence.
         { eexists; split; eauto.
-          intros.
-          repeat go_crazy. inv_all; subst.
+          intros. inv_all; subst.
           rewrite H8. rewrite H10. rewrite H4. rewrite H5.
           rewrite empSPL. rewrite landtrueR. split.
-          reflexivity.
-          red. constructor. 2: constructor.
-          unfold exprD. rewrite split_env_join_env. rewrite H1.
-          eexists; split; eauto.
-          eapply His_pure. eassumption.
-          instantiate (1 := join_env vs).
-          instantiate (1 := join_env us).
-          unfold exprD. rewrite split_env_join_env. rewrite H1. reflexivity. } }
+          { reflexivity. }
+          { red. constructor. 2: constructor.
+            unfold exprD. rewrite split_env_join_env. rewrite H1.
+            eexists; split; eauto.
+            eapply His_pure. eassumption.
+            instantiate (1 := join_env vs).
+            instantiate (1 := join_env us).
+            unfold exprD. rewrite split_env_join_env. rewrite H1. reflexivity. } } }
       { unfold conjunctives_to_expr, mkEmpty; simpl.
-        destruct (e_empOk (join_env us) tvs); clear e_empOk.
-        destruct (e_trueOk (join_env us) tvs); clear e_trueOk.
+        destruct (SSLO.(e_empOk) (join_env us) tvs).
+        destruct (SSLO.(e_trueOk) (join_env us) tvs).
         forward_ex_and. unfold iterated_base. simpl.
-        consider (exprD' (join_env us) tvs (e_and e_true (e_star e_emp e_emp)) SL); 
-          intros; repeat go_crazy; try congruence.
+        consider (exprD' (join_env us) tvs (SSL.(e_and) SSL.(e_true) (SSL.(e_star) SSL.(e_emp) SSL.(e_emp))) SL); 
+          intros; repeat (go_crazy SSL SSLO); try congruence.
         { eexists; split; eauto.
           inv_all; subst. intros.
           split; try solve [ constructor ].

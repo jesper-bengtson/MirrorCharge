@@ -10,7 +10,8 @@ override _COQCMD = \
 include CoqoonMakefile.vars
 
 bin/%.vo: src/%.v
-	$(_COQCMD)
+	@ echo Building $< ...
+	@ $(_COQCMD)
 # TODO: These should be compiled under the [MirrorCharge] namespace
 override COQFLAGS += -R src ""
 override COQFLAGS += -R bin ""
@@ -29,7 +30,9 @@ OBJECTS = \
 	bin/SepLogFold.vo \
 	bin/SepLogFoldWithAnd.vo \
 	bin/Tauto.vo \
-	bin/TautoTests.vo
+	bin/TautoTests.vo \
+	bin/SynSepLog.vo \
+	bin/OrderedCanceller.vo
 # (these do not compile)
 #	bin/ILPullQuant.vo
 #	bin/SetoidRewrite.vo 
@@ -38,12 +41,15 @@ all: $(OBJECTS)
 clean:
 	rm -f $(OBJECTS)
 
-bin/BILNormalize.vo: src/BILNormalize.v bin/Iterated.vo bin/ILogicFunc.vo bin/SepLogFold.vo
+bin/BILNormalize.vo: src/BILNormalize.v bin/Iterated.vo bin/ILogicFunc.vo bin/SepLogFold.vo bin/SynSepLog.vo
 bin/ILFFold.vo: src/ILFFold.v bin/ILogicFunc.vo
 bin/ILPullQuant.vo: src/ILPullQuant.v bin/ILogicFunc.vo
 bin/ILogicFunc.vo: src/ILogicFunc.v
 bin/Iterated.vo: src/Iterated.v
 bin/Reify.vo: src/Reify.v bin/ILogicFunc.vo
 bin/SepLogFold.vo: src/SepLogFold.v
-bin/SetoidRewrite.vo: src/SetoidRewrite.v
+bin/SynSepLog.vo: src/SynSepLog.v bin/SepLogFold.vo # This shouldn't need SepLogFold
+bin/SetoidRewrite.vo: src/SetoidRewrite.v bin/SepLogFold.vo
+bin/OrderedCanceller.vo: src/OrderedCanceller.v bin/SynSepLog.vo bin/BILNormalize.vo
 bin/Tauto.vo: src/Tauto.v bin/ILogicFunc.vo
+bin/TautoTests.vo: src/Tauto.v bin/Tauto.vo
