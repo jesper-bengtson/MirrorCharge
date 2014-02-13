@@ -14,18 +14,20 @@ bin/%.vo: src/%.v
 override COQFLAGS += -R src ""
 override COQFLAGS += -R bin ""
 override COQFLAGS += $(DK_ITU_SDG_KOPITIAM_LP_COQ_8_4_FLAGS)
-override COQFLAGS += $(CHARGE_FLAGS)
+override COQFLAGS += -R $(EXTERNAL_PATH) ""
 override COQFLAGS += -R $(MIRRORCORE_PATH) MirrorCore
 override COQFLAGS += -R $(EXTLIB_PATH) ExtLib
+override COQFLAGS += $(CHARGE_FLAGS)
 OBJECTS = \
 	bin/BILNormalize.vo \
+	bin/Canceller.vo \
 	bin/ILFFold.vo \
 	bin/ILPullQuant.vo \
 	bin/ILogicFunc.vo \
 	bin/Iterated.vo \
 	bin/Reify.vo \
 	bin/SepLogFold.vo \
-	bin/SetoidRewrite.vo \
+	bin/SepLogFoldWithAnd.vo \
 	bin/Tauto.vo
 
 all: $(OBJECTS)
@@ -33,11 +35,12 @@ clean:
 	rm -f $(OBJECTS)
 
 bin/BILNormalize.vo: src/BILNormalize.v bin/Iterated.vo bin/ILogicFunc.vo bin/SepLogFold.vo
+bin/Canceller.vo: src/Canceller.v bin/BILNormalize.vo
 bin/ILFFold.vo: src/ILFFold.v bin/ILogicFunc.vo
 bin/ILPullQuant.vo: src/ILPullQuant.v bin/ILogicFunc.vo
 bin/ILogicFunc.vo: src/ILogicFunc.v
 bin/Iterated.vo: src/Iterated.v
 bin/Reify.vo: src/Reify.v bin/ILogicFunc.vo
 bin/SepLogFold.vo: src/SepLogFold.v
-bin/SetoidRewrite.vo: src/SetoidRewrite.v
+bin/SepLogFoldWithAnd.vo: src/SepLogFoldWithAnd.v
 bin/Tauto.vo: src/Tauto.v bin/ILogicFunc.vo
