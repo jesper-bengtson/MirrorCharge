@@ -18,6 +18,7 @@ Require Import MirrorCore.EnvI.
 Require Import MirrorCore.SymI.
 Require Import MirrorCore.Ext.Expr.
 Require Import MirrorCore.Ext.AppFull.
+Require Import MirrorCore.Ext.ExprSem.
 Require Import Iterated.
 Require Import ILogicFunc SepLogFold.
 Require Import SynSepLog.
@@ -66,7 +67,7 @@ Section lemmas.
   Qed.
 End lemmas.
 
-Section cancel_state.
+Section conjunctives.
   Variable ts : types.
   Variable sym : Type.
   Variable RSym_sym : RSym (typD ts) sym.
@@ -123,10 +124,8 @@ Section cancel_state.
                      exists val, exprD us vs e SL = Some val
                               /\ @Pure.pure _ PO val) c.(pure).
 
-
     Variable SSL : SynSepLog sym.
     Variable SSLO : @SynSepLogOk ts sym _ SL _ _ SSL.
-
 
     Definition conjunctives_to_expr (c : conjunctives) : expr sym :=
       let spa := iterated_base SSL.(e_emp) SSL.(e_star) (map (fun x => apps (fst x) (snd x)) c.(spatial)) in
@@ -140,48 +139,459 @@ Section cancel_state.
 
     Require Import MirrorCore.Ext.ExprSem.
 
-    Theorem conjunctives_to_expr_conjunctives_to_expr_star
-    : forall (PO : PureOp) (P : Pure PO) vs us c,
-        well_formed PO c us vs ->
-        Sem_equiv _ SL lequiv us vs
-                  (conjunctives_to_expr c)
-                  (conjunctives_to_expr_star c).
+    Section with_pure.
+
+    Variable PureOp_it : @PureOp (typD ts nil SL).
+    Variable Pure_it : @Pure _ _ _ PureOp_it.
+    Hypothesis pure_ltrue : Pure.pure ltrue.
+    Hypothesis pure_land : forall p q, Pure.pure p -> Pure.pure q -> Pure.pure (land p q).
+
+    Lemma iterated_base_true_and_pure
+    : forall us vs ps x1,
+        exprD us vs (iterated_base (e_true SSL) (e_and SSL) ps) SL = Some x1 ->
+        List.Forall
+          (fun e : expr sym =>
+             exists val : typD ts nil SL,
+               exprD us vs e SL = Some val /\ Pure.pure val) ps -> Pure.pure x1.
     Proof.
-      unfold well_formed, conjunctives_to_expr, conjunctives_to_expr_star, Sem_equiv.
-      destruct c; simpl.
       intros.
-      generalize (e_star SSL
-           (iterated_base (e_emp SSL) (e_star SSL)
-              (map
-                 (fun x : expr sym * list (expr sym) => apps (fst x) (snd x))
-                 spatial0)) (if star_true0 then e_true SSL else e_emp SSL)).
-      intros.
-      induction H.
-      { simpl. unfold iterated_base. simpl.
-        consider (exprD us vs (e_and SSL (e_true SSL) e) SL); intros; forward.
-        { intros.
-          unfold exprD in *. destruct (split_env vs).
-          forward. inv_all; subst.
-          consider (exprD' us x (e_star SSL (e_emp SSL) e) SL); intros.
-          { repeat go_crazy SSL SSLO.
-            inv_all; subst.
-            destruct (SSLO.(e_empOk) us x).
-            destruct (SSLO.(e_trueOk) us x).
-            rewrite H0 in *. destruct H3.
-            rewrite H in *. destruct H5.
-            inv_all; subst.
-            Cases.rewrite_all_goal.
-            rewrite empSPL. rewrite landtrueL.
-            reflexivity. }
-          { repeat go_crazy SSL SSLO.
-            destruct (SSLO.(e_empOk) us x). destruct H3. congruence. } }
-        { unfold exprD in *. destruct (split_env vs).
-          forward; inv_all; subst.
-          repeat go_crazy SSL SSLO.
-          destruct (SSLO.(e_trueOk) us x).
-          destruct H4.
+      generalize dependent x1.
+      induction H0; simpl.
+      { unfold iterated_base. simpl. intros.
+        destruct (exprD_e_trueOk SSLO us vs) as [ ? [ ? ? ] ].
+        go_crazy SSL SSLO.
+        inv_all; subst.
+        eapply pure_proper; eauto. }
+      { intros.
+        generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
+                      (Sem_equiv _ SL lequiv us vs)
+                      (@Reflexive_Sem_equiv _ _ _ SL lequiv _ us vs)
+                      (@Transitive_Sem_equiv _ _ _ SL lequiv _ us vs)
+                      (@Sem_equiv_e_and_assoc _ _ _ SL _ _ _ SSL SSLO us vs)
+                      (@Sem_equiv_Proper_e_and _ _ _ SL _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_true_e_and_unitLL _ _ _ SL _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_true_e_and_unitLR _ _ _ SL _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_true_e_and_unitRL _ _ _ SL _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_true_e_and_unitRR _ _ _ SL _ _ _ _ SSLO us vs)
+                      x l).
+        unfold Sem_equiv. rewrite H1.
+        intros; forward.
+        repeat go_crazy SSL SSLO.
+        destruct H as [ ? [ ? ? ] ].
+        inv_all; subst.
+        specialize (IHForall _ eq_refl).
+        eapply pure_proper. rewrite H5 in H3. apply H3.
+        eapply pure_land; eauto. }
+    Qed.
+
+    Lemma iterated_base_true_and_star_emp'
+    : forall us tvs ps,
+        match
+            exprD' us tvs (iterated_base SSL.(e_true) SSL.(e_and) ps) SL
+          , exprD' us tvs (iterated_base SSL.(e_emp) SSL.(e_star) (map (SSL.(e_and) SSL.(e_emp)) ps)) SL
+        with
+          | Some x , Some x' =>
+            forall Q vs,
+              List.Forall
+                (fun e : expr sym =>
+                   exists val : typD ts nil SL, exprD us (join_env vs) e SL = Some val /\ Pure.pure val)
+                ps ->
+              (x vs //\\ Q -|- x' vs ** Q)
+          | None , None => True
+          | _ , _ => False
+        end.
+    Proof.
+      induction ps; simpl; intros.
+      { unfold iterated_base in *; simpl in *.
+        destruct (SSLO.(e_empOk) us tvs) as [ ? [ ? ? ] ].
+        destruct (e_trueOk SSLO us tvs) as [ ? [ ? ? ] ].
+        Cases.rewrite_all_goal; intros.
+        rewrite H0. rewrite H2.
+        rewrite empSPL. rewrite ltrue_unitL; eauto. }
+      { admit.
+        (*
+generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
+                      (Sem_equiv' _ SL lequiv us vs)
+                      (@Reflexive_Sem_equiv' _ _ _ SL lequiv _ us tvs)
+                      (@Transitive_Sem_equiv' _ _ _ SL lequiv _ us tvs)
+                      (@Sem_equiv'_e_and_assoc _ _ _ SL _ _ _ SSL SSLO us tvs)
+                      (@Sem_equiv'_Proper_e_and _ _ _ SL _ _ _ _ SSLO us tvs)
+                      (@Sem_equiv'_e_true_e_and_unitLL _ _ _ SL _ _ _ _ SSLO us tvs)
+                      (@Sem_equiv'_e_true_e_and_unitLR _ _ _ SL _ _ _ _ SSLO us tvs)
+                      (@Sem_equiv'_e_true_e_and_unitRL _ _ _ SL _ _ _ _ SSLO us tvs)
+                      (@Sem_equiv'_e_true_e_and_unitRR _ _ _ SL _ _ _ _ SSLO us tvs)
+                   a ps).
+        generalize (@iterated_base_cons _ SSL.(e_emp) SSL.(e_star)
+                      (Sem_equiv _ SL lequiv us vs)
+                      (@Reflexive_Sem_equiv _ _ _ SL lequiv _ us vs)
+                      (@Transitive_Sem_equiv _ _ _ SL lequiv _ us vs)
+                      (@Sem_equiv_e_star_assoc _ _ _ SL _ _ _ _ SSL SSLO us vs)
+                      (@Sem_equiv_Proper_e_star _ _ _ SL _ _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_emp_e_star_unitLL _ _ _ SL _ _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_emp_e_star_unitLR _ _ _ SL _ _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_emp_e_star_unitRL _ _ _ SL _ _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_emp_e_star_unitRR _ _ _ SL _ _ _ _ _ SSLO us vs)
+                   (e_and SSL (e_emp SSL) a) (map (e_and SSL (e_emp SSL)) ps)).
+        unfold Sem_equiv.
+        intros.
+        repeat match goal with
+                 | |- match ?X with _ => _ end =>
+                   consider X; intros
+               end; forward; repeat go_crazy SSL SSLO.
+        { inv_all; subst.
+          rewrite H5; clear H5.
+          rewrite H4; clear H4.
+          rewrite H9; clear H9.
+          rewrite H7; clear H7.
+          rewrite H11; clear H11.
+          inversion H3; subst.
+          specialize (IHps Q H7).
+          destruct (exprD_e_empOk SSLO us vs) as [ ? [ ? ? ] ].
+          rewrite H1 in *. inv_all; subst.
+          rewrite H4.
+          destruct H5. rewrite H10 in *. destruct H2.
+          inv_all; subst.
+          rewrite (landC empSP).
+          rewrite sepSPA.
+          rewrite pureandscD by eauto with typeclass_instances.
+          rewrite empSPL.
+          rewrite landA. rewrite IHps. reflexivity. 
+        { destruct (exprD_e_empOk SSLO us vs) as [ ? [ ? ? ] ].
           congruence. } }
-      { simpl.
+*) }
+    Qed.
+
+    Lemma iterated_base_true_and_star_emp
+    : forall us vs ps,
+        match
+            exprD us vs (iterated_base SSL.(e_true) SSL.(e_and) ps) SL
+          , exprD us vs (iterated_base SSL.(e_emp) SSL.(e_star) (map (SSL.(e_and) SSL.(e_emp)) ps)) SL
+        with
+          | Some x , Some x' =>
+            forall Q,
+              List.Forall
+                (fun e : expr sym =>
+                   exists val : typD ts nil SL, exprD us vs e SL = Some val /\ Pure.pure val)
+                ps ->
+              x //\\ Q -|- x' ** Q
+          | None , None => True
+          | _ , _ => False
+        end.
+    Proof.
+      induction ps; simpl; intros.
+      { unfold iterated_base in *; simpl in *.
+        destruct (exprD_e_empOk SSLO us vs) as [ ? [ ? ? ] ].
+        destruct (exprD_e_trueOk SSLO us vs) as [ ? [ ? ? ] ].
+        Cases.rewrite_all_goal; intros.
+        rewrite H0. rewrite H2.
+        rewrite empSPL. rewrite ltrue_unitL; eauto. }
+      { generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
+                      (Sem_equiv _ SL lequiv us vs)
+                      (@Reflexive_Sem_equiv _ _ _ SL lequiv _ us vs)
+                      (@Transitive_Sem_equiv _ _ _ SL lequiv _ us vs)
+                      (@Sem_equiv_e_and_assoc _ _ _ SL _ _ _ SSL SSLO us vs)
+                      (@Sem_equiv_Proper_e_and _ _ _ SL _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_true_e_and_unitLL _ _ _ SL _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_true_e_and_unitLR _ _ _ SL _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_true_e_and_unitRL _ _ _ SL _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_true_e_and_unitRR _ _ _ SL _ _ _ _ SSLO us vs)
+                   a ps).
+        generalize (@iterated_base_cons _ SSL.(e_emp) SSL.(e_star)
+                      (Sem_equiv _ SL lequiv us vs)
+                      (@Reflexive_Sem_equiv _ _ _ SL lequiv _ us vs)
+                      (@Transitive_Sem_equiv _ _ _ SL lequiv _ us vs)
+                      (@Sem_equiv_e_star_assoc _ _ _ SL _ _ _ _ SSL SSLO us vs)
+                      (@Sem_equiv_Proper_e_star _ _ _ SL _ _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_emp_e_star_unitLL _ _ _ SL _ _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_emp_e_star_unitLR _ _ _ SL _ _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_emp_e_star_unitRL _ _ _ SL _ _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_emp_e_star_unitRR _ _ _ SL _ _ _ _ _ SSLO us vs)
+                   (e_and SSL (e_emp SSL) a) (map (e_and SSL (e_emp SSL)) ps)).
+        unfold Sem_equiv.
+        intros.
+        repeat match goal with
+                 | |- match ?X with _ => _ end =>
+                   consider X; intros
+               end; forward; repeat go_crazy SSL SSLO.
+        { inv_all; subst.
+          rewrite H5; clear H5.
+          rewrite H4; clear H4.
+          rewrite H9; clear H9.
+          rewrite H7; clear H7.
+          rewrite H11; clear H11.
+          inversion H3; subst.
+          specialize (IHps Q H7).
+          destruct (exprD_e_empOk SSLO us vs) as [ ? [ ? ? ] ].
+          rewrite H1 in *. inv_all; subst.
+          rewrite H4.
+          destruct H5. rewrite H10 in *. destruct H2.
+          inv_all; subst.
+          rewrite (landC empSP).
+          rewrite sepSPA.
+          rewrite pureandscD by eauto with typeclass_instances.
+          rewrite empSPL.
+          rewrite landA. rewrite IHps. reflexivity. }
+        { destruct (exprD_e_empOk SSLO us vs) as [ ? [ ? ? ] ].
+          congruence. } }
+    Qed.
+
+
+(*
+    Lemma iterated_base_true_and_star_emp
+    : forall us vs ps x,
+        exprD us vs (iterated_base SSL.(e_true) SSL.(e_and) ps) SL = Some x ->
+        exists x',
+          exprD us vs (iterated_base SSL.(e_emp) SSL.(e_star) (map (SSL.(e_and) SSL.(e_emp)) ps)) SL = Some x' /\
+          forall Q,
+            List.Forall
+              (fun e : expr sym =>
+                 exists val : typD ts nil SL, exprD us vs e SL = Some val /\ Pure.pure val)
+              ps ->
+            x //\\ Q -|- x' ** Q.
+    Proof.
+      
+      induction ps; simpl; intros.
+      { unfold iterated_base in *; simpl in *.
+        destruct (exprD_e_empOk SSLO us vs) as [ ? [ ? ? ] ].
+        destruct (exprD_e_trueOk SSLO us vs) as [ ? [ ? ? ] ].
+        eexists; split; eauto. intros.
+        rewrite H1. rewrite H in *. inv_all; subst.
+        rewrite H3. rewrite empSPL. rewrite ltrue_unitL; eauto. }
+      { generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
+                      (Sem_equiv _ SL lequiv us vs)
+                      (@Reflexive_Sem_equiv _ _ _ SL lequiv _ us vs)
+                      (@Transitive_Sem_equiv _ _ _ SL lequiv _ us vs)
+                      (@Sem_equiv_e_and_assoc _ _ _ SL _ _ _ SSL SSLO us vs)
+                      (@Sem_equiv_Proper_e_and _ _ _ SL _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_true_e_and_unitLL _ _ _ SL _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_true_e_and_unitLR _ _ _ SL _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_true_e_and_unitRL _ _ _ SL _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_true_e_and_unitRR _ _ _ SL _ _ _ _ SSLO us vs)
+                   a ps).
+        generalize (@iterated_base_cons _ SSL.(e_emp) SSL.(e_star)
+                      (Sem_equiv _ SL lequiv us vs)
+                      (@Reflexive_Sem_equiv _ _ _ SL lequiv _ us vs)
+                      (@Transitive_Sem_equiv _ _ _ SL lequiv _ us vs)
+                      (@Sem_equiv_e_star_assoc _ _ _ SL _ _ _ _ SSL SSLO us vs)
+                      (@Sem_equiv_Proper_e_star _ _ _ SL _ _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_emp_e_star_unitLL _ _ _ SL _ _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_emp_e_star_unitLR _ _ _ SL _ _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_emp_e_star_unitRL _ _ _ SL _ _ _ _ _ SSLO us vs)
+                      (@Sem_equiv_e_emp_e_star_unitRR _ _ _ SL _ _ _ _ _ SSLO us vs)
+                   (e_and SSL (e_emp SSL) a) (map (e_and SSL (e_emp SSL)) ps)).
+        unfold Sem_equiv.
+        rewrite H. intros; forward.
+        go_crazy SSL SSLO.
+        generalize (iterated_base_true_and_pure _ _ H3); intro.
+        eapply IHps in H3; clear IHps H.
+        destruct H3 as [ ? [ ? ? ] ].
+        consider (exprD us vs
+               (e_star SSL (e_and SSL (e_emp SSL) a)
+                  (iterated_base (e_emp SSL) (e_star SSL)
+                     (map (e_and SSL (e_emp SSL)) ps))) SL).
+        { intros.
+          forward. eexists; split; eauto.
+          intros. specialize (H3 Q).
+          inversion H8. subst.
+          destruct (exprD_e_empOk SSLO us vs) as [ ? [ ? ? ] ].
+          repeat go_crazy SSL SSLO.
+          inv_all; subst.
+          specialize (H5 H12).
+          destruct H11 as [ ? [ ? ? ] ]; inv_all; subst.
+          specialize (H3 H12); clear H6 H12.
+          subst.
+          rewrite H2. rewrite H4. rewrite H7. rewrite H14. rewrite H16. rewrite H10.
+          rewrite (landC empSP).
+          rewrite sepSPA.
+          rewrite pureandscD by eauto with typeclass_instances.
+          rewrite empSPL.
+          rewrite landA. rewrite H3. reflexivity. }
+        { intros. forward.
+          exfalso. repeat go_crazy SSL SSLO.
+          destruct (exprD_e_empOk SSLO us vs) as [ ? [ ? ? ] ].
+          congruence. } }
+    Qed.
+
+    Theorem conjunctives_to_expr_conjunctives_to_expr_star
+    : forall tvs us c cE,
+        exprD' us tvs (conjunctives_to_expr c) SL = Some cE ->
+        exists cE',
+          exprD' us tvs (conjunctives_to_expr_star c) SL = Some cE' /\
+          forall (vs : hlist (typD ts nil) tvs),
+            well_formed _ c us (join_env vs) ->
+            cE vs -|- cE' vs.
+    Proof.
+      intros.
+      consider (exprD' us tvs (conjunctives_to_expr_star c) SL); intros.
+      { eexists; split; eauto; intros.
+        destruct c.
+        unfold well_formed, conjunctives_to_expr, conjunctives_to_expr_star in *.
+        simpl in *.
+        generalize dependent (e_star SSL
+               (iterated_base (e_emp SSL) (e_star SSL)
+                  (map
+                     (fun x : expr sym * list (expr sym) =>
+                      apps (fst x) (snd x)) spatial0))
+               (if star_true0 then e_true SSL else e_emp SSL)).
+        intros.
+        repeat go_crazy SSL SSLO.
+        generalize (@iterated_base_true_and_star_emp us (join_env vs) pure0).
+        unfold exprD. rewrite split_env_join_env.
+        rewrite H.
+        intro. specialize (H6 _ eq_refl).
+        destruct H6. destruct H6.
+        forward. inv_all; subst.
+        rewrite H3; clear H3.
+        rewrite H5; clear H5.
+        eapply H7; eauto.
+        clear - H1.
+        unfold exprD in H1.
+        rewrite split_env_join_env in H1. assumption. }
+      { exfalso.
+        destruct c.
+        unfold well_formed, conjunctives_to_expr, conjunctives_to_expr_star in *.
+        simpl in *.
+        generalize dependent (e_star SSL
+               (iterated_base (e_emp SSL) (e_star SSL)
+                  (map
+                     (fun x : expr sym * list (expr sym) =>
+                      apps (fst x) (snd x)) spatial0))
+               (if star_true0 then e_true SSL else e_emp SSL)).
+        intros.
+        repeat go_crazy SSL SSLO.
+        clear H2.
+        generalize dependent x.
+        generalize dependent pure0.
+        induction pure0; intros.
+        { unfold iterated_base in *. simpl in *.
+          destruct (SSLO.(e_empOk) us tvs) as [ ? [ ? ? ] ].
+          congruence. }
+        { unfold iterated_base in *.
+          simpl in *.
+          consider ( iterated (e_and SSL) pure0); intros.
+          { consider (iterated (e_star SSL) (map (e_and SSL (e_emp SSL)) pure0)); intros.
+            { repeat go_crazy SSL SSLO.
+              destruct (SSLO.(e_empOk) us tvs) as [ ? [ ? ? ] ].
+              congruence.
+              eapply IHpure0; reflexivity. }
+            { repeat go_crazy SSL SSLO.
+              destruct (SSLO.(e_empOk) us tvs) as [ ? [ ? ? ] ].
+              congruence. } }
+          { consider (iterated (e_star SSL) (map (e_and SSL (e_emp SSL)) pure0)); intros.
+            { repeat go_crazy SSL SSLO.
+              destruct (SSLO.(e_empOk) us tvs) as [ ? [ ? ? ] ].
+              congruence.
+              destruct (SSLO.(e_trueOk) us tvs) as [ ? [ ? ? ] ].
+              eapply H4; eauto. }
+            { repeat go_crazy SSL SSLO.
+              destruct (SSLO.(e_empOk) us tvs) as [ ? [ ? ? ] ].
+              congruence. } } } }
+    Qed.
+*)
+
+    Theorem conjunctives_to_expr_conjunctives_to_expr_star_iff
+    : forall tvs us c,
+        match
+            exprD' us tvs (conjunctives_to_expr c) SL
+          , exprD' us tvs (conjunctives_to_expr_star c) SL
+        with
+          | Some cE , Some cE' =>
+            forall (vs : hlist (typD ts nil) tvs),
+            well_formed _ c us (join_env vs) ->
+            cE vs -|- cE' vs
+          | None , None => True
+          | _ , _ => False
+        end.
+    Proof.
+      intros.
+      unfold conjunctives_to_expr, conjunctives_to_expr_star.
+      generalize (e_star SSL
+                 (iterated_base (e_emp SSL) (e_star SSL)
+                    (map
+                       (fun x : expr sym * list (expr sym) =>
+                        apps (fst x) (snd x)) (spatial c)))
+                 (if star_true c then e_true SSL else e_emp SSL)); intros.
+(*
+      consider (exprD' us tvs (conjunctives_to_expr_star c) SL); intros; forward.
+      { consider (exprD' us tvs (conjunctives_to_expr c) SL); intros.
+        { admit. }
+        { unfold conjunctives_to_expr, conjunctives_to_expr_star in *.
+          generalize dependent ((e_star SSL
+              (iterated_base (e_emp SSL) (e_star SSL)
+                 (map
+                    (fun x : expr sym * list (expr sym) =>
+                     apps (fst x) (snd x)) (spatial c)))
+              (if star_true c then e_true SSL else e_emp SSL))).
+          intros.
+          repeat go_crazy SSL SSLO.
+          destruct c; simpl in *.
+          clear - H H0.
+          generalize dependent x.
+      
+      { eexists; split; eauto; intros.
+        destruct c.
+        unfold well_formed, conjunctives_to_expr, conjunctives_to_expr_star in *.
+        simpl in *.
+        generalize dependent (e_star SSL
+               (iterated_base (e_emp SSL) (e_star SSL)
+                  (map
+                     (fun x : expr sym * list (expr sym) =>
+                      apps (fst x) (snd x)) spatial0))
+               (if star_true0 then e_true SSL else e_emp SSL)).
+        intros.
+        repeat go_crazy SSL SSLO.
+        generalize (@iterated_base_true_and_star_emp us (join_env vs) pure0).
+        unfold exprD. rewrite split_env_join_env.
+        rewrite H.
+        intro. specialize (H6 _ eq_refl).
+        destruct H6. destruct H6.
+        forward. inv_all; subst.
+        rewrite H3; clear H3.
+        rewrite H5; clear H5.
+        eapply H7; eauto.
+        clear - H1.
+        unfold exprD in H1.
+        rewrite split_env_join_env in H1. assumption. }
+      { exfalso.
+        destruct c.
+        unfold well_formed, conjunctives_to_expr, conjunctives_to_expr_star in *.
+        simpl in *.
+        generalize dependent (e_star SSL
+               (iterated_base (e_emp SSL) (e_star SSL)
+                  (map
+                     (fun x : expr sym * list (expr sym) =>
+                      apps (fst x) (snd x)) spatial0))
+               (if star_true0 then e_true SSL else e_emp SSL)).
+        intros.
+        repeat go_crazy SSL SSLO.
+        clear H2.
+        generalize dependent x.
+        generalize dependent pure0.
+        induction pure0; intros.
+        { unfold iterated_base in *. simpl in *.
+          destruct (SSLO.(e_empOk) us tvs) as [ ? [ ? ? ] ].
+          congruence. }
+        { unfold iterated_base in *.
+          simpl in *.
+          consider ( iterated (e_and SSL) pure0); intros.
+          { consider (iterated (e_star SSL) (map (e_and SSL (e_emp SSL)) pure0)); intros.
+            { repeat go_crazy SSL SSLO.
+              destruct (SSLO.(e_empOk) us tvs) as [ ? [ ? ? ] ].
+              congruence.
+              eapply IHpure0; reflexivity. }
+            { repeat go_crazy SSL SSLO.
+              destruct (SSLO.(e_empOk) us tvs) as [ ? [ ? ? ] ].
+              congruence. } }
+          { consider (iterated (e_star SSL) (map (e_and SSL (e_emp SSL)) pure0)); intros.
+            { repeat go_crazy SSL SSLO.
+              destruct (SSLO.(e_empOk) us tvs) as [ ? [ ? ? ] ].
+              congruence.
+              destruct (SSLO.(e_trueOk) us tvs) as [ ? [ ? ? ] ].
+              eapply H4; eauto. }
+            { repeat go_crazy SSL SSLO.
+              destruct (SSLO.(e_empOk) us tvs) as [ ? [ ? ? ] ].
+              congruence. } } } }
+*)
     Admitted.
 
 (*
@@ -199,14 +609,6 @@ Section cancel_state.
                      sp)
       end.
 *)
-
-    Variable SLS : SepLogSpec sym.
-    Variable slsok : SepLogSpecOk RSym_sym SL SLS ILO BILO.
-
-    Local Instance PureOp_it : @PureOp _  := slsok.(_PureOp).
-    Local Instance Pure_it : @Pure _ _ _ slsok.(_PureOp) := _Pure slsok.
-    Hypothesis pure_ltrue : Pure.pure ltrue.
-    Hypothesis pure_land : forall p q, Pure.pure p -> Pure.pure q -> Pure.pure (land p q).
 
     Definition R_conjunctives
                (e : expr sym) (c : conjunctives) (tus tvs : tenv typ) : Prop :=
@@ -236,7 +638,7 @@ Section cancel_state.
         Pure.pure a -> Pure.pure b ->
         (a //\\ b) //\\ c ** d -|- (a //\\ c) ** b //\\ d.
     Proof.
-      clear - BIL IL. intros.
+      clear - BIL IL Pure_it. intros.
       symmetry.
       rewrite pureandscD by eauto with typeclass_instances.
       rewrite sepSPC.
@@ -394,6 +796,12 @@ Section cancel_state.
     Qed.
 *) Admitted.
 
+    End with_pure.
+
+    Variable SLS : SepLogSpec sym.
+    Variable slsok : SepLogSpecOk RSym_sym SL SLS ILO BILO.
+
+(*
     Theorem SepLogArgsOk_conjunctives
     : SepLogArgsOk RSym_sym SL SepLogArgs_normalize SLS R_conjunctives.
     Proof.
@@ -480,6 +888,7 @@ Section cancel_state.
         forward_ex_and. split; auto.
         symmetry. rewrite H11. rewrite H10. auto. }
     Qed.
+*)
 
   End conjunctivesD.
 
@@ -508,4 +917,4 @@ Section cancel_state.
   End demo.
 *)
 
-End cancel_state.
+End conjunctives.

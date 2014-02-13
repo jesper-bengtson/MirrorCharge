@@ -1,6 +1,9 @@
 Require Import MirrorCore.Ext.Expr.
+(** Charge **)
+Require Import ILogic BILogic ILEmbed.
+(** MirrorCharge **)
 Require Import ILogicFunc.
-Require Import Tauto.
+Require Import OrderedCanceller.
 
 (**
 Add ML Path "../plugins".
@@ -13,9 +16,6 @@ Require Import Reify.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Require Import ILogic.
-Require Import BILogic.
-Require Import ILEmbed.
 
 (** Test cases for the core of separation logic **)
 Section SepTests.
