@@ -20,27 +20,35 @@ override COQFLAGS += -R $(EXTLIB_PATH) ExtLib
 override COQFLAGS += $(CHARGE_FLAGS)
 OBJECTS = \
 	bin/BILNormalize.vo \
-	bin/Canceller.vo \
 	bin/ILFFold.vo \
 	bin/ILPullQuant.vo \
 	bin/ILogicFunc.vo \
 	bin/Iterated.vo \
+	bin/MonadicCanceller.vo \
+	bin/OrderedCanceller.vo \
 	bin/Reify.vo \
 	bin/SepLogFold.vo \
 	bin/SepLogFoldWithAnd.vo \
-	bin/Tauto.vo
+	bin/SepTests.vo \
+	bin/SynSepLog.vo \
+	bin/Tauto.vo \
+	bin/TautoTests.vo
 
 all: $(OBJECTS)
 clean:
 	rm -f $(OBJECTS)
 
-bin/BILNormalize.vo: src/BILNormalize.v bin/Iterated.vo bin/ILogicFunc.vo bin/SepLogFold.vo
-bin/Canceller.vo: src/Canceller.v bin/BILNormalize.vo
+bin/BILNormalize.vo: src/BILNormalize.v bin/Iterated.vo bin/ILogicFunc.vo bin/SepLogFold.vo bin/SynSepLog.vo
 bin/ILFFold.vo: src/ILFFold.v bin/ILogicFunc.vo
 bin/ILPullQuant.vo: src/ILPullQuant.v bin/ILogicFunc.vo
 bin/ILogicFunc.vo: src/ILogicFunc.v
 bin/Iterated.vo: src/Iterated.v
+bin/MonadicCanceller.vo: src/MonadicCanceller.v bin/BILNormalize.vo
+bin/OrderedCanceller.vo: src/OrderedCanceller.v bin/BILNormalize.vo bin/Iterated.vo bin/SynSepLog.vo
 bin/Reify.vo: src/Reify.v bin/ILogicFunc.vo
 bin/SepLogFold.vo: src/SepLogFold.v
 bin/SepLogFoldWithAnd.vo: src/SepLogFoldWithAnd.v
+bin/SepTests.vo: src/SepTests.v bin/ILogicFunc.vo bin/Tauto.vo
+bin/SynSepLog.vo: src/SynSepLog.v bin/SepLogFold.vo
 bin/Tauto.vo: src/Tauto.v bin/ILogicFunc.vo
+bin/TautoTests.vo: src/TautoTests.v bin/ILogicFunc.vo bin/Tauto.vo bin/Reify.vo

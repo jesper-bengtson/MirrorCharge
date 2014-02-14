@@ -96,6 +96,9 @@ struct
     (res, !ts, !fs, !evs)
 end
 
+(** this is the top-level recursion for term_reification **)
+let reify_top = ref (fun _ -> assert false)
+
 (** To reify types **)
 module ReifyExtTypes =
   Reify_ext.ReifyExtTypes (REIFY_MONAD)
@@ -154,6 +157,8 @@ struct
 	  (** This slot is already taken **)
 	  assert false))
 
+  let ilfunc = lazy (resolve_symbol ilfunc_pkg "ilfunc")
+  let expr_sym = lazy (resolve_symbol ["MirrorCore";"Ext";"ExprCore"] "Inj")
   let expr_true = lazy (resolve_symbol ilfunc_pkg "ilf_true")
   let expr_false = lazy (resolve_symbol ilfunc_pkg "ilf_false")
   let expr_entails = lazy (resolve_symbol ilfunc_pkg "ilf_entails")
@@ -163,7 +168,7 @@ struct
   let expr_exists = lazy (resolve_symbol ilfunc_pkg "ilf_exists")
   let expr_forall = lazy (resolve_symbol ilfunc_pkg "ilf_forall")
   let expr_embed = lazy (resolve_symbol ilfunc_pkg "ilf_embed")
-  let expr_fref = lazy (resolve_symbol ilfunc_pkg "ilf_fref")
+  let expr_fref = lazy (resolve_symbol ilfunc_pkg "fref")
 
   let class_binary_assoc =
     [(tm_true, expr_true); (tm_false, expr_false);
@@ -179,10 +184,16 @@ struct
   let class_quant_operators =
     Choice (List.map (fun (x,_) -> Glob x) class_quant_assoc)
 
+  let wrap_func m =
+    M.bind m (fun x ->
+      M.ret (Term.mkApp (Lazy.force expr_sym, [| Lazy.force ilfunc ; x|])))
+
   let get nm = As (Ignore, nm)
 
   let tm_and_prop = lazy (resolve_symbol ["Coq";"Init";"Logic"] "and")
   let tm_or_prop = lazy (resolve_symbol ["Coq";"Init";"Logic"] "or")
+  let tm_true_prop = lazy (resolve_symbol ["Coq";"Init";"Logic"] "True")
+  let tm_false_prop = lazy (resolve_symbol ["Coq";"Init";"Logic"] "False")
   let prop = Term.mkProp
 
   let reify (tm : Term.constr) : result m =
@@ -198,7 +209,7 @@ struct
 		 (fun (x,_) -> Term.eq_constr op (Lazy.force x))
 		 class_binary_assoc
 	     in
-	     build_for_typeclass t tc ctor)
+	     wrap_func (build_for_typeclass t tc ctor))
 	; (App (App (App (As (class_quant_operators, "op"), get "t"), get "tc"), get "ty"),
 	   fun s ->
 	     let op = Hashtbl.find s "op" in
@@ -210,13 +221,29 @@ struct
 		 (fun (x,_) -> Term.eq_constr op (Lazy.force x))
 		 class_quant_assoc
 	     in
-	     build_for_typeclass_quant t tc ty ctor)
+	     wrap_func (build_for_typeclass_quant t tc ty ctor))
 	; (Glob tm_and_prop,
 	   fun _ ->
-	     build_for_typeclass prop (Lazy.force tc_ilogicops_prop) expr_and)
+	     wrap_func (build_for_typeclass prop (Lazy.force tc_ilogicops_prop) expr_and))
 	; (Glob tm_or_prop,
 	   fun _ ->
-	     build_for_typeclass prop (Lazy.force tc_ilogicops_prop) expr_or)
+	     wrap_func (build_for_typeclass prop (Lazy.force tc_ilogicops_prop) expr_or))
+	; (Glob tm_false_prop,
+	   fun _ ->
+	     wrap_func (build_for_typeclass prop (Lazy.force tc_ilogicops_prop) expr_false))
+	; (Glob tm_true_prop,
+	   fun _ ->
+	     wrap_func (build_for_typeclass prop (Lazy.force tc_ilogicops_prop) expr_true))
+	; (Impl (get "lhs", get "rhs"),
+	   fun s ->
+	     let lhs = Hashtbl.find s "lhs" in
+	     let rhs = Hashtbl.find s "rhs" in
+	     let loop = !reify_top in
+	     M.bind (loop lhs) (fun lhs ->
+	       M.bind (REIFY_MONAD.under_type false (loop rhs)) (fun rhs ->
+		 M.bind (wrap_func (build_for_typeclass prop
+				      (Lazy.force tc_ilogicops_prop) expr_impl))
+		   (fun hd -> M.ret (ExprBuilder.mkApp (ExprBuilder.mkApp hd lhs) rhs)))))
         ; (Ignore,
 	   fun _ ->
 	     (** TODO: Add a case for seeing Prod, this isn't supported by
@@ -224,7 +251,7 @@ struct
 	      **)
 	     M.bind (REIFY_ENV_FUNC.reify tm) (fun t ->
 	       let idx = to_positive (1 + t) in
-	       M.ret (Term.mkApp (Lazy.force expr_fref, [| idx |]))))
+	       wrap_func (M.ret (Term.mkApp (Lazy.force expr_fref, [| idx |])))))
 	]
 	tm)
 end
@@ -316,6 +343,8 @@ module ReifyExtILFunc
     (REIFY_APP_WITH_TYPECLASS)
 ;;
 
+reify_top := ReifyExtILFunc.reify ;;
+
 (** extract the values from an environment **)
 let types_empty = lazy (resolve_symbol ["MirrorCore";"Ext";"Types"] "TEemp")
 let types_branch = lazy (resolve_symbol ["MirrorCore";"Ext";"Types"] "TEbranch")
@@ -364,11 +393,53 @@ let build_functions evar env : (Term.constr -> Term.constr) list REIFY_MONAD.m =
     mapM do_func fs)
 *)
 
-let build_functions evar env : (Term.constr -> Term.constr) list REIFY_MONAD.m =
-  REIFY_MONAD.ret []
+(*
+let build_function evar (f : Term.constr) : (Term.constr -> Term.constr) list REIFY_MONAD.m =
+  let typ = (** type of f **) in
+  let r_typ = (** reify typ **) in
+*)
+
+(** reify ML-style function types **)
+(** TODO: copied from reify_Ext_SymEnv, find a way to share code **)
+let reify_function_scheme reify_type =
+  let rec reify_function_scheme n ft =
+    match Term.kind_of_term ft with
+      Term.Prod (_,t1,t2) ->
+	if Term.noccurn 1 t2 then
+	  (** It is a lambda **)
+	  REIFY_MONAD.bind
+	    (REIFY_MONAD.under_type true (reify_type ft)) (fun rft ->
+	    REIFY_MONAD.ret (n, rft))
+	else
+	  reify_function_scheme (1+n) t2
+    | _ ->
+      REIFY_MONAD.bind (reify_type ft) (fun rft ->
+	REIFY_MONAD.ret (n, rft))
+  in reify_function_scheme 0
+
+let extract_functions (evar : Evd.evar_map) (env : Environ.env)
+    : (Term.constr * Term.constr) option list REIFY_MONAD.m =
+  let extract_func f =
+    match f with
+      None -> REIFY_MONAD.ret None
+    | Some f ->
+      let typ = Typing.type_of env evar f in
+      REIFY_MONAD.bind (reify_function_scheme ReifyExtTypes.reify typ) (fun (a,r_ty) ->
+	assert (a = 0) ;
+	REIFY_MONAD.ret (Some (r_ty, f)))
+  in
+  REIFY_MONAD.bind REIFY_MONAD.get_funcs (mapM extract_func)
+;;
+
+let extract_logic_classes (evar : Evd.evar_map) (env : Environ.env) tcs
+    : (Term.constr * Term.constr) list REIFY_MONAD.m =
+  let build_inst typ inst acc =
+    (typ,inst) :: acc
+  in
+  REIFY_MONAD.ret (Hashtbl.fold build_inst tcs [])
 
 (** TODO: Move this **)
-let extract_types (ls : Term.constr option list) =
+let build_types (ls : Term.constr option list) =
   let rtype = Term.mkSort (Term.Type (Termops.new_univ ())) in
   Std.to_posmap (Lazy.force types_empty)
     (fun a b c ->
@@ -378,13 +449,44 @@ let extract_types (ls : Term.constr option list) =
 ;;
 
 let ctor_branch =
-  lazy (resolve_symbol ["Coq";"FSets";"FMapPositive";"PositiveMap"] "Node")
+  lazy (resolve_symbol ["Containers";"MapPositive";"PositiveMap"] "Node")
+(*  lazy (resolve_symbol ["Coq";"FSets";"FMapPositive";"PositiveMap"] "Node") *)
 
 let ctor_leaf =
-  lazy (resolve_symbol ["Coq";"FSets";"FMapPositive";"PositiveMap"] "Leaf")
+  lazy (resolve_symbol ["Containers";"MapPositive";"PositiveMap"] "Leaf")
+(*  lazy (resolve_symbol ["Coq";"FSets";"FMapPositive";"PositiveMap"] "Leaf") *)
 
 let e_function =
   lazy (resolve_symbol ilfunc_pkg "function")
+
+let e_F =
+  lazy (resolve_symbol ilfunc_pkg "F")
+
+let build_functions (v_types : Term.constr)
+    (fs : (Term.constr * Term.constr) option list) : Term.constr =
+  let typ = Term.mkApp (Lazy.force e_function, [| v_types |]) in
+  let leaf = Term.mkApp (Lazy.force ctor_leaf, [| typ |]) in
+  Std.to_posmap leaf
+    (fun a b c ->
+      Term.mkApp (Lazy.force ctor_branch, [| typ ; a ; Std.to_option typ b ; c |]))
+    (fun f ->
+      match f with
+	None -> None
+      | Some (ty, f) ->
+	Some (Term.mkApp (Lazy.force e_F, [| v_types ; ty ; f |])))
+    fs
+;;
+
+let build_logic_classes (v_types : Term.constr)
+    (cls : (Term.constr * Term.constr) list) : Term.constr =
+  let typ = Term.mkApp (resolve_symbol ["ILogicFunc"] "tc_logic_opt", [| v_types |]) in
+  let ctor = resolve_symbol ["ILogicFunc"] "Build_tc_logic_opt" in
+  let mk_entry (t,c) =
+    Term.mkApp (ctor, [| v_types ; t ; c |])
+  in
+  Std.to_list typ (List.map mk_entry cls)
+
+exception Reification_failure of string
 
 (** the simplest version of the tactic will just construct the version of the
  ** environment and return that with the expression.
@@ -394,30 +496,33 @@ let e_function =
 TACTIC EXTEND reify_Ext_SymEnv_reify_expr
   | ["reify_expr" constr(e) tactic(k) ] ->
     [ fun gl ->
+      try
         let env = Tacmach.pf_env gl in
 	let evar_map = Tacmach.project gl in
 	let i_types = [] in
 	let i_funcs = [] in
-	let i_tcs = Hashtbl.create 3 in
-        let (res, r_types, r_funcs) =
+	let i_tcs = Hashtbl.create 3 in (** NOTE: hash tables are imperative **)
+        let (res, r_types, r_funcs, r_logics) =
 	  let cmd = REIFY_MONAD.bind (ReifyExtILFunc.reify e) (fun re ->
-	    REIFY_MONAD.bind (build_functions evar_map env) (fun fs ->
-	      REIFY_MONAD.ret (re, fs)))
+	    REIFY_MONAD.bind (extract_functions evar_map env) (fun fs ->
+	      REIFY_MONAD.bind (extract_logic_classes evar_map env i_tcs) (fun tcs ->
+		REIFY_MONAD.ret (re, fs, tcs))))
 	  in
-	  let ((res, r_funcs), r_types, _, r_evars) =
+	  let ((res, r_funcs, r_tcs), r_types, _, r_evars) =
 	    REIFY_MONAD.runM cmd i_types i_funcs i_tcs [] env evar_map in
-	  (res, r_types, r_funcs)
+	  (res, r_types, r_funcs, r_tcs)
 	in
-	let r_types = extract_types r_types in
-	Plugin_utils.Use_ltac.pose "types" r_types (fun r_types ->
-	  let typ = Term.mkApp (Lazy.force e_function, [| r_types |]) in
-	  let leaf = Term.mkApp (Lazy.force ctor_leaf, [| typ |]) in
-	  let r_funcs = Std.to_posmap leaf
-	    (fun a b c ->
-	      Term.mkApp (Lazy.force ctor_branch, [| typ ; a ; Std.to_option typ b ; c |]))
-	    (fun f -> Some (f r_types)) r_funcs in
-	  Plugin_utils.Use_ltac.pose "funcs" r_funcs (fun r_funcs ->
-	    let ltac_args = List.map Plugin_utils.Use_ltac.to_ltac_val [r_types; r_funcs; res] in
-	    Plugin_utils.Use_ltac.ltac_apply k ltac_args)) gl
+	let r_types = build_types r_types in
+	Plugin_utils.Use_ltac.pose "types" r_types (fun v_types ->
+	  let r_funcs = build_functions v_types r_funcs in
+	  Plugin_utils.Use_ltac.pose "funcs" r_funcs (fun v_funcs ->
+	    let r_logics = build_logic_classes v_types r_logics in
+	    Plugin_utils.Use_ltac.pose "logics" r_logics (fun v_logics ->
+	    let ltac_args = List.map Plugin_utils.Use_ltac.to_ltac_val
+	      [v_types; v_funcs; v_logics; res] in
+	    Plugin_utils.Use_ltac.ltac_apply k ltac_args))) gl
+      with
+	Reification_failure err ->
+	  failwith err
     ]
 END;;

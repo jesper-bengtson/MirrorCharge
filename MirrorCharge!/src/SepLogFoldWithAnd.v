@@ -1,5 +1,5 @@
 (** This file implements an interface to [expr] that
- ** makes star, emp, and pure assertions apparent.
+ ** makes star, emp, and, and pure assertions apparent.
  **)
 Require Import ExtLib.Data.Positive.
 Require Import ExtLib.Tactics.

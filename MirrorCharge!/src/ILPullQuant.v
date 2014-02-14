@@ -1,8 +1,3 @@
-Add Rec LoadPath "/Users/jebe/git/Charge/Charge!/bin".
-Add Rec LoadPath "/Users/jebe/git/MirrorCharge/MirrorCharge!/bin".
-Add Rec LoadPath "/Users/jebe/git/mirror-core/coq-ext-lib/theories" as ExtLib.
-Add Rec LoadPath "/Users/jebe/git/mirror-core/theories" as MirrorCore.
-
 Require Import ILogic ILInsts.
 Require Import ILogicFunc.
 Require Import MirrorCore.Ext.Types.
@@ -25,16 +20,17 @@ Require Import Ext.SetoidFold.
 Require Import Relation_Definitions.
 Require Import MirrorCore.Ext.AppFull.
 
-Set Implicit Arguments. 
+Set Implicit Arguments.
 Unset Strict Implicit.
 Set Maximal Implicit Insertion.
 
 Definition inhabited (ts : types)  := forall (t : typ),
   option (Inhabited (typD ts nil t)).
-  
+
 Section PullQuant.
-  Context (ts : types) (funcs : fun_map ts) (gs : logic_ops ts).
-  Context {es : embed_ops ts}.
+  Context (ts : types) (funcs : fun_map ts).
+  Context (gs : logic_ops ts) {gsOk : logic_opsOk gs}.
+  Context {es : embed_ops ts} {esOk : embed_opsOk gs es}.
 
   Definition TT := option (list typ * expr ilfunc)%type.
 
@@ -46,7 +42,7 @@ Section PullQuant.
   Definition pq_var (v : var) : T := atomic (Var v).
   Definition pq_uvar (u : uvar) : T := atomic (UVar u).
   Definition pq_inj (s : ilfunc) : T := atomic (Inj s).
-  Definition pq_abs (x : typ) (e : expr ilfunc) (_ : T) : T := 
+  Definition pq_abs (x : typ) (e : expr ilfunc) (_ : T) : T :=
     atomic (Abs x e).
 
   Definition pq_app (f : expr ilfunc) (_ : T) (args : list (expr ilfunc * T)) : T :=
@@ -63,74 +59,101 @@ Section PullQuant.
       | _, _ => None
     end.
 
+
   Definition pq_exists (t t_logic : typ) (_ : expr ilfunc) (a : T) : T :=
     fun us vs =>
       match a us (t :: vs) with
   	| Some (ts, a) => Some (t :: ts, a)
 	| None => None
       end.
-	
-    Definition pqArgs : AppFullFoldArgs ilfunc TT :=
-      @Build_AppFullFoldArgs ilfunc TT pq_var pq_uvar pq_inj pq_abs pq_app.
-      
-    Definition add_quants (xs : list typ) (t : typ) (e : expr ilfunc) :=
-    	fold_right (fun x a => App (Inj (ilf_exists x t)) 
-                                             (Abs x a)) e xs.
 
-    Definition Teval (e : TT) (t : typ) :=
-      match e with
-          | Some (xs, a) => 
-            Some (add_quants xs t a)
-          | None         => None
-      end.
+  Definition pqArgs : AppFullFoldArgs ilfunc TT :=
+    @Build_AppFullFoldArgs ilfunc TT pq_var pq_uvar pq_inj pq_abs pq_app.
 
-    Definition TD (t : typ) (e : TT) (us : env (typD ts)) (vs : tenv typ) :=
-      match Teval e t with
-        | Some e => exprD' us vs e t
-        | None   => None
-      end.
+  Definition add_quants (xs : list typ) (t : typ) (e : expr ilfunc) :=
+    fold_right (fun x a => App (Inj (ilf_exists x t))
+                               (Abs x a)) e xs.
 
-    Definition Ttype (ts us : tenv typ) (e : TT) (t : typ) :=
-      match Teval e t with
-        | Some e => typeof_expr ts us e
-        | None   => None
-      end.
+  Definition Teval (e : TT) (t : typ) :=
+    match e with
+      | Some (xs, a) =>
+        Some (add_quants xs t a)
+      | None         => None
+    end.
 
-    Definition PQtype (e : expr ilfunc) (tt : TT) (us vs : tenv typ) :=
-      match typeof_expr us vs e with
-        | Some t => 
-          match Ttype us vs tt t with
-            | Some t' => t ?[eq] t' = true
-            | None    => True
-          end
-        | None => True
-      end.
+  Definition TD (t : typ) (e : TT) (us : env (typD ts)) (vs : tenv typ) :=
+    match Teval e t with
+      | Some e => exprD' us vs e t
+      | None   => None
+    end.
 
-    Definition PQR (t : typ) (e : expr ilfunc) (arg : TT) (us : env (typD ts)) (vs : tenv typ) :=
-      match TD t arg us vs, exprD' us vs e t, gs t with
-        | None, _, _ => True
-        | _, _, None => True
-        | Some p, Some q, Some _ => forall vs, (p vs) |-- (q vs)
-        | _, _, _ => False
-      end.
+  Definition Ttype (ts us : tenv typ) (e : TT) (t : typ) :=
+    match Teval e t with
+      | Some e => typeof_expr ts us e
+      | None   => None
+    end.
 
-	Lemma Hatomic tus tvs t e (H : typeof_expr (typeof_env tus) tvs e = Some t) :
-      PQR t e (atomic e (typeof_env tus) tvs) tus tvs.
-    Proof.
-    	unfold atomic, PQR, TD; simpl. forward.
-    	assert (ILogic (typD ts nil t)) by admit. (* gs is sound *)
-    	reflexivity.
-	Qed.    	
+  Definition PQtype (e : expr ilfunc) (tt : TT) (us vs : tenv typ) :=
+    match typeof_expr us vs e with
+      | Some t =>
+        match Ttype us vs tt t with
+          | Some t' => t ?[eq] t' = true
+          | None    => True
+        end
+      | None => True
+    end.
+
+  Definition PQR (t : typ) (e : expr ilfunc) (arg : TT) (us : env (typD ts)) (vs : tenv typ) :=
+    match TD t arg us vs, exprD' us vs e t, gs t with
+      | None, _, _ => True
+      | _, _, None => True
+      | Some p, Some q, Some _ => forall vs, (p vs) |-- (q vs)
+      | _, _, _ => False
+    end.
+
+  Lemma ILogic_from_env (t : typ) (i : ILogicOps (typD ts nil t)) (pf : gs t = Some i)
+  : @ILogic _ i.
+  Proof.
+    specialize (gsOk t).
+    rewrite pf in *. assumption.
+  Defined.
+  Hint Extern 1 (@ILogic _ _) => (apply ILogic_from_env; [ assumption ]) : typeclass_instances.
+
+  Lemma Refl_from_env (t : typ) (i : ILogicOps (typD ts nil t)) (pf : gs t = Some i)
+  : Reflexive (@lentails _ i).
+  Proof.
+    specialize (gsOk t).
+    rewrite pf in *.
+    destruct gsOk. apply lentailsPre.
+  Defined.
+  Hint Extern 1 (Reflexive _) => (apply Refl_from_env; [ assumption ]) : typeclass_instances.
+
+  Lemma Refl_from_env_lequiv (t : typ) (i : ILogicOps (typD ts nil t)) (pf : gs t = Some i)
+  : Reflexive (@lequiv _ i).
+  Proof.
+    specialize (gsOk t).
+    rewrite pf in *.
+    destruct gsOk. red. red. intros.
+    split; reflexivity.
+  Defined.
+  Hint Extern 1 (Reflexive _) => (apply Refl_from_env_lequiv; [ assumption ]) : typeclass_instances.
+
+  Lemma Hatomic tus tvs t e (H : typeof_expr (typeof_env tus) tvs e = Some t) :
+    PQR t e (atomic e (typeof_env tus) tvs) tus tvs.
+  Proof.
+    unfold atomic, PQR, TD; simpl. forward.
+    reflexivity.
+  Qed.
 
   Lemma Habs
-    : forall tus tvs t t' e e_res,
-        typeof_expr (typeof_env tus) tvs (Abs t e) = Some (tyArr t t') ->
-        @PQR t' e (e_res (typeof_env tus) (t :: tvs)) tus (t :: tvs) ->
-        @PQR (tyArr t t') (Abs t e) (pq_abs t e e_res (typeof_env tus) tvs) tus tvs.
-    Proof.
-  	  intros; apply Hatomic; assumption.
-    Qed.
-  
+  : forall tus tvs t t' e e_res,
+      typeof_expr (typeof_env tus) tvs (Abs t e) = Some (tyArr t t') ->
+      @PQR t' e (e_res (typeof_env tus) (t :: tvs)) tus (t :: tvs) ->
+      @PQR (tyArr t t') (Abs t e) (pq_abs t e e_res (typeof_env tus) tvs) tus tvs.
+  Proof.
+    intros; apply Hatomic; assumption.
+  Qed.
+
   Lemma Hex
   : forall (tus : env (typD ts)) (tvs : tenv typ) t t_logic e (e_res : T),
       typeof_expr (typeof_env tus) tvs (App (Inj (ilf_exists t t_logic)) (Abs t e)) = Some t_logic ->
@@ -139,39 +162,192 @@ Section PullQuant.
           (App (Inj (ilf_exists t t_logic)) (Abs t e))
           (@pq_exists t t_logic e e_res (typeof_env tus) tvs) tus tvs.
   Proof.
-  	intros.
-  	unfold PQR, pq_exists in *; simpl in *.
-  	red_exprD; forward; inv_all; subst.
-  	red_exprD; forward; inv_all; subst.
-  	red_exprD.
-  	unfold type_of_apply in H2; simpl in H2. forward. destruct H2; subst. inv_all; subst.
-  	remember (e_res (typeof_env tus) (t :: tvs)) as o; destruct o; [| compute in H4; congruence].
-  	destruct p; simpl in *.
-  	unfold TD in H4; simpl in H4. inv_all; subst.
-  	red_exprD; forward; inv_all. clear H12. revert H9; subst; intros.
-  	red_exprD; forward; inv_all; subst.
-  	simpl in *. forward. simpl in *. inv_all; subst.
-  	red_exprD. inv_all; subst.
-  	clear H2 H3.
-  	unfold TD, Teval in H1.
-  	forward.
-  	assert (ILogic (typD ts nil t1)) by admit. (* gs is sound *)
-  	apply lexistsL; intro x. apply lexistsR with x.
-  	inv_all; subst. apply H3.
-Qed.
+    intros.
+    unfold PQR, pq_exists in *; simpl in *.
+    red_exprD; forward; inv_all; subst.
+    red_exprD; forward; inv_all; subst.
+    red_exprD.
+    unfold type_of_apply in H2; simpl in H2. forward. destruct H2; subst. inv_all; subst.
+    remember (e_res (typeof_env tus) (t :: tvs)) as o; destruct o; [| compute in H4; congruence].
+    destruct p; simpl in *.
+    unfold TD in H4; simpl in H4. inv_all; subst.
+    red_exprD; forward; inv_all. clear H12. revert H9; subst; intros.
+    red_exprD; forward; inv_all; subst.
+    simpl in *. forward. simpl in *. inv_all; subst.
+    red_exprD. inv_all; subst.
+    clear H2 H3.
+    unfold TD, Teval in H1.
+    forward. inv_all. subst.
+    apply lexistsL; intro x. apply lexistsR with x.
+    inv_all; subst. apply H3.
+  Qed.
 
-    Lemma typeof_expr_apps uvs vvs e lst (H: typeof_expr uvs vvs e = None) :
-      typeof_expr uvs vvs (apps e lst) = None.
-    Proof.
-      generalize dependent e; induction lst; intros; simpl.
-      + apply H.
-      + apply IHlst; simpl; rewrite H; reflexivity.
-    Qed.
+  Lemma typeof_expr_apps uvs vvs e lst (H: typeof_expr uvs vvs e = None) :
+    typeof_expr uvs vvs (apps e lst) = None.
+  Proof.
+    generalize dependent e; induction lst; intros; simpl.
+    + apply H.
+    + apply IHlst; simpl; rewrite H; reflexivity.
+  Qed.
 
-    Ltac PQtype_elim :=
-    match goal with 
+  (** Note: [forward] will do this **)
+  Ltac PQtype_elim :=
+    match goal with
       | |- match ?o with | Some _ => _ | None => True end => destruct o; apply I
     end.
+
+  Lemma exprD'_add_quants_cons_Some (Ty : typ) (IL_Ty : ILogicOps (typD ts nil Ty))
+        (_ : gs Ty = Some IL_Ty)
+  : forall tus tvs tm a b x,
+      exprD' tus tvs (add_quants (a :: b) Ty tm) Ty = Some x ->
+      exists y,
+        exprD' tus (a :: tvs) (add_quants b Ty tm) Ty = Some y /\
+        forall g, x g -|- lexists (fun v => y (HList.Hcons v g)).
+  Proof.
+    simpl.
+    intros.
+    red_exprD. forward. subst.
+    revert H4. inv_all. subst Ty. subst i.
+    intros. inv_all. subst p.
+    revert H5. subst.
+    red_exprD. forward. subst.
+    inv_all. subst.
+    eexists. split.
+    { reflexivity. }
+    { intros.
+      unfold typeof_sym in *. simpl in *.
+      rewrite H in *.
+      red_exprD. uip_all.
+      inv_all. subst.
+      reflexivity. }
+  Qed.
+
+  Require Import ExtLib.Data.HList.
+
+  Lemma exists_hlist_app (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty))
+        (IL_Ty : ILogic (typD ts nil Ty))
+  : forall xs ys (P : _ -> typD ts nil Ty),
+      Exists v : HList.hlist (typD ts nil) (xs ++ ys), P v -|-
+                                                         Exists v : HList.hlist (typD ts nil) xs,
+    Exists v' : HList.hlist (typD ts nil) ys, P (HList.hlist_app v v').
+  Proof.
+    split.
+    { apply lexistsL; intros.
+      rewrite <- hlist_app_hlist_split with (h := x).
+      eapply lexistsR.
+      eapply lexistsR.
+      reflexivity. }
+    { do 2 (apply lexistsL; intros).
+      eapply lexistsR.
+      reflexivity. }
+  Qed.
+
+  Lemma lexists_iff_2 (Ty : Type) (ILO_Ty : ILogicOps Ty)
+        (IL_Ty : ILogic Ty)
+  : forall T U (P Q : T -> U -> Ty),
+      (forall a b, P a b -|- Q a b) ->
+      Exists x : T, Exists y : U, P x y -|-
+                                    Exists y : U, Exists x : T, Q x y.
+  Proof.
+    split.
+    { apply lexistsL; intros.
+      apply lexistsL; intros.
+      eapply lexistsR; eauto.
+      eapply lexistsR; eauto. eapply H. }
+    { apply lexistsL; intros.
+      apply lexistsL; intros.
+      eapply lexistsR; eauto.
+      eapply lexistsR; eauto. eapply H. }
+  Qed.
+
+(* Why both lemmas? *)
+
+  Lemma lexists_iff_2_rw (Ty : Type) (ILO_Ty : ILogicOps Ty)
+        (IL_Ty : ILogic Ty)
+  : forall T U (P Q : T -> U -> Ty),
+      (forall a b, P a b -|- Q a b) ->
+      Exists x : T, Exists y : U, P x y -|-
+                                    Exists y : U, Exists x : T, Q x y.
+  Proof.
+    apply lexists_iff_2. apply _.
+  Qed.
+
+  Lemma exprD'_add_quants_app_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty))
+        (_ : gs Ty = Some ILO_Ty)
+  : forall tus a tvs tm b x,
+      exprD' tus tvs (add_quants (a ++ b) Ty tm) Ty = Some x ->
+      exists y,
+        exprD' tus (rev a ++ tvs) (add_quants b Ty tm) Ty = Some y /\
+        forall g, x g -|- lexists (fun v => y (HList.hlist_app v g)).
+  Proof.
+    induction a.
+    { simpl.
+      intros. eexists; split; eauto.
+      intros.
+      split.
+      { eapply lexistsR. instantiate (1 := Hnil). reflexivity. }
+      { apply lexistsL. intros. rewrite (hlist_eta x0). reflexivity. } }
+    { simpl List.app.
+      intros.
+      eapply exprD'_add_quants_cons_Some in H0; eauto.
+      destruct H0 as [ ? [ ? ? ] ].
+      eapply IHa in H0.
+      destruct H0 as [ ? [ ? ? ] ].
+      generalize dependent x1.
+      assert ((rev a0 ++ a :: nil) ++ tvs = rev a0 ++ a :: tvs).
+      { rewrite app_ass. reflexivity. }
+      intros.
+      exists (fun z =>
+                x1 match H0 in _ = t return HList.hlist (typD ts nil) t with
+                     | eq_refl => z
+                   end).
+      generalize H.
+      change (a :: tvs) with ((a :: nil) ++ tvs) in *.
+      assert (forall g : HList.hlist (typD ts nil) tvs,
+                x g -|- Exists v : HList.hlist (typD ts nil) (a :: nil), x0 (HList.hlist_app v g)).
+      { intros. specialize (H1 g).
+        rewrite H1.
+        split.
+        { apply lexistsL; intros.
+          eapply lexistsR; intros.
+          instantiate (1 := Hcons x2 Hnil). reflexivity. }
+        { apply lexistsL; intros.
+          eapply lexistsR. instantiate (1 :=  hlist_hd x2).
+          rewrite (hlist_eta x2).
+          rewrite (hlist_eta (hlist_tl x2)). reflexivity. } }
+      clear H1.
+      simpl rev.
+      generalize dependent (a :: nil).
+      intros.
+      split.
+      { generalize H0. rewrite H0. uip_all.
+        reflexivity. (** eta **) }
+      { intros.
+        rewrite H4.
+        rewrite exists_hlist_app; eauto with typeclass_instances.
+        setoid_rewrite H3. 
+        eapply lexists_iff_2; eauto with typeclass_instances.
+        intros. 
+        rewrite HList.hlist_app_assoc; eauto with typeclass_instances.
+        uip_all. reflexivity. } }
+  Qed.
+
+  Lemma exprD'_add_quants_all_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty))
+        (_ : gs Ty = Some ILO_Ty)
+  : forall tus a tvs tm x,
+      exprD' tus tvs (add_quants a Ty tm) Ty = Some x ->
+      exists y,
+        exprD' tus (rev a ++ tvs) tm Ty = Some y /\
+        forall g, x g -|- lexists (fun v => y (HList.hlist_app v g)).
+  Proof.
+    intros.
+    rewrite <- (app_nil_r a) in H0.
+    apply exprD'_add_quants_app_Some in H0; eauto.
+  Qed.
+
+  (** TODO: This should be in MirrorCore **)
+  Global Instance Equiv_dec_typ : EqDec typ (@eq typ).
+  Admitted.
 
   Lemma Happ
   : forall tus tvs l (l_res : T) rs t ts,
@@ -183,7 +359,99 @@ Qed.
                  /\ PQR t (fst x) (snd x (typeof_env tus) tvs) tus tvs)
               ts rs ->
       PQR t (apps l (map fst rs)) (pq_app l l_res rs (typeof_env tus) tvs) tus tvs.
-   Proof. 
+   Proof.
+     intros; unfold PQR, TD, Teval in *.
+     destruct l; simpl in *; try apply I.
+     destruct i; simpl in *; try apply I.
+     * red_exprD; forward; inv_all; subst; simpl in *.
+       red_exprD; forward; inv_all; subst.
+       rewrite H0 in H5. inversion H5; subst.
+       reflexivity.
+     * forward; inv_all; subst. simpl in *.
+       forward; inv_all; subst; simpl in *.
+       red_exprD; forward; inv_all; subst; simpl in *.
+       forward; inv_all; subst.
+       red_exprD; forward; inv_all; subst.
+       red_exprD; forward; inv_all; subst.
+       red_exprD; forward; inv_all; subst.
+       inversion H9; clear H9; simpl in *.
+       revert H0. revert ft. subst. intros.
+       inversion H10; clear H10; simpl in *.
+       revert H0. revert ft. subst. intros. simpl in *.
+       inversion H12; clear H12; revert H0; revert ft; subst; intros.
+       simpl in *.
+       destruct H8, H9.
+       forward; inv_all; subst.
+       rewrite H1 in H7; rewrite H2 in H4; inv_all;
+       revert H0; revert ft; subst; intros.
+       forward; inv_all; revert H0; revert ft; subst; intros.
+       forward; inv_all; subst.
+       red_exprD; forward; inv_all; subst.
+
+       eapply exprD'_add_quants_app_Some in H3; eauto.
+       destruct H3 as [ ? [ ? ? ] ].
+       rewrite <- (app_nil_r l3) in H3.
+       eapply exprD'_add_quants_app_Some in H3; eauto.
+       destruct H3 as [ ? [ ? ? ] ].
+       simpl in H3.
+       red_exprD.
+       rewrite H in *.
+       forward. subst.
+       rewrite app_nil_r in *.
+       inv_all. subst.
+       red_exprD.
+       forward. inv_all. subst i. subst t.
+       subst p. subst t5. rewrite x1 in H21.
+       inv_all. clear H8. clear H6.
+       red_exprD.
+       simpl in H13. rewrite H in *.
+       forward. inv_all. subst t. subst t9.
+       inv_all. subst p.
+       inversion x2. subst t8. revert H5. subst t4.
+       inv_all. subst t0.
+       repeat match goal with
+                | H : ?X = ?X |- _ => clear H
+              end.
+       simpl in H16. forward.
+       subst t7. revert H6. revert x2. clear H5.
+       intro. rewrite (UIP_refl x2).
+       clear x2.
+       consider (exprD' tus tvs (add_quants l2 x0 e3) x0).
+       { intros; forward.
+         consider (exprD' tus tvs (add_quants l3 x0 e4) x0).
+         { intros.
+           forward.
+           assert (ILogic (typD ts nil x0)) by admit.
+           Cases.rewrite_all.
+           setoid_rewrite H6.
+           eapply exprD'_add_quants_all_Some in H8; eauto.
+           destruct H8 as [ ? [ ? ? ] ].
+           apply exprD'_add_quants_all_Some in H3; eauto.
+           destruct H3 as [ ? [ ? ? ] ].
+           apply lexistsL. intros.
+           apply lexistsL. intros.
+         (** Some lifting reasoning here, but everything else should work out
+          ** There really needs to be much better automation for reasoning
+          ** about the interaction between [typeof_expr] and [exprD']
+          **)
+           admit. }
+         { intro; exfalso.
+           (** contradiction **)
+           admit. } }
+       { intro. exfalso. admit. }
+Qed.
+ 
+  Lemma Happ2
+  : forall tus tvs l (l_res : T) rs t ts,
+      typeof_expr (typeof_env tus) tvs (apps l (map fst rs)) = Some t ->
+      let ft := fold_right tyArr t ts in
+      PQR ft l (l_res (typeof_env tus) tvs) tus tvs ->
+      Forall2 (fun t x =>
+                    typeof_expr (typeof_env tus) tvs (fst x) = Some t
+                 /\ PQR t (fst x) (snd x (typeof_env tus) tvs) tus tvs)
+              ts rs ->
+      PQR t (apps l (map fst rs)) (pq_app l l_res rs (typeof_env tus) tvs) tus tvs.
+  Proof. 
    	intros; unfold PQR, TD, Teval in *.
    	destruct l; simpl in *; try apply I.
    	destruct i; simpl in *; try apply I.
@@ -247,6 +515,7 @@ Qed.
               assert (ILogic (typD ts nil t)) by admit.
               setoid_rewrite IHxs. reflexivity.
         Qed.      
+
 
 
            Lemma lift_lift2 (A : Type) (e : expr A) (a b c : nat) : lift a (b + c) e = lift (a + b) c (lift a b e).
@@ -485,26 +754,6 @@ Qed.
 		  progress red_exprD; forward; inv_all; subst.
 		  assert (x0 = t5) by admit; subst. forward; inv_all; subst.
 		  forward.
-		  rewrite H13 in H10.
-		  apply lift_appL with (tq := x0) in H0.
-		  Focus 2.
-		  reflexivity.
-		  simpl. remember (length l3) as n. destruct n. simpl. reflexivity. simpl. reflexivity.
-
-          Lemma lift_app tus tvs xs ys tIL p q t d
-                (H : exprD' tus tvs (add_quants (xs ++ ys) tIL
-                                                     (App (lift (length xs) (length ys) p)
-                                                          (lift 0 (length xs) q))) t = Some d) :
-            match exprD' tus tvs (App (add_quants xs tIL p) (add_quants ys tIL q)) t, 
-                  gs t with
-              | Some d', Some _ => forall vs, d vs |-- d' vs
-              | Some _, None => True
-              | None, _ => False
-            end.
-          Proof.
-          	red_exprD; forward; inv_all; subst.
-			admit.
-		  Qed.
 	admit.
 	Qed.
 End PullQuant.
@@ -553,11 +802,11 @@ Eval compute in test_fold (Inj (ilf_exists (tyType 1) (tyType 0))) (Rfunctorial 
 
 
 
-Eval compute in 
+Eval compute in
   Eval compute in
       @setoid_fold _ _ _ (atomic SRW_Algo_pull_quant) (SetoidFold.app SRW_Algo_pull_quant)
-                   (SetoidFold.abs SRW_Algo_pull_quant) nil nil 
-                   (inj_and (inj_exists (tyType 1) (inj_eq_nat (Var 0) (Var 0))) inj_true) 
+                   (SetoidFold.abs SRW_Algo_pull_quant) nil nil
+                   (inj_and (inj_exists (tyType 1) (inj_eq_nat (Var 0) (Var 0))) inj_true)
                    (Rinj ent).
   simpl.
 Check @setoid_fold.
@@ -610,17 +859,17 @@ Section Relation.
 	Variable R : RSym (typD ts) func.
 	Variable us vs : tenv typ.
 
-	Definition is_relation_bool (t : typ) := 
-		match t with 
+	Definition is_relation_bool (t : typ) :=
+		match t with
 			| tyArr t (tyArr t' tyProp) => t ?[eq] t'
 			| _                          => false
-		end. 
+		end.
 
 	Definition is_relation (e : expr func) (t : typ) :=
 		WellTyped_expr us vs e (tyArr t (tyArr t tyProp)).
-		
+
 End Relation.
- 
+
 Section IsPreOrder.
 	Variable ts : types.
 	Variable func : Type.
@@ -628,8 +877,8 @@ Section IsPreOrder.
 	Variable R : RSym (typD ts) func.
 
 	Variable is_preorder : expr func -> bool.
-	
-	Definition preorder_prop (e : expr func) (t : typ) := 
+
+	Definition preorder_prop (e : expr func) (t : typ) :=
 		forall v, exprD us vs e (tyArr t (tyArr t tyProp)) = Some v ->
 		PreOrder v.
 
@@ -643,7 +892,7 @@ Section PullExistsLeft.
 
   Local Instance RSym_sym : SymI.RSym (typD ts) ilfunc := RSym_ilfunc ts funcs gs.
 
-  Variable us vs : env (typD ts).                       
+  Variable us vs : env (typD ts).
   Definition T := (list typ * list typ * expr ilfunc)%type.
 
   Definition T_union (p q : T) : T :=
@@ -654,9 +903,9 @@ Section PullExistsLeft.
 
   Fixpoint T_to_expr_aux (vs qs : list typ) e t :=
     match vs, t with
-      | nil, _ => Some (fold_right (fun v e => App (Inj (ilf_exists v t)) (Abs v e)) 
+      | nil, _ => Some (fold_right (fun v e => App (Inj (ilf_exists v t)) (Abs v e))
                                    e qs)
-      | v::vs, tyArr a t => 
+      | v::vs, tyArr a t =>
         match T_to_expr_aux vs qs e t, v ?[eq] a with
           | Some x, true => Some (Abs a x)
           | _, _ => None
@@ -669,7 +918,7 @@ Section PullExistsLeft.
         (vs, qs, e) => T_to_expr_aux vs qs e t
     end.
 
-  Inductive Rbase := 
+  Inductive Rbase :=
     | Ent t : (exists v, gs' ts gs t = Some v) -> Rbase
     | Eq : Rbase.
 
@@ -682,16 +931,16 @@ Section PullExistsLeft.
 
   Instance RelDec_Rbase_eq : RelDec (@eq Rbase) := { rel_dec := Rbase_eq }.
 
-  Definition typeForRbase r := 
-    match r with 
+  Definition typeForRbase r :=
+    match r with
       | Ent t _ => t
       | Eq => tyProp
     end.
 
-  Definition app (vs us : tenv typ) (pq p : T) (rpq rp : R Rbase) : option T := 
+  Definition app (vs us : tenv typ) (pq p : T) (rpq rp : R Rbase) : option T :=
     match rpq with
       | Rinj (Ent t _) => Some (T_union pq p)
-      | Rpointwise a (Rinj (Ent t _)) => 
+      | Rpointwise a (Rinj (Ent t _)) =>
         match pq, p with
           | ((tyArr a' t')::nil, a''::nil, Var 1), (a'''::ls, es, p) =>
             if a' ?[eq] a'' && a'' ?[eq] a''' then
@@ -727,8 +976,8 @@ Section PullExistsLeft.
 
   Definition proper_lookup (a : expr ilfunc)  (r : Rbase) : option (R Rbase) :=
     match a, r with
-      | Inj (ilf_and t), Ent t' pr => 
-        if t ?[eq] t' then  
+      | Inj (ilf_and t), Ent t' pr =>
+        if t ?[eq] t' then
           Some (Rfunctorial (Rinj (Ent pr)) ((Rfunctorial (Rinj (Ent pr)) (Rinj (Ent pr)))))
         else
           None
@@ -750,12 +999,12 @@ Section PullExistsLeft.
   Fixpoint get_proper_aux (e : expr ilfunc) (r : PR Rbase) : option (R Rbase) :=
     match r with
       | PRinj r => proper_lookup e r
-      | PRfunctorial l r => get_proper_aux e r 
+      | PRfunctorial l r => get_proper_aux e r
       | PRpointwise t r => get_proper_aux e r
       | _ => None
     end.
 
-  Definition get_unified_proper (e : expr ilfunc) (r : PR Rbase) : option (R Rbase) := 
+  Definition get_unified_proper (e : expr ilfunc) (r : PR Rbase) : option (R Rbase) :=
     match get_proper_aux e r with
       | Some x => if unify x r then Some x else None
       | None => None
@@ -764,7 +1013,7 @@ Section PullExistsLeft.
   Lemma unification_instantiates r r' (H : unify r' r = true) :
     instantiates r' r.
   Proof.
-    
+
     generalize dependent r; induction r'; simpl; intros.
     + destruct r0; try congruence; [|apply Ins_guess]. admit.
     + destruct r; try congruence; [apply Ins_guess|].
@@ -775,14 +1024,14 @@ Section PullExistsLeft.
       apply Ins_point. apply IHr'; intuition.
   Qed.
 
-  Definition atom (us vs : tenv typ) (e : expr ilfunc) (r : R Rbase) : option T := 
+  Definition atom (us vs : tenv typ) (e : expr ilfunc) (r : R Rbase) : option T :=
     match e with
       | Inj (ilf_exists a t) => Some ((tyArr a t)::nil, a::nil, Var 1)
       | _ => Some (nil, nil, e)
     end.
 
-  Lemma atom_cases (tus tvs : tenv typ) (e : expr ilfunc) (r : R Rbase) (res : T) 
-    (H : atom tus tvs e r = Some res) : 
+  Lemma atom_cases (tus tvs : tenv typ) (e : expr ilfunc) (r : R Rbase) (res : T)
+    (H : atom tus tvs e r = Some res) :
     (exists a t, (e = Inj (ilf_exists a t) /\ (res =  ((tyArr a t)::nil, a::nil, Var 1)))) \/
     (res = (nil, nil, e)).
   Proof.
@@ -796,7 +1045,7 @@ Section PullExistsLeft.
       | Some x => exprD' us vs x t
       | None   => None
     end.
- 
+
 
   Require Import FunctionalExtensionality.
 
@@ -808,7 +1057,7 @@ Section PullExistsLeft.
     destruct t; simpl in *; try congruence.
     forward; inv_all; subst. exists t2. reflexivity.
   Qed.
-      
+
   Lemma TD_abs_list uvs vvs avs b c t x
     (H : TD uvs vvs (avs, b, c) t = Some x) :
       exists y, t = fold_right tyArr y avs.
@@ -840,7 +1089,7 @@ Section PullExistsLeft.
     + unfold TD, T_to_expr in *; simpl in *.
       forward. red_exprD; forward. inv_all; subst.
       rewrite typ_cast_typ_refl.
-      f_equal. 
+      f_equal.
   Qed.
 
   Fixpoint typD_fold_right tvs uvs t avs :
@@ -853,14 +1102,14 @@ Section PullExistsLeft.
 (*
   Lemma TD_abs_list_sem uvs vvs avs b c t x :
     (TD uvs vvs (avs, b, c) (fold_right tyArr t avs) = Some x) <->
-    TD uvs ((rev avs) ++ vvs) (nil, b, c) t = 
+    TD uvs ((rev avs) ++ vvs) (nil, b, c) t =
     Some (fun g => match HList.hlist_split (rev avs) vvs g with
                      | (a, b) => typD_fold_right (x b) a
                    end).
   Proof.
     split; intro H.
     + generalize dependent t; generalize dependent vvs.
-      induction avs; simpl in *; intros. 
+      induction avs; simpl in *; intros.
       * rewrite H. f_equal.
       * apply TD_abs_sem in H.
         apply IHavs in H.
@@ -871,7 +1120,7 @@ Section PullExistsLeft.
       * admit.
   Qed.
 *)
-  
+
   Lemma TD_quant_sem_aux uvs vvs e t a (v : typD ts nil a) x :
     TD uvs (a::vvs) e t = Some x <->
     TD uvs vvs e t = Some (fun vs => x (HList.Hcons v vs)).
@@ -880,16 +1129,16 @@ Section PullExistsLeft.
     + unfold TD in *; simpl in *; forward.
       pose proof (exprD'_lower RSym_sym us nil (a::nil) vvs e0).
       simpl in *.
-      
+
       red_exprD.
       forward.
       pose proof (exprD'_lift RSym_sym us nil (a::nil) vvs e0 t).
-      
+
       simpl in *.
       SearchAbout lift.
     simpl.
-    
-    
+
+
 
 
   Lemma TD_quant_sem_aux uvs vvs q qs c t x IL (a : typD ts nil q)
@@ -904,7 +1153,7 @@ Section PullExistsLeft.
     red_exprD; forward; inv_all; subst.
     simpl in *. forward; inv_all; subst.
     exists (fun x a => t (HList.Hcons a x)).
-    split. simpl. 
+    split. simpl.
     apply functional_extensionality; intros x1; simpl.
     uip_all. reflexivity.
     rewrite H2.
@@ -912,7 +1161,7 @@ Section PullExistsLeft.
 rewrite <- H7 in H5.
 rewrite <- H7 in x0. rewrite H7 in H5.
     red_exprD; forward; inv_all; uip_all.
-    rewrite HIL in *. rewrite <- H6 in *. rewrite H7 in *. rewrite x0 in *. 
+    rewrite HIL in *. rewrite <- H6 in *. rewrite H7 in *. rewrite x0 in *.
     red_exprD; forward; inv_all. simpl in *. forward. inv_all.
     red_exprD; forward; inv_all; revert H4; generalize dependent t2; subst; intros.
     rewrite typ_cast_typ_refl in H2.
@@ -937,13 +1186,13 @@ rewrite <- H7 in x0. rewrite H7 in H5.
     admit.
   Qed.
 
-  
 
-  Fixpoint RD (r : R Rbase) : (typD ts nil (typeForR typeForRbase r)) -> 
+
+  Fixpoint RD (r : R Rbase) : (typD ts nil (typeForR typeForRbase r)) ->
                               (typD ts nil (typeForR typeForRbase r)) -> Prop :=
     match r with
       | Rfunctorial l r => fun f g => forall x y, @RD l x y -> @RD r (f x) (g y)
-      | Rinj (Ent t _) => 
+      | Rinj (Ent t _) =>
         fun a b => t ?[eq] typeForR typeForRbase r = true /\
                    exists ILO, gs' ts gs t = Some ILO /\ a |-- b
       | Rinj Eq => fun a b => a = b
@@ -964,7 +1213,7 @@ rewrite <- H7 in x0. rewrite H7 in H5.
   Qed.
 
   Definition TR us vs (r : R Rbase) (t : T) v : Prop :=
-    match TD us vs t (typeForR typeForRbase r) with 
+    match TD us vs t (typeForR typeForRbase r) with
       | Some x => forall vs, @RD r v (x vs)
       | None => False
     end.
@@ -982,7 +1231,7 @@ rewrite <- H7 in x0. rewrite H7 in H5.
     unfold TR in *.
     forward. simpl in *.
 Check TD.
-    (f : typD ts nil r -> 
+    (f : typD ts nil r ->
      (H: TD us0 (typeof_env vs0) (r::rv1, re1, r1)
          (tyArr ) =
        Some t0)
@@ -992,7 +1241,7 @@ Check TD.
 
     unfold TD in H1.
 
-    
+
 
     destruct t1; simpl in *; try congruence.
     destruct r; simpl in *; try congruence.
@@ -1064,14 +1313,14 @@ SearchAbout expr
     red_exprD.
     simpl.
     simpl.
-    
+
     simpl.
     simpl.
 
 destruct H1RD as [_ H1RD].
     unfold app in H.
     unfold TD, T_to_expr in *; simpl in *.
-    destruct t1; simpl in *; try congruence. 
+    destruct t1; simpl in *; try congruence.
     destruct r; simpl in *; try congruence.
     unfold TD in H1.
     unfold app in H; simpl in *.
@@ -1080,15 +1329,15 @@ destruct H1RD as [_ H1RD].
 
     Lemma TD_app us vs e1 e2 t1 t2 tr1 tr2 result
           (H1 : TD us vs e1 (tyArr t1 t2) = Some tr1)
-          (H2 : TD us vs e2 t1 = Some tr2) 
+          (H2 : TD us vs e2 t1 = Some tr2)
           (H3 : app (typeof_env us) (typeof_env vs) r1 r2 t1 t2 = Some result) :
       TD us vs result t2 = Some (tr1 tr2).
 
 
     unfold TD in *.
-    
+
     specialize (H1RD _ _ H2RD). simpl in *.
-    simpl in *. 
+    simpl in *.
     unfold TR.
     exists (v1 v2).
     split; [|admit].
@@ -1111,11 +1360,11 @@ destruct H1RD as [_ H1RD].
       remember (unify r0 r) as b; destruct b; congruence.
     + unfold get_unified_proper in H.
       remember (get_proper_aux e r) as o; destruct o; try congruence.
-      remember (unify r0 r) as b; destruct b; try congruence. 
+      remember (unify r0 r) as b; destruct b; try congruence.
       inv_all; subst.
       Print pr_type.
-  Lemma proper_lookup_type tus tvs e r r' r'' t 
-        (H : unify r' r = true) 
+  Lemma proper_lookup_type tus tvs e r r' r'' t
+        (H : unify r' r = true)
         (H1 : proper_lookup e r'' = Some r')
         (H2 : typeof_expr tus tvs e = Some t) :
       typeForR typeForRbase r' = t.
@@ -1138,7 +1387,7 @@ destruct H1RD as [_ H1RD].
     destruct r1; simpl in *; try congruence.
     assert (t1 = t2) by admit; subst.
     rewrite ILV in H2; inv_all.
-    destruct r2; simpl in *; try congruence. 
+    destruct r2; simpl in *; try congruence.
     rewrite andb_true_iff in H; destruct H as [H H1].
     rewrite andb_true_iff in H; destruct H as [H H0].
     assert (t1 = t2) by admit; subst.
@@ -1146,9 +1395,9 @@ destruct H1RD as [_ H1RD].
     admit.
   Qed.
 
-  Lemma unification_type tus tvs e r r' r'' t (H : unify r' r = true) 
-    (H1 : get_proper_aux e r'' = Some r') 
-    (H2 : pr_type typeForRbase r t) 
+  Lemma unification_type tus tvs e r r' r'' t (H : unify r' r = true)
+    (H1 : get_proper_aux e r'' = Some r')
+    (H2 : pr_type typeForRbase r t)
     (H3 : typeof_expr tus tvs e = Some t) : typeForR typeForRbase r' = t.
   Proof.
     generalize dependent r; generalize dependent r'; induction r''; simpl; intros;
@@ -1158,8 +1407,8 @@ destruct H1RD as [_ H1RD].
     eapply IHr''; eauto.
   Qed.
 
-  
-  eapply unification_type; eauto. 
+
+  eapply unification_type; eauto.
     + remember (exprD' us0 tvs e (typeForR typeForRbase r')).
       destruct o; [|apply I].
       intros.
@@ -1170,19 +1419,19 @@ destruct H1RD as [_ H1RD].
       assert (exists IL, gs' ts gs t1 = Some IL) by admit.
       destruct H4 as [IL H4].
       rewrite H4 in H0. rewrite H4 in H2. inv_all; simpl in *.
-      subst; red_exprD. 
+      subst; red_exprD.
       remember (typ_cast_typ ts nil (tyArr (tyArr a t1) t1)
            (typeForR typeForRbase r')) as o.
       destruct o; try congruence.
-      symmetry in Heqo. 
+      symmetry in Heqo.
       apply typ_cast_typ_eq in Heqo; subst.
       exists t2.
       split.
       inv_all; subst.
-      unfold exprD. 
+      unfold exprD.
       rewrite split_env_join_env.
       red_exprD.
-      
+
       uip_all.
       rewrite <- Heqo.
       simpl.
@@ -1210,9 +1459,9 @@ rewrite typ_cast_typ_eq in Heqo.
       apply RD_reflexive.
   Qed.
 
-  Definition SRW_Algo_pull_quant := 
+  Definition SRW_Algo_pull_quant :=
     @SRW_Algo_properAt ilfunc T Rbase get_unified_proper atom app abs.
-                                                       
+
 End PullExistsLeft.
 
 Section demo.
@@ -1224,8 +1473,8 @@ Section demo.
                                 end).
 
   Existing Instance ILFun_ILogic.
-  
-  Lemma gs'_sound : forall g, match gs' ts logics g with 
+
+  Lemma gs'_sound : forall g, match gs' ts logics g with
                                 | Some T => @ILogic _ T
                                 | None => unit
                               end.
@@ -1263,7 +1512,7 @@ Print setoid_fold_spec.
     split. admit.
     intros.
     remember (exprD' us tvs e (typeForR typeForRbase r')) as o.
-    destruct o; [|apply I]. 
+    destruct o; [|apply I].
     intros.
     unfold TR. exists (t0 vs).
     split.
@@ -1271,10 +1520,10 @@ Print setoid_fold_spec.
     unfold exprD.
     simpl.
     simpl.
-    
-    
 
-  
+
+
+
 
   Check SRW_AlgoOk_properAt.
 *)
@@ -1304,11 +1553,11 @@ Eval compute in test_fold (Inj (ilf_exists (tyType 1) (tyType 0))) (Rfunctorial 
 
 
 
-Eval compute in 
+Eval compute in
   Eval compute in
       @setoid_fold _ _ _ (atomic SRW_Algo_pull_quant) (SetoidFold.app SRW_Algo_pull_quant)
-                   (SetoidFold.abs SRW_Algo_pull_quant) nil nil 
-                   (inj_and (inj_exists (tyType 1) (inj_eq_nat (Var 0) (Var 0))) inj_true) 
+                   (SetoidFold.abs SRW_Algo_pull_quant) nil nil
+                   (inj_and (inj_exists (tyType 1) (inj_eq_nat (Var 0) (Var 0))) inj_true)
                    (Rinj ent).
   simpl.
 Check @setoid_fold.
@@ -1316,15 +1565,15 @@ Check @setoid_fold.
       @setoid_fold _ _ _ _ _ properAt atomic app nil (Inj And) (tyProp :: nil)
                       (PRfunctorial (PRguess _ tyProp) (PRfunctorial (PRguess _ tyProp) (PRinj Impl))).
 
-  
+
 Check @SRW_Algo_properAt.
-  
+
   Check inj_true.
 
 Check @inj_true.
 
   Axiom eq_nat : nat -> nat -> T.
-  
+
   Definition eq_nat_emb := F ts (tyArr (tyType 1) (tyArr (tyType 1) (tyType 0))) (eq_nat).
 
   Definition inj_and (p q : expr ilfunc) : expr ilfunc := App (App (Inj (ilf_and (tyType 0))) p) q.
@@ -1333,9 +1582,9 @@ Check @inj_true.
 
   Definition inj_true : expr ilfunc := Inj (ilf_true (tyType 0)).
   Definition inj_false : expr ilfunc := Inj (ilf_false (tyType 0)).
-  Definition inj_exists (a : typ) (f : expr ilfunc) : expr ilfunc := 
+  Definition inj_exists (a : typ) (f : expr ilfunc) : expr ilfunc :=
   	App (Inj (ilf_exists a (tyType 0))) (Abs a f).
-  Definition inj_forall (a : typ) (f : expr ilfunc) : expr ilfunc := 
+  Definition inj_forall (a : typ) (f : expr ilfunc) : expr ilfunc :=
   	App (Inj (ilf_forall a (tyType 0))) (Abs a f).
   Definition inj_eq_nat (a b : expr ilfunc) : expr ilfunc :=
     App (App (Inj (fref (1%positive))) a) b.
@@ -1360,12 +1609,12 @@ Check @inj_true.
 End demo.
 
 
-  
+
   Lemma T_to_expr_app pq p tpq tp vp vpq r
   	(Hpq : TD pq (tyArr tp tpq) = Some vpq)
   	(Hp : TD p tp = Some vp) :
   	TD (app pq p r r) tpq = Some (vpq vp).
-    clear gs_sound. 
+    clear gs_sound.
     Set Printing All.
 clear gs.
 
@@ -1374,7 +1623,7 @@ clear gs.
 
 
   Definition T_to_expr (t : T) (il : typ) : expr ilfunc :=
-    fold_right Abs (fold_right (fun t e => App (Inj (ilf_exists t il)) 
+    fold_right Abs (fold_right (fun t e => App (Inj (ilf_exists t il))
                                                (Abs t e)) (snd t) (snd (fst t)))
                (fst (fst t)).
 
@@ -1385,22 +1634,22 @@ clear gs.
       | _, _ => None
     end.
 
-  
 
 
-  	  
+
+
   Definition Rbase := (typ * expr ilfunc)%type.
 
   Definition typeForRbase (r : Rbase) : typ := fst r.
 
   Definition app (p q : T) : T := T_union p q.
 
-  
+
 
   Definition T := (list typ * list typ * expr ilfunc)%type.
 
   Definition T_to_expr (t : T) (il : typ) : expr ilfunc :=
-    fold_right Abs (fold_right (fun t e => App (Inj (ilf_exists t il)) 
+    fold_right Abs (fold_right (fun t e => App (Inj (ilf_exists t il))
                                                (Abs t e)) (snd t) (snd (fst t)))
                (fst (fst t)).
 
@@ -1411,21 +1660,21 @@ clear gs.
       | _, _ => None
     end.
 
-  
-  	  
+
+
   Definition T_union (p q : T) : T :=
   	(fst p ++ fst q, App (lift 0 (length (fst q)) (snd p)) (snd q)).
-  	
+
   Definition Rbase := (typ * expr ilfunc)%type.
 
   Definition typeForRbase (r : Rbase) : typ := fst r.
 
   Definition app (p q : T) : T := T_union p q.
 
-  
 
 
-   Fixpoint RD (r : R Rbase) : (typD ts nil (typeForR typeForRbase r)) -> 
+
+   Fixpoint RD (r : R Rbase) : (typD ts nil (typeForR typeForRbase r)) ->
    (typD ts nil (typeForR typeForRbase r)) -> Prop :=
   	match r with
   		| Rfunctorial l r => fun f g => forall x y, @RD l x y -> @RD r (f x) (g y)
@@ -1436,13 +1685,13 @@ clear gs.
   Lemma RD_refl (r : R Rbase) a : @RD r a a.
   Proof.
   	induction r.
-  	+ simpl. 
-  	  Require Import FunctionalExtensionality. 
+  	+ simpl.
+  	  Require Import FunctionalExtensionality.
   	  apply functional_extensionality.
   	destruct a.
   	induction a.
 .*)
-  Lemma T_to_expr_app_wt p q tpq tq 
+  Lemma T_to_expr_app_wt p q tpq tq
   	(Hp : WellTyped_expr (typeof_env us) (typeof_env vs) (T_to_expr p (tyArr tq tpq)) (tyArr tq tpq))
   	(Hq : WellTyped_expr (typeof_env us) (typeof_env vs) (T_to_expr q tq) tq) :
   	WellTyped_expr (typeof_env us) (typeof_env vs) (T_to_expr (app p q) tpq) tpq.
@@ -1450,15 +1699,15 @@ clear gs.
   	admit.
   Qed.
 
-  Lemma T_to_expr_app pq p tpq tp vp vpq 
+  Lemma T_to_expr_app pq p tpq tp vp vpq
   	(Hpq : exprD us vs (T_to_expr pq (tyArr tp tpq)) (tyArr tp tpq) = Some vpq)
   	(Hp : exprD us vs (T_to_expr p tp) tp = Some vp) :
   	exprD us vs (T_to_expr (app pq p) tpq) tpq = Some (vpq vp).
   Proof.
   	unfold T_to_expr in *; simpl in *.
   	rewrite fold_right_app.
-  	destruct p as [vps p], pq as [vpqs pq]; simpl in *. 
-  	induction vps; simpl in *. 
+  	destruct p as [vps p], pq as [vpqs pq]; simpl in *.
+  	induction vps; simpl in *.
   	SearchAbout exprD lift.
   	+ generalize dependent vs. clear vs. induction vpqs; simpl in *; intros.
   	  * rewrite exprD_App.
@@ -1477,7 +1726,7 @@ clear gs.
   	    destruct vs; simpl in *.
   	    rewrite exprD'_Abs. rewrite typ_cast_typ_refl.
   	    assert (va : typD ts nil a). admit.
-  	    
+
   	    specialize (IHvpqs (fun typD => (existT (typD ts nil) a va)::nil)).
   	    specialize (IHvpqs (a::nil)).
   	    Print sigT.
@@ -1502,7 +1751,7 @@ clear gs.
   	    Print expr.
   	    rewrite exprD_Inj.
   	    red_exprD.
-  	    generalize dependent gs. 
+  	    generalize dependent gs.
   	  Check exprD_Abs.
   	  SearchAbout exprD Abs.
   	  rewrite exprD_Abs.
@@ -1513,19 +1762,19 @@ clear gs.
 SearchAbout exprD App.
   	 apply Hp.
   Qed.
-  
+
   Definition TR (us vs : env (typD ts)) (r : R Rbase) (t : T) v: Prop :=
   exists v',
-    exprD us vs (T_to_expr t (typeForR typeForRbase r)) (typeForR typeForRbase r) = Some v' /\ 
+    exprD us vs (T_to_expr t (typeForR typeForRbase r)) (typeForR typeForRbase r) = Some v' /\
     @RD r v v'.
-  
+
 Lemma typeof_expr_exprDR (e : expr ilfunc) (t : typ) v
-     (Hexpr : exprD us vs e t = Some v) :   
+     (Hexpr : exprD us vs e t = Some v) :
      WellTyped_expr (typeof_env us) (typeof_env vs) e t.
 Proof.
 	apply typeof_expr_exprD. exists v. apply Hexpr.
 Qed.
-    
+
   Lemma Happ : forall t1 t2 r1 r2 v1 f,
   exprD us vs f (typeForR typeForRbase (Rfunctorial t1 t2)) = Some v1 ->
        @TR us vs (Rfunctorial t1 t2) r1 ->
@@ -1535,10 +1784,10 @@ Qed.
   	intros t1 t2 r1 r2 f v1 Hexpr [v2 [H1expr H1RD]] [v3 [H2expr H2RD]].
 	simpl in H1RD.
 	specialize (H1RD _ _ H2RD).
-	exists (v2 v3). split; [|apply H1RD].  
+	exists (v2 v3). split; [|apply H1RD].
 	apply T_to_expr_app. assumption. assumption.
 	rewrite <- H2expr.
-	apply H2expr.	
+	apply H2expr.
 	simpl.
   	apply typeof_expr_exprDR in H1expr.
   	apply typeof_expr_exprDR in H2expr.
@@ -1548,57 +1797,57 @@ Qed.
 	simpl in H1RD.
 	specialize (H1RD _ _ H2RD).
 	Lemma exprD_RD_app e1 e2 e12 t12 t1 t2 v12 v1 v2 v12' v1'
-	    (H12 : exprD us vs (T_to_expr e12 t12) (typeForR typeForRbase (Rfunctorial t1 t2)) = Some v12) 
+	    (H12 : exprD us vs (T_to_expr e12 t12) (typeForR typeForRbase (Rfunctorial t1 t2)) = Some v12)
 		(HRD12 : @RD (Rfunctorial t1 t2) v12 v12')
 		(HRD1 : @RD t1 v1 v1')
 	    (H1 : exprD us vs (T_to_expr e1 (typeForR typeForRbase t1)) (typeForR typeForRbase t1) = Some v1)
 		(H2 : exprD us vs (T_to_expr (app e1 e2) (typeForR typeForRbase t2)) (typeForR typeForRbase t2) = Some v2) :
 		@RD t2 (v12 v1) v2.
-	  	
+
   	generalize dependent v'1.
-  	
+
   	exists vpq.
   	split. apply H3.
   	eexists. split. apply H3.
 
     Lemma RD_functorial t1 t2 r1 r2 f g
-    	(H1 : @RD (Rfunctorial t1 t2) r2) (Hr2 : r2 f g) (H2 : @RD t1 r1) : 
+    	(H1 : @RD (Rfunctorial t1 t2) r2) (Hr2 : r2 f g) (H2 : @RD t1 r1) :
     	@RD t2 (fun a b => forall x y, r1 x y -> a = (f x) /\ b = (g y)).
     Proof.
     	eapply H1. eassumption.
     	specialize (H1 (fun a b => forall x y, r1 x y -> a = (f x) /\ b = (g y)) f g Hr2).
    	    apply H1. simpl. in
   	eexists.
-  	
-  	
-  	
- 
-  Fixpoint pull_exists_left (p : expr ilfunc) : (list typ * expr ilfunc) := 
+
+
+
+
+  Fixpoint pull_exists_left (p : expr ilfunc) : (list typ * expr ilfunc) :=
   	match p with
-  	  | App (App (Inj (ilf_and t)) p) q => 
-  	  	let (vsp, ep) := pull_exists_left p in 
-  	  	let (vsq, eq) := pull_exists_left q in 
-  	  		(vsp ++ vsq, App (App (Inj (ilf_and t)) (lift 0 (length vsq) ep)) eq)
-  	  | App (App (Inj (ilf_or t)) p) q => 
+  	  | App (App (Inj (ilf_and t)) p) q =>
   	  	let (vsp, ep) := pull_exists_left p in
-  	  	let (vsq, eq) := pull_exists_left q in 
+  	  	let (vsq, eq) := pull_exists_left q in
+  	  		(vsp ++ vsq, App (App (Inj (ilf_and t)) (lift 0 (length vsq) ep)) eq)
+  	  | App (App (Inj (ilf_or t)) p) q =>
+  	  	let (vsp, ep) := pull_exists_left p in
+  	  	let (vsq, eq) := pull_exists_left q in
   	  		(vsp ++ vsq, App (App (Inj (ilf_or t)) (lift 0 (length vsq) ep)) eq)
   	  | App (Inj (ilf_exists a _)) (Abs _ f) =>
   	  		let (vs, e) := pull_exists_left f in (a::vs, e)
   	  | _ => (nil, p)
     end.
-    
+
     Fixpoint apply_exists_aux (t : typ) (vs : list typ)  (e : expr ilfunc) :=
     match vs with
     	| nil => e
 		| v :: vs => App (Inj (ilf_exists v t)) (Abs v (apply_exists_aux t vs e))
 	end.
-	
+
 	Definition apply_exists (t : typ) (x : list typ * expr ilfunc) :=
 		apply_exists_aux t (fst x) (snd x).
-	
-  	Lemma sound_aux us vs e t v x (H2 : exprD us vs e t = Some v) (ILO : ILogicOps (typD ts nil t)) 
-  	(_ : gs t = Some ILO) 
+
+  	Lemma sound_aux us vs e t v x (H2 : exprD us vs e t = Some v) (ILO : ILogicOps (typD ts nil t))
+  	(_ : gs t = Some ILO)
   	(_ : exprD us vs e t = Some x) :
   	v |-- x.
   	Proof.
@@ -1636,30 +1885,30 @@ Qed.
 	Check exprD_App.
 	Check RSym_ilfunc.
 	Check RSym_func.
-	rewrite exprD_App in H7.	
+	rewrite exprD_App in H7.
 	+ red. solve_expr_acc_trans.
-	+ 
+	+
 	setoid_rewrite <- pull_exists_left.
   	red_exprD.
   	unfold apply_exists. simpl. exists v. intuition. admit.
   	unfold apply_exists. simpl. exists v. intuition. admit.
-    destruct   	
+    destruct
   Qed.
 
 End PullExistsLeft.
 
 Section PullForallRight.
   Context {ts : types} {is : inhabited ts}.
-  
-  Fixpoint pull_forall_right (p : expr ilfunc) : (list typ * expr ilfunc) := 
+
+  Fixpoint pull_forall_right (p : expr ilfunc) : (list typ * expr ilfunc) :=
   	match p with
-  	  | App (App (Inj (ilf_and t)) p) q => 
+  	  | App (App (Inj (ilf_and t)) p) q =>
   	  	let (vsp, ep) := pull_forall_right p in
-  	  	let (vsq, eq) := pull_forall_right q in 
+  	  	let (vsq, eq) := pull_forall_right q in
   	  		(vsp ++ vsq, App (App (Inj (ilf_and t)) (lift 0 (length vsq) ep)) eq)
   	  | App (Inj (ilf_forall a _)) (Abs b f) =>
-  	    if a ?[eq] b then 
-  	    	match is a with 
+  	    if a ?[eq] b then
+  	    	match is a with
   	  		| Some _ => let (vs, e) := pull_forall_right f in (a::vs, e)
   	  		| None => (nil, p)
   	  		end
@@ -1667,12 +1916,11 @@ Section PullForallRight.
   	  		(nil, p)
   	  | _ => (nil, p)
     end.
-    
+
     Fixpoint apply_forall (vs : list typ) (t : typ) (e : expr ilfunc) :=
     match vs with
     	| nil => e
 		| v :: vs => App (Inj (ilf_forall v t)) (Abs v (apply_forall vs t e))
 	end.
-	
-End PullForallRight.
 
+End PullForallRight.

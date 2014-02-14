@@ -1,6 +1,6 @@
 (** This file implements cancellation for separation logic.
  **)
-Require List.
+Require Coq.Lists.List.
 Require ExtLib.Data.Option.
 Require Import ExtLib.Tactics.
 
@@ -112,6 +112,17 @@ Section iterated.
         { rewrite Rbase_LL in IHls.
           rewrite <- IHls. apply Rbase_RR. }
         { eapply Rbase_RR. } } }
+  Qed.
+
+  Theorem iterated_base_cons
+  : forall l ls,
+      R (iterated_base (l :: ls))
+        (join l (iterated_base ls)).
+  Proof.
+    intros.
+    change (l :: ls)%list with ((l :: nil) ++ ls)%list.
+    etransitivity. eapply iterated_base_app.
+    unfold iterated_base at 1. simpl. reflexivity.
   Qed.
 
   Variable P : T -> Prop.
