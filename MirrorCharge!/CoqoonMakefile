@@ -10,32 +10,29 @@ override _COQCMD = \
 include CoqoonMakefile.vars
 
 bin/%.vo: src/%.v
-	@ echo Building $< ...
-	@ $(_COQCMD)
-# TODO: These should be compiled under the [MirrorCharge] namespace
+	$(_COQCMD)
 override COQFLAGS += -R src ""
 override COQFLAGS += -R bin ""
 override COQFLAGS += $(DK_ITU_SDG_KOPITIAM_LP_COQ_8_4_FLAGS)
+override COQFLAGS += -R $(EXTERNAL_PATH) ""
+override COQFLAGS += -R $(MIRRORCORE_PATH) MirrorCore
+override COQFLAGS += -R $(EXTLIB_PATH) ExtLib
 override COQFLAGS += $(CHARGE_FLAGS)
-# These need -I rather than -R
-override COQFLAGS += -I $(MIRRORCORE_PATH) -as MirrorCore
-override COQFLAGS += -I $(EXTLIB_PATH) -as ExtLib
 OBJECTS = \
 	bin/BILNormalize.vo \
 	bin/ILFFold.vo \
+	bin/ILPullQuant.vo \
 	bin/ILogicFunc.vo \
 	bin/Iterated.vo \
+	bin/MonadicCanceller.vo \
+	bin/OrderedCanceller.vo \
 	bin/Reify.vo \
-	bin/SynSepLog.vo \
 	bin/SepLogFold.vo \
 	bin/SepLogFoldWithAnd.vo \
-	bin/Tauto.vo \
-	bin/TautoTests.vo \
+	bin/SepTests.vo \
 	bin/SynSepLog.vo \
-	bin/OrderedCanceller.vo
-# (these do not compile)
-#	bin/ILPullQuant.vo
-#	bin/SetoidRewrite.vo 
+	bin/Tauto.vo \
+	bin/TautoTests.vo
 
 all: $(OBJECTS)
 clean:
@@ -46,10 +43,12 @@ bin/ILFFold.vo: src/ILFFold.v bin/ILogicFunc.vo
 bin/ILPullQuant.vo: src/ILPullQuant.v bin/ILogicFunc.vo
 bin/ILogicFunc.vo: src/ILogicFunc.v
 bin/Iterated.vo: src/Iterated.v
+bin/MonadicCanceller.vo: src/MonadicCanceller.v bin/BILNormalize.vo
+bin/OrderedCanceller.vo: src/OrderedCanceller.v bin/BILNormalize.vo bin/Iterated.vo bin/SynSepLog.vo
 bin/Reify.vo: src/Reify.v bin/ILogicFunc.vo
 bin/SepLogFold.vo: src/SepLogFold.v
-bin/SynSepLog.vo: src/SynSepLog.v bin/SepLogFold.vo # This shouldn't need SepLogFold
-bin/SetoidRewrite.vo: src/SetoidRewrite.v bin/SepLogFold.vo
-bin/OrderedCanceller.vo: src/OrderedCanceller.v bin/SynSepLog.vo bin/BILNormalize.vo
+bin/SepLogFoldWithAnd.vo: src/SepLogFoldWithAnd.v
+bin/SepTests.vo: src/SepTests.v bin/ILogicFunc.vo bin/Tauto.vo
+bin/SynSepLog.vo: src/SynSepLog.v bin/SepLogFold.vo
 bin/Tauto.vo: src/Tauto.v bin/ILogicFunc.vo
-bin/TautoTests.vo: src/Tauto.v bin/Tauto.vo
+bin/TautoTests.vo: src/TautoTests.v bin/ILogicFunc.vo bin/Tauto.vo bin/Reify.vo
