@@ -11,13 +11,14 @@ include CoqoonMakefile.vars
 
 bin/%.vo: src/%.v
 	$(_COQCMD)
+override COQFLAGS += $(DK_ITU_SDG_KOPITIAM_LP_COQ_8_4_FLAGS)
+# override COQFLAGS += -R $(EXTERNAL_PATH) ""
+override COQFLAGS += -R $(MIRRORCORE_PATH) -as MirrorCore
+override COQFLAGS += -R $(EXTLIB_PATH) -as ExtLib
+override COQFLAGS += $(CHARGE_FLAGS)
 override COQFLAGS += -R src ""
 override COQFLAGS += -R bin ""
-override COQFLAGS += $(DK_ITU_SDG_KOPITIAM_LP_COQ_8_4_FLAGS)
-override COQFLAGS += -R $(EXTERNAL_PATH) ""
-override COQFLAGS += -R $(MIRRORCORE_PATH) MirrorCore
-override COQFLAGS += -R $(EXTLIB_PATH) ExtLib
-override COQFLAGS += $(CHARGE_FLAGS)
+
 OBJECTS = \
 	bin/BILNormalize.vo \
 	bin/ILFFold.vo \

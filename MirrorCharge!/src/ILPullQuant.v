@@ -345,9 +345,8 @@ Section PullQuant.
     apply exprD'_add_quants_app_Some in H0; eauto.
   Qed.
 
-  (** TODO: This should be in MirrorCore **)
-  Global Instance Equiv_dec_typ : EqDec typ (@eq typ).
-  Admitted.
+(*  Let EqDec_typ : EqDec typ (@eq typ) := _. *)
+  Local Existing Instance EqDec_typ.
 
   Lemma Happ
   : forall tus tvs l (l_res : T) rs t ts,
@@ -439,7 +438,7 @@ Section PullQuant.
            (** contradiction **)
            admit. } }
        { intro. exfalso. admit. }
-Qed.
+   Qed.
  
   Lemma Happ2
   : forall tus tvs l (l_res : T) rs t ts,
