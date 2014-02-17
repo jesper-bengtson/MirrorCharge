@@ -22,7 +22,6 @@ override COQFLAGS += -R bin ""
 OBJECTS = \
 	bin/BILNormalize.vo \
 	bin/ILFFold.vo \
-	bin/ILPullQuant.vo \
 	bin/ILogicFunc.vo \
 	bin/Iterated.vo \
 	bin/MonadicCanceller.vo \
@@ -32,8 +31,10 @@ OBJECTS = \
 	bin/SepLogFoldWithAnd.vo \
 	bin/SepTests.vo \
 	bin/SynSepLog.vo \
+	bin/CancellerTac.vo \
 	bin/Tauto.vo \
 	bin/TautoTests.vo
+# 	bin/ILPullQuant.vo
 
 all: $(OBJECTS)
 clean:
@@ -46,6 +47,7 @@ bin/ILogicFunc.vo: src/ILogicFunc.v
 bin/Iterated.vo: src/Iterated.v
 bin/MonadicCanceller.vo: src/MonadicCanceller.v bin/BILNormalize.vo
 bin/OrderedCanceller.vo: src/OrderedCanceller.v bin/BILNormalize.vo bin/Iterated.vo bin/SynSepLog.vo
+bin/CancellerTac.vo: src/CancellerTac.v bin/OrderedCanceller.vo
 bin/Reify.vo: src/Reify.v bin/ILogicFunc.vo
 bin/SepLogFold.vo: src/SepLogFold.v
 bin/SepLogFoldWithAnd.vo: src/SepLogFoldWithAnd.v

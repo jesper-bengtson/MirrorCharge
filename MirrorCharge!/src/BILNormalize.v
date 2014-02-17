@@ -208,8 +208,7 @@ Section conjunctives.
         Cases.rewrite_all_goal; intros.
         rewrite H0. rewrite H2.
         rewrite empSPL. rewrite ltrue_unitL; eauto. }
-      { admit.
-        (*
+      {         (*
 generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
                       (Sem_equiv' _ SL lequiv us vs)
                       (@Reflexive_Sem_equiv' _ _ _ SL lequiv _ us tvs)
@@ -258,7 +257,7 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
           rewrite landA. rewrite IHps. reflexivity. 
         { destruct (exprD_e_empOk SSLO us vs) as [ ? [ ? ? ] ].
           congruence. } }
-*) }
+*) admit. }
     Qed.
 
     Lemma iterated_base_true_and_star_emp
@@ -892,29 +891,55 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
 
   End conjunctivesD.
 
-(*
-  Section demo.
-  Definition is_emp (i : sym) : bool :=
+  Definition normalize (sls : SepLogSpec sym) :=
+    app_fold_args (AppFullFoldArgs_SepLogArgs sls SepLogArgs_normalize).
+
+  Theorem normalizeOk
+          (ILO : ILogicOps (typD ts nil SL))
+          (BILO : BILOperators (typD ts nil SL))
+          (IL : @ILogic _ ILO)
+          (BIL : @BILogic _ ILO BILO)
+          (sls : SepLogSpec sym) (slsOk : SepLogSpecOk _ _ sls _ _)
+          (ssl : SynSepLog sym) (sslo : SynSepLogOk _ _ _ _ ssl)
+  : forall (e : expr sym) us tvs,
+      match exprD' (ts := ts) us tvs e SL
+          , exprD' us tvs (conjunctives_to_expr ssl (normalize sls e (typeof_env us) tvs)) SL
+      with
+        | Some l , Some r =>
+          forall vs,
+            (l vs -|- r vs) /\
+            well_formed (slsOk.(_PureOp)) (normalize sls e (typeof_env us) tvs) us (join_env vs)
+        | None , None => True
+        | _ , _ => False
+      end.
+  Proof.
+  Admitted.
+
+End conjunctives.
+
+Module demo.
+  Definition is_emp (i : ilfunc) : bool :=
     match i with
       | ilf_true _ => true
       | _ => false
     end.
-  Definition is_star (e : expr sym) : bool :=
+  Definition is_star (e : ilfunc) : bool :=
     match e with
-      | Inj (fref 1%positive) => true
+      | fref 1%positive => true
       | _ => false
     end.
 
+  Definition SepLogSpec_demo : SepLogSpec ilfunc :=
+    Build_SepLogSpec (fun _ => false) is_emp is_star.
 
-    Definition inj_emp := Inj (ilf_true (tyType 0)).
-    Definition inj_star a b :=
-      Eval compute in apps (Inj (fref 1%positive)) (a :: b :: nil).
+  Definition inj_emp := Inj (ilf_true (tyType 1)).
+  Definition inj_star a b :=
+    Eval compute in apps (Inj (fref 1%positive)) (a :: b :: nil).
+  Definition inj_and a b :=
+    Eval compute in apps (Inj (fref 2%positive)) (a :: b :: nil).
 
-    Definition test := fun x => app_fold_args normalizeArgs x nil nil.
-    Eval compute in  test inj_emp.
-    Eval compute in  test (inj_star inj_emp inj_emp).
-    Eval compute in  test (inj_star (Var 0) (inj_star inj_emp (inj_and (Var 1) (Var 3)))).
-  End demo.
-*)
-
-End conjunctives.
+  Definition test := fun x => normalize SepLogSpec_demo x nil nil.
+  Eval compute in  test inj_emp.
+  Eval compute in  test (inj_star inj_emp inj_emp).
+  Eval compute in  test (inj_star (Var 0) (inj_star inj_emp (inj_and (Var 1) (Var 3)))).
+End demo.

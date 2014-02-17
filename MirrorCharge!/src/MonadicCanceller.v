@@ -221,6 +221,7 @@ Module demo.
     : option ((facts func * facts func) * subst) :=
       runStateT (force (@cancel_from'' func m _ _ (@unify _ _ _) (@wmjoin) a b nil)) nil.
 
+(*
     Eval compute in ptsto_chain UVar 1.
     Eval compute in ptsto_chain Var 1.
 
@@ -234,6 +235,7 @@ Module demo.
                          | None => false
                          | Some _ => true
                        end.
+*)
 
   End single.
 
@@ -256,10 +258,12 @@ Module demo.
     : list ((facts func * facts func) * subst) :=
       runStateT (@cancel_from func m _ _ (@unify _ _ _) (@wmjoin_list) a b nil tt) nil.
 
+(*
     Time Eval vm_compute in match test_multi (ptsto_chain Var 8) (List.rev (ptsto_chain UVar 8)) with
                               | l :: _ => Some l
                               | nil => None
                             end.
+*)
   End multi.
 
   Section multi_stream.
@@ -288,8 +292,10 @@ Module demo.
           After l (fun _ => from_list ls)
       end.
 
+(*
     Eval simpl in inc_list_join (fun u => from_list (u :: u :: nil))
                                 (from_list (1 :: 2 :: 3 :: nil)).
+*)
 
 
     Instance Monad_inc_list : Monad inc_list :=
@@ -337,10 +343,12 @@ Module demo.
     : inc_list ((facts func * facts func) * subst) :=
       runStateT (@cancel_from func m _ _ (@unify _ _ _) (@wmjoin_stream) a b nil tt) nil.
 
+(*
     Time Eval vm_compute in match test_multi_stream (ptsto_chain Var 8) (List.rev (ptsto_chain UVar 8)) with
                               | After x _ => Some x
                               | Done => None
                             end.
+*)
   End multi_stream.
 
 End demo.

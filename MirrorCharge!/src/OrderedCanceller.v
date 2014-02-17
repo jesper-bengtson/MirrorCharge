@@ -107,32 +107,39 @@ Section ordered_cancel.
   Variables tus tvs : tenv typ.
 
   (** TODO: this can be generalized to handle entailment with a remainder **)
-  Hypothesis doUnifySepLogOk : forall s e e' s',
-    doUnifySepLog s e e' = Some s' ->
-    WellTyped_expr tus tvs e tySL ->
-    WellTyped_expr tus tvs e' tySL ->
-    WellTyped_subst tus tvs s ->
-       WellTyped_subst tus tvs s'
-    /\ forall (us : HList.hlist _ tus) (vs : HList.hlist _ tvs),
-         substD (join_env us) (join_env vs) s' ->
-         exprD (join_env us) (join_env vs) e tySL = exprD (join_env us) (join_env vs) e' tySL /\
-         substD (join_env us) (join_env vs) s.
+  Definition unifySepLog_spec :=
+    forall s e e' s',
+      doUnifySepLog s e e' = Some s' ->
+      WellTyped_expr tus tvs e tySL ->
+      WellTyped_expr tus tvs e' tySL ->
+      WellTyped_subst tus tvs s ->
+         WellTyped_subst tus tvs s'
+      /\ forall (us : HList.hlist _ tus) (vs : HList.hlist _ tvs),
+           substD (join_env us) (join_env vs) s' ->
+           exprD (join_env us) (join_env vs) e tySL = exprD (join_env us) (join_env vs) e' tySL /\
+           substD (join_env us) (join_env vs) s.
+  Hypothesis doUnifySepLogOk : unifySepLog_spec.
+
   (** TODO: I can't use a simple EProver here because EProvers are specialized
    **       to work with [Prop], not arbitrary ILogics.
    ** This is yet another reason to get ILogic underneath MirrorCore.
+   ** - You really just need to generalize [Prover]/[EProver] with [Entails].
    **)
-  Hypothesis eprovePureOk : forall (us : HList.hlist _ tus) s e s',
-    eprovePure s e = Some s' ->
-    match exprD' (join_env us) tvs e tySL with
-      | Some val =>
-        WellTyped_subst tus tvs s ->
-           WellTyped_subst tus tvs s'
-        /\ forall vs : HList.hlist _ tvs,
-             substD (join_env us) (join_env vs) s' ->
-                (ltrue |-- val vs)
-             /\ substD (join_env us) (join_env vs) s
-      | None => True
-    end.
+  Definition eprovePure_spec :=
+    forall (us : HList.hlist _ tus) s e s',
+      eprovePure s e = Some s' ->
+      match exprD' (join_env us) tvs e tySL with
+        | Some val =>
+          WellTyped_subst tus tvs s ->
+          WellTyped_subst tus tvs s'
+          /\ forall vs : HList.hlist _ tvs,
+               substD (join_env us) (join_env vs) s' ->
+               (ltrue |-- val vs)
+               /\ substD (join_env us) (join_env vs) s
+        | None => True
+      end.
+
+  Hypothesis eprovePureOk : eprovePure_spec.
 
   Variable SSL : SynSepLog func.
   Variable SSLO : SynSepLogOk _ _ _ _ SSL.
@@ -274,8 +281,6 @@ Section ordered_cancel.
       rewrite IHa. split; tauto. }
   Qed.
 
-  Check WellTyped_subst.
-
   Lemma exprD'_WellTyped_expr
   : forall tus (us : HList.hlist _ tus) tvs e t val,
       exprD' (join_env us) tvs e t = Some val ->
@@ -339,6 +344,7 @@ Section ordered_cancel.
       consider (eprovePure s e); intros;
         eapply IHrhs in H4; clear IHrhs.
       { forward. inv_all; subst.
+        red in eprovePureOk.
         apply eprovePureOk with (us := us) in H.
         simpl in H2.
         consider (exprD' (join_env us) tvs
@@ -422,6 +428,7 @@ Section ordered_cancel.
           destruct H;
             repeat (go_crazy SSL SSLO; try congruence). } } }
     { repeat go_crazy SSL SSLO.
+      red in doUnifySepLogOk.
       simpl in H.
       consider (findWithRest
           (fun x : expr func * list (expr func) =>
@@ -602,7 +609,7 @@ Section ordered_cancel.
   Qed.
 
   Variable order : conjunctives func -> Conjuncts.
-  Definition orderSpec :=
+  Definition order_spec :=
     forall c us tvs,
       match exprD' us tvs (conjunctives_to_expr_star SSL c) tySL
           , exprD' us tvs (Conjuncts_to_expr (order c)) tySL
@@ -615,7 +622,7 @@ Section ordered_cancel.
         | None , None => True
         | _ , _ => False
       end.
-  Hypothesis orderOk : orderSpec.
+  Hypothesis orderOk : order_spec.
 
   Definition ordered_cancel (lhs rhs : conjunctives func) (s : subst)
   : conjunctives func * conjunctives func * subst :=
@@ -678,7 +685,7 @@ Section ordered_cancel.
       destruct orderOk.
       unfold iterated_base in *. simpl in *.
       assert (well_formed RSym_func tySL PureOp_SL
-          {| spatial := nil; star_true := false; pure := nil |} 
+          {| spatial := nil; star_true := false; pure := nil |}
           (join_env us) (join_env vs')) by constructor.
       specialize (H14 H24 H25).
       destruct H14 as [ ? [ ? ? ] ].
@@ -746,8 +753,8 @@ Section simple_ordering.
   Hypothesis Pure_land : forall a b, Pure.pure a -> Pure.pure b -> Pure.pure (a //\\ b).
 
 
-  Theorem simple_orderOk
-  : forall c us tvs,
+  Theorem simple_orderOk : @order_spec ts func _ tySL ILogicOps_SL SSL _ simple_order.
+(*  : forall c us tvs,
       match exprD' us tvs (conjunctives_to_expr_star SSL c) tySL
           , exprD' us tvs (Conjuncts_to_expr SSL (simple_order c)) tySL
       with
@@ -759,7 +766,9 @@ Section simple_ordering.
         | None , None => True
         | _ , _ => False
       end.
+*)
   Proof.
+    red.
     intros; destruct c; simpl.
     unfold conjunctives_to_expr_star, simple_order; simpl.
     match goal with
