@@ -16,17 +16,26 @@ Definition Provable a b c d e f : Prop :=
     | None => False
   end.
 
-Ltac reify_goal :=
+Definition foo : list (option Type) := @cons (option Type) (@Some Type nat) nil.
+Inductive Dyn : Type :=
+| dynamic : forall T, T -> Dyn.
+Definition funcs : list (option Dyn) := (Some (dynamic plus)) :: (Some (dynamic mult)) :: nil.
+Axiom ILogicOps_ext : forall (A B : Type), ILogicOps B -> ILogicOps (A -> B).
+
+Definition logics : list (@sigT Type ILogicOps) :=
+  (@existT _ _ (nat -> Prop) (@ILogicOps_ext nat Prop _)) :: nil.
+Ltac reify_goal := idtac ;
   match goal with
     | |- ?X =>
       let k t f l e :=
-          idtac e ;
-          pose e ;
           let funcs := fresh "funcs" in
           try pose (funcs := @RSym_ilfunc_ctor t f l nil) ;
           (try change (@Provable t ilfunc funcs nil nil e))
       in
-      reify_expr X k
+      let ts := eval cbv delta [foo] in foo in
+      let fs := eval cbv delta [funcs] in funcs in
+      let ls := eval cbv delta [logics] in logics in
+      reify_expr {types:ts} {funcs:fs} {logics:ls} [X] k
   end.
 
 Goal True.

@@ -1,4 +1,5 @@
 Require Import MirrorCore.Ext.Expr.
+Require Import ExtLib.Tactics.
 Require Import ILogicFunc.
 Require Import Tauto.
 
@@ -51,7 +52,6 @@ Module PropTests.
   Proof.
     intros.
     red.
-    Require Import ExtLib.Tactics.
     forward.
     generalize I.
     apply (fun floorOk Z =>
@@ -90,7 +90,7 @@ Module PropTests.
             [ exact (@Apply_tauto_Prop t f l nil tcOk embedOk nil nil eV)
             | try (vm_compute; reflexivity) ]
         in
-        reify_expr X k
+        reify_expr [ X ] k
     end.
 
   Goal True.

@@ -88,7 +88,8 @@ struct
   let get_evars = fun _ _ _ _ fs _ _ -> !fs
   let put_evars fs = fun _ _ _ _ rfs _ _ -> rfs := fs
 
-  let runM (c : 'a m) ts fs tcs evs e em : ('a * Term.constr option list * Term.constr option list * Term.constr list) =
+  let runM (c : 'a m) ts fs tcs evs e em
+      : ('a * Term.constr option list * Term.constr option list * Term.constr list) =
     let ts = ref ts in
     let fs = ref fs in
     let evs = ref evs in
@@ -111,6 +112,18 @@ module REIFY_ENV_FUNC =
       let put = REIFY_MONAD.put_funcs
       let get = REIFY_MONAD.get_funcs
      end)
+
+let add_typeclass ?safe:(safe=false) rt tc ht =
+  try
+    let res = Hashtbl.find ht rt in
+    if safe then
+      let _ = Hashtbl.add ht rt tc in true
+    else
+      Term.eq_constr tc res
+  with
+    Not_found ->
+      let _ = Hashtbl.add ht rt tc in
+      true
 
 module ReifyILFunc
 : REIFY with type 'a m = 'a REIFY_MONAD.m
@@ -486,7 +499,104 @@ let build_logic_classes (v_types : Term.constr)
   in
   Std.to_list typ (List.map mk_entry cls)
 
+let constr_list_from_list ctx =
+  let rec recurse (ls : Term.constr) : Term.constr list =
+    matches ctx
+      [ (App (Glob Std.c_nil, Ignore),
+	 fun _ -> [])
+      ; (App (App (App (Glob Std.c_cons, Ignore), As (Ignore, "hd")), As (Ignore, "tl")),
+	 fun s ->
+	   let hd = Hashtbl.find s "hd" in
+	   let tl = Hashtbl.find s "tl" in
+	   let rr = recurse tl in
+	   hd :: rr)
+      ]
+      ls
+  in recurse
+
+let constr_option_from_option ctx : Term.constr -> Term.constr option =
+  matches ctx
+    [ (App (Glob Std.c_None, Ignore),
+       fun _ -> None)
+    ; (App (App (Glob Std.c_Some, Ignore), As (Ignore, "x")),
+       fun s ->
+	 let x = Hashtbl.find s "x" in
+	 Some x)
+    ]
+
+let get_last ctx =
+  matches ctx
+    [ (App (Ignore, (As (Ignore, "val"))),
+       fun s -> Hashtbl.find s "val")
+    ]
+
+let get_last2 ctx =
+  matches ctx
+    [ (App (App (Ignore, As (Ignore, "val1")), (As (Ignore, "val2"))),
+       fun s -> (Hashtbl.find s "val1", Hashtbl.find s "val2"))
+    ]
+
+let fmap_option (f : 'a -> 'b) (x : 'a option) =
+  match x with
+    None -> None
+  | Some x -> Some (f x)
+
 exception Reification_failure of string
+
+let reify_expr_main i_types i_funcs init_tcs es k gl =
+  try
+    let env = Tacmach.pf_env gl in
+    let evar_map = Tacmach.project gl in
+    let i_tcs = Hashtbl.create 3 in
+    let (res, r_types, r_funcs, r_logics) =
+      let cmd =
+	REIFY_MONAD.bind (mapM (fun (t,tc) ->
+	  REIFY_MONAD.bind (ReifyExtTypes.reify t) (fun rt ->
+	    REIFY_MONAD.ret (add_typeclass ~safe:true rt tc i_tcs))) init_tcs) (fun _ ->
+	REIFY_MONAD.bind (mapM ReifyExtILFunc.reify es) (fun re ->
+	  REIFY_MONAD.bind (extract_functions evar_map env) (fun fs ->
+	    REIFY_MONAD.bind (extract_logic_classes evar_map env i_tcs) (fun tcs ->
+	      REIFY_MONAD.ret (re, fs, tcs)))))
+      in
+      let ((res, r_funcs, r_tcs), r_types, _, r_evars) =
+	REIFY_MONAD.runM cmd i_types i_funcs i_tcs [] env evar_map in
+      (res, r_types, r_funcs, r_tcs)
+    in
+    let r_types = build_types r_types in
+    Plugin_utils.Use_ltac.pose "types" r_types (fun v_types ->
+      let r_funcs = build_functions v_types r_funcs in
+      Plugin_utils.Use_ltac.pose "funcs" r_funcs (fun v_funcs ->
+	let r_logics = build_logic_classes v_types r_logics in
+	Plugin_utils.Use_ltac.pose "logics" r_logics (fun v_logics ->
+	  let ltac_args = List.map Plugin_utils.Use_ltac.to_ltac_val
+	    ([v_types; v_funcs; v_logics] @ res) in
+	  Plugin_utils.Use_ltac.ltac_apply k ltac_args))) gl
+  with
+    Reification_failure err ->
+      failwith err
+
+let do_it ts fs tcs es k gl =
+  let ctx = Tacmach.pf_env gl in
+  let i_types =
+    match ts with
+      None -> []
+    | Some x ->
+      List.map (constr_option_from_option ctx) (constr_list_from_list ctx x)
+  in
+  let i_funcs =
+    match fs with
+      None -> []
+    | Some x ->
+      List.map (fun x -> fmap_option (get_last ctx) (constr_option_from_option ctx x))
+	(constr_list_from_list ctx x)
+  in
+  let i_tcs =
+    match tcs with
+      None -> []
+    | Some x ->
+      List.map (get_last2 ctx) (constr_list_from_list ctx x)
+  in
+  reify_expr_main i_types i_funcs i_tcs es k gl
 
 (** the simplest version of the tactic will just construct the version of the
  ** environment and return that with the expression.
@@ -494,35 +604,20 @@ exception Reification_failure of string
  **       instantiation
  **)
 TACTIC EXTEND reify_Ext_SymEnv_reify_expr
-  | ["reify_expr" constr(e) tactic(k) ] ->
-    [ fun gl ->
-      try
-        let env = Tacmach.pf_env gl in
-	let evar_map = Tacmach.project gl in
-	let i_types = [] in
-	let i_funcs = [] in
-	let i_tcs = Hashtbl.create 3 in (** NOTE: hash tables are imperative **)
-        let (res, r_types, r_funcs, r_logics) =
-	  let cmd = REIFY_MONAD.bind (ReifyExtILFunc.reify e) (fun re ->
-	    REIFY_MONAD.bind (extract_functions evar_map env) (fun fs ->
-	      REIFY_MONAD.bind (extract_logic_classes evar_map env i_tcs) (fun tcs ->
-		REIFY_MONAD.ret (re, fs, tcs))))
-	  in
-	  let ((res, r_funcs, r_tcs), r_types, _, r_evars) =
-	    REIFY_MONAD.runM cmd i_types i_funcs i_tcs [] env evar_map in
-	  (res, r_types, r_funcs, r_tcs)
-	in
-	let r_types = build_types r_types in
-	Plugin_utils.Use_ltac.pose "types" r_types (fun v_types ->
-	  let r_funcs = build_functions v_types r_funcs in
-	  Plugin_utils.Use_ltac.pose "funcs" r_funcs (fun v_funcs ->
-	    let r_logics = build_logic_classes v_types r_logics in
-	    Plugin_utils.Use_ltac.pose "logics" r_logics (fun v_logics ->
-	    let ltac_args = List.map Plugin_utils.Use_ltac.to_ltac_val
-	      [v_types; v_funcs; v_logics; res] in
-	    Plugin_utils.Use_ltac.ltac_apply k ltac_args))) gl
-      with
-	Reification_failure err ->
-	  failwith err
-    ]
+    (** full definition **)
+  | ["reify_expr" "{types:" constr(ts) "}"
+	          "{funcs:" constr(fs) "}"
+		  "{logics:" constr(ls) "}"
+	"[" constr_list(es) "]" tactic(k) ] ->
+    [ fun gl -> do_it (Some ts) (Some fs) (Some ls) es k gl ]
+    (** Abbreviations **)
+  | ["reify_expr" "[" constr_list(es) "]" tactic(k) ] ->
+    [ fun gl -> do_it None None None es k gl ]
+  | ["reify_expr" "{types:" constr(ts) "}" "[" constr_list(es) "]" tactic(k) ] ->
+    [ fun gl -> do_it (Some ts) None None es k gl ]
+  | ["reify_expr" "{funcs:" constr(fs) "}" "[" constr_list(es) "]" tactic(k) ] ->
+    [ fun gl -> do_it None (Some fs) None es k gl ]
+  | ["reify_expr" "{types:" constr(ts) "}"
+	          "{funcs:" constr(fs) "}" "[" constr_list(es) "]" tactic(k) ] ->
+    [ fun gl -> do_it (Some ts) (Some fs) None es k gl ]
 END;;
