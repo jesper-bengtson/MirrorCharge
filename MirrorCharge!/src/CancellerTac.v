@@ -187,3 +187,185 @@ Section ordered_cancel_tac.
 End ordered_cancel_tac.
 
 (* Check the_cancellerOk. *)
+
+(**
+ ** The last bits are the following
+ **
+ ** 1) Build a [SepLogSpec]
+ ** 2) Build a [SynSepLog]
+ **
+ ** Both of these should be doable from a single piece of data that records
+ ** where particular features are.
+ **)
+
+Section SepLogBuilder.
+  Require Import ILogicFunc.
+
+  Variable ts : types.
+  Variables (FM : fun_map ts) (LM : logic_ops ts) (EM : embed_ops ts).
+  Let func := ilfunc.
+  Local Instance RSym_func : RSym (typD ts) func := @RSym_ilfunc ts FM LM EM.
+
+  Record ConcreteSepLog tySL (BILO : BILOperators (typD ts nil tySL)) : Type :=
+  { ctor_star : func
+  ; ctor_emp : func
+  ; starOk : forall us tvs,
+    exprD' us tvs (Inj ctor_star) (tyArr tySL (tyArr tySL tySL)) = Some (fun _ => sepSP)
+  ; empOk : forall us tvs,
+    exprD' us tvs (Inj ctor_emp) tySL = Some (fun _ => empSP)
+  }.
+
+  Variable func_eq : func -> func -> bool.
+  Hypothesis func_eqOk : forall a b, func_eq a b = true -> a = b.
+
+  (** NOTE: My [ILogic] must come form LM **)
+  Variable (tySL : typ).
+  Variable (OPS : ILogicOps (typD ts nil tySL)).
+  Hypothesis LM_OPS : LM tySL = Some OPS.
+  Variable (BILO : BILOperators (typD ts nil tySL)).
+  Variable (csl : @ConcreteSepLog tySL BILO).
+
+  Variable PureOp : @Pure.PureOp (typD ts nil tySL).
+  Variable PureLaws : @Pure.Pure _ OPS BILO PureOp.
+
+  Definition SepLogSpec_ConcreteSepLog : SepLogSpec func :=
+  {| is_pure := fun _ => false
+   ; is_emp := func_eq csl.(ctor_emp)
+   ; is_star := func_eq csl.(ctor_star)
+  |}.
+
+  Theorem SepLogSpecOk_ConcreteSepLog
+  : @SepLogSpecOk ts _ RSym_func tySL SepLogSpec_ConcreteSepLog OPS BILO.
+  Proof.
+    refine (@Build_SepLogSpecOk _ _ _ _ _ _ _ PureOp PureLaws _ _ _).
+    { inversion 1. }
+    { simpl; intros.
+      eapply func_eqOk in H. subst.
+      unfold exprD. destruct (split_env vs).
+      rewrite (csl.(empOk) us x). reflexivity. }
+    { simpl; intros.
+      eapply func_eqOk in H. subst.
+      unfold exprD. destruct (split_env vs).
+      rewrite (csl.(starOk) us x). reflexivity. }
+  Qed.
+
+  Definition SynSepLog_ConcreteSepLog : SynSepLog ilfunc :=
+  {| e_star := fun (a b : expr ilfunc) => App (App (Inj csl.(ctor_star)) a) b
+   ; e_emp := Inj csl.(ctor_emp)
+   ; e_true := Inj (ilf_true tySL)
+   ; e_and := fun (a b : expr ilfunc) => App (App (Inj (ilf_and tySL)) a) b
+   |}.
+
+  Hypothesis LMok : logic_opsOk LM.
+
+  Local Instance ILogic_OPS : @ILogic _ OPS.
+  Proof.
+    specialize (LMok tySL).
+    rewrite LM_OPS in LMok. assumption.
+  Defined.
+
+  Lemma typeof_star : typeof_sym (ctor_star csl) = Some (tyArr tySL (tyArr tySL tySL)).
+  Proof.
+    generalize (csl.(starOk) nil nil).
+    red_exprD.
+    generalize dependent (symD (ctor_star csl)).
+    forward. inv_all; subst. reflexivity.
+  Qed.
+
+  Theorem typ_eqb_complete : forall x, typ_eqb x x = true.
+  Proof.
+    clear. induction x; simpl; Cases.rewrite_all_goal; auto.
+    { match goal with
+        | |- ?X = _ => consider X
+      end; auto. }
+    { match goal with
+        | |- ?X = _ => consider X
+      end; auto. }
+  Qed.
+
+  Theorem SynSepLogOk_ConcreteSepLog
+  : @SynSepLogOk ts ilfunc _ tySL OPS BILO SynSepLog_ConcreteSepLog.
+  Proof.
+    constructor; simpl; intros.
+    { eexists. split. apply (csl.(empOk) us tvs).
+      intros. reflexivity. }
+    { red_exprD.
+      simpl.
+      rewrite LM_OPS.
+      rewrite typ_cast_typ_refl.
+      eexists; split; eauto. simpl. reflexivity. }
+    { generalize (csl.(starOk) us tvs).
+      red_exprD. intros.
+      forward. inv_all; subst.
+      exists (fun g => sepSP (valx g) (valy g)).
+      split; [ | intros; reflexivity ].
+      generalize typeof_star. simpl. intro.
+      rewrite H3. simpl.
+      rewrite exprD'_type_cast in H.
+      rewrite exprD'_type_cast in H0.
+      forward.
+      repeat match goal with
+               | H : ?X = _ |- context [ ?Y ] =>
+                 change Y with X ; rewrite H
+             end.
+      inv_all; subst.
+      rewrite typ_eqb_complete.
+      red_exprD.
+      rewrite H3.
+      red_exprD.
+      rewrite H1.
+      repeat match goal with
+               | H : ?X = _ |- context [ ?Y ] =>
+                 change Y with X ; rewrite H
+             end.
+      f_equal.
+      change (let K := (fun x g => (x g) (t3 g) (t1 g)) in
+              K (fun _ : HList.hlist (typD ts nil) tvs => t) =
+              K (fun _ : HList.hlist (typD ts nil) tvs => sepSP)).
+      intro. clearbody K. f_equal. auto. }
+    { generalize (csl.(starOk) us tvs); intros.
+      red_exprD.
+      forward. inv_all; subst.
+      generalize dependent (symD (ctor_star csl)).
+      rewrite typeof_star.
+      simpl. rewrite typ_cast_typ_refl.
+      intros. inv_all; subst.
+      red_exprD.
+      forward. inv_all; subst.
+      simpl in H8.
+      forward. inv_all; subst.
+      assert (t6 = tySL /\ t1 = tySL).
+      { generalize typeof_star. simpl.
+        intro. rewrite H in *.
+        inv_all. auto. }
+      destruct H; subst.
+      do 2 eexists. split; eauto. split; eauto.
+      rewrite csl.(starOk) in H3. inv_all. subst.
+      reflexivity. }
+    { red_exprD.
+      rewrite LM_OPS.
+      rewrite exprD'_type_cast in H.
+      forward. inv_all; subst.
+      simpl.
+      rewrite typ_eqb_complete.
+      red_exprD.
+      rewrite LM_OPS.
+      red_exprD.
+      rewrite LM_OPS.
+      rewrite typ_cast_typ_refl.
+      rewrite H2. rewrite H0. eexists; split; eauto.
+      simpl. reflexivity. }
+    { red_exprD.
+      rewrite LM_OPS in H.
+      forward. inv_all; subst.
+      red_exprD.
+      rewrite LM_OPS in H1.
+      forward. inv_all; subst.
+      red_exprD.
+      simpl in *; rewrite LM_OPS in H.
+      forward. inv_all. subst t4 t0 t t2 p.
+      do 2 eexists; split; eauto. split; eauto.
+      intros.
+      uip_all. reflexivity. }
+  Qed.
+End SepLogBuilder.
