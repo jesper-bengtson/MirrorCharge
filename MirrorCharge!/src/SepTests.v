@@ -5,17 +5,14 @@ Require Import ILogic BILogic ILEmbed.
 Require Import ILogicFunc.
 Require Import OrderedCanceller.
 
-(**
 Add ML Path "../plugins".
 Add ML Path "plugins".
 Declare ML Module "reify_ILogicFunc_plugin".
 
-Require Import Reify.
-**)
+Require Import Reify. (** Note: this is from MirrorCharge **)
 
 Set Implicit Arguments.
 Set Strict Implicit.
-
 
 (** Test cases for the core of separation logic **)
 Section SepTests.
@@ -35,17 +32,17 @@ Section SepTests.
   Goal P |-- P.
   Proof.
     prep.
-  Admitted.
+  Abort.
 
   Goal P ** Q |-- Q ** P.
   Proof.
     prep.
-  Admitted.
+  Abort.
 
   Goal P ** Q ** R ** S ** T |-- T ** S ** R ** Q ** P.
   Proof.
     prep.
-  Admitted.
+  Abort.
 
   (** Predicate **)
   Variable PT : nat -> nat -> SL.
@@ -53,89 +50,89 @@ Section SepTests.
   Goal PT 1 1 |-- PT 1 1.
   Proof.
     prep.
-  Admitted.
+  Abort.
 
   Goal forall w x y z,
          PT w x ** PT x y ** PT y z |-- PT y z ** PT x y ** PT w x.
   Proof.
     prep.
-  Admitted.
+  Abort.
 
   (** With Meta-variables **)
   Goal forall w x, exists x',
          PT w x |-- PT w x'.
   Proof.
     prep.
-  Admitted.
+  Abort.
 
   Goal forall w x y z, exists x' y' z',
          PT w x ** PT x y ** PT y z |-- PT y' z' ** PT x' y' ** PT w x'.
   Proof.
     prep.
-  Admitted.
+  Abort.
 
   (** With premises **)
   Goal forall w x y, x = y ->
                      PT w x |-- PT w y.
   Proof.
     prep.
-  Admitted.
+  Abort.
 
   (** With pure predicates **)
   Goal forall w x y,
          PT w x //\\ embed (x = y) |-- PT w y.
   Proof.
     prep.
-  Admitted.
+  Abort.
 
   Goal forall w x y,
          PT w x //\\ embed (x = y) |-- PT w y //\\ embed (x = y).
   Proof.
     prep.
-  Admitted.
+  Abort.
 
   Goal forall w x y z, exists z',
          (PT w x ** PT x z) //\\ embed (x = y) |-- (PT y z' ** PT w y) //\\ embed (x = y).
   Proof.
     prep.
-  Admitted.
+  Abort.
 
   (** With existentials **)
   Goal forall w x,
          PT w x |-- lexists (fun y : nat => PT w y).
   Proof.
     prep.
-  Admitted.
+  Abort.
 
   Goal forall w x y,
          PT w x ** PT x y |-- Exists x : nat, PT w x ** Exists y : nat, PT x y.
   Proof.
     prep.
-  Admitted.
+  Abort.
 
   Goal forall w x y,
          PT w x ** PT x y |-- Exists x, Exists y, PT x y ** PT w x.
   Proof.
     prep.
-  Admitted.
+  Abort.
 
   Goal forall w x y,
          PT w x ** PT x y |-- Exists x, x.
   Proof.
     prep.
-  Admitted.
+  Abort.
 
   Goal forall w x y,
          PT w x ** PT x y |-- (Exists x, x) ** PT x y.
   Proof.
     prep.
-  Admitted.
+  Abort.
 
   Goal forall w x y,
          PT w x ** PT x y |-- (Exists x, x) ** PT w x.
   Proof.
     prep.
-  Admitted.
+  Abort.
 
   (** With existentials & pure premises **)
   Goal forall w x y,
@@ -147,6 +144,6 @@ Section SepTests.
      ** from the right-hand-side pure facts before solving the unification problem.
      **)
     prep.
-  Admitted.
+  Abort.
 
 End SepTests.
