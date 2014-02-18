@@ -268,6 +268,14 @@ Section RFunc.
   ; sym_eqb := fun a b => Some (rel_dec a b)
   ; symD := funcD
   }.
+
+  Global Instance RSymOk_ilfunc : RSymOk RSym_ilfunc.
+  Proof.
+    constructor.
+    intros. unfold sym_eqb; simpl.
+    consider (a ?[ eq ] b); auto.
+  Qed.
+
 End RFunc.
 
 Section RFunc_ctor.

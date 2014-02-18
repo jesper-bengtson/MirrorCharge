@@ -207,16 +207,19 @@ Section SepLogBuilder.
   Local Instance RSym_func : RSym (typD ts) func := @RSym_ilfunc ts FM LM EM.
 
   Record ConcreteSepLog tySL (BILO : BILOperators (typD ts nil tySL)) : Type :=
-  { ctor_star : func
-  ; ctor_emp : func
-  ; starOk : forall us tvs,
-    exprD' us tvs (Inj ctor_star) (tyArr tySL (tyArr tySL tySL)) = Some (fun _ => sepSP)
+  { ctor_star : func ; ctor_emp : func }.
+
+  Record ConcreteSepLogOk tySL (BILO : BILOperators (typD ts nil tySL))
+         (CSL : @ConcreteSepLog tySL BILO) : Type :=
+  { starOk : forall us tvs,
+    exprD' us tvs (Inj CSL.(ctor_star)) (tyArr tySL (tyArr tySL tySL)) =
+    Some (fun _ => sepSP)
   ; empOk : forall us tvs,
-    exprD' us tvs (Inj ctor_emp) tySL = Some (fun _ => empSP)
+    exprD' us tvs (Inj CSL.(ctor_emp)) tySL = Some (fun _ => empSP)
   }.
 
-  Variable func_eq : func -> func -> bool.
-  Hypothesis func_eqOk : forall a b, func_eq a b = true -> a = b.
+  Definition func_eq : func -> func -> bool :=
+    RelDec.rel_dec (equ := @eq ilfunc).
 
   (** NOTE: My [ILogic] must come form LM **)
   Variable (tySL : typ).
@@ -224,6 +227,7 @@ Section SepLogBuilder.
   Hypothesis LM_OPS : LM tySL = Some OPS.
   Variable (BILO : BILOperators (typD ts nil tySL)).
   Variable (csl : @ConcreteSepLog tySL BILO).
+  Variable (cslOk : @ConcreteSepLogOk tySL BILO csl).
 
   Variable PureOp : @Pure.PureOp (typD ts nil tySL).
   Variable PureLaws : @Pure.Pure _ OPS BILO PureOp.
@@ -238,16 +242,18 @@ Section SepLogBuilder.
   : @SepLogSpecOk ts _ RSym_func tySL SepLogSpec_ConcreteSepLog OPS BILO.
   Proof.
     refine (@Build_SepLogSpecOk _ _ _ _ _ _ _ PureOp PureLaws _ _ _).
-    { inversion 1. }
-    { simpl; intros.
-      eapply func_eqOk in H. subst.
-      unfold exprD. destruct (split_env vs).
-      rewrite (csl.(empOk) us x). reflexivity. }
-    { simpl; intros.
-      eapply func_eqOk in H. subst.
-      unfold exprD. destruct (split_env vs).
-      rewrite (csl.(starOk) us x). reflexivity. }
-  Qed.
+    abstract (inversion 1).
+    abstract (simpl; intros; unfold func_eq in H;
+              consider (RelDec.rel_dec (equ := @eq ilfunc) (ctor_emp csl) e);
+              intros; subst;
+              unfold exprD; destruct (split_env vs);
+              rewrite (cslOk.(empOk) us x); reflexivity).
+    abstract (simpl; intros; unfold func_eq in H;
+              consider (RelDec.rel_dec (equ := @eq ilfunc) (ctor_star csl) e);
+              intros; subst;
+              unfold exprD; destruct (split_env vs);
+              rewrite (cslOk.(starOk) us x); reflexivity).
+  Defined.
 
   Definition SynSepLog_ConcreteSepLog : SynSepLog ilfunc :=
   {| e_star := fun (a b : expr ilfunc) => App (App (Inj csl.(ctor_star)) a) b
@@ -266,7 +272,7 @@ Section SepLogBuilder.
 
   Lemma typeof_star : typeof_sym (ctor_star csl) = Some (tyArr tySL (tyArr tySL tySL)).
   Proof.
-    generalize (csl.(starOk) nil nil).
+    generalize (cslOk.(starOk) nil nil).
     red_exprD.
     generalize dependent (symD (ctor_star csl)).
     forward. inv_all; subst. reflexivity.
@@ -287,14 +293,14 @@ Section SepLogBuilder.
   : @SynSepLogOk ts ilfunc _ tySL OPS BILO SynSepLog_ConcreteSepLog.
   Proof.
     constructor; simpl; intros.
-    { eexists. split. apply (csl.(empOk) us tvs).
+    { eexists. split. apply (cslOk.(empOk) us tvs).
       intros. reflexivity. }
     { red_exprD.
       simpl.
       rewrite LM_OPS.
       rewrite typ_cast_typ_refl.
       eexists; split; eauto. simpl. reflexivity. }
-    { generalize (csl.(starOk) us tvs).
+    { generalize (cslOk.(starOk) us tvs).
       red_exprD. intros.
       forward. inv_all; subst.
       exists (fun g => sepSP (valx g) (valy g)).
@@ -323,7 +329,7 @@ Section SepLogBuilder.
               K (fun _ : HList.hlist (typD ts nil) tvs => t) =
               K (fun _ : HList.hlist (typD ts nil) tvs => sepSP)).
       intro. clearbody K. f_equal. auto. }
-    { generalize (csl.(starOk) us tvs); intros.
+    { generalize (cslOk.(starOk) us tvs); intros.
       red_exprD.
       forward. inv_all; subst.
       generalize dependent (symD (ctor_star csl)).
@@ -340,7 +346,7 @@ Section SepLogBuilder.
         inv_all. auto. }
       destruct H; subst.
       do 2 eexists. split; eauto. split; eauto.
-      rewrite csl.(starOk) in H3. inv_all. subst.
+      rewrite cslOk.(starOk) in H3. inv_all. subst.
       reflexivity. }
     { red_exprD.
       rewrite LM_OPS.
@@ -369,3 +375,67 @@ Section SepLogBuilder.
       uip_all. reflexivity. }
   Qed.
 End SepLogBuilder.
+
+(** This the the final theorem that should be applied.
+ ** Everything is spelled out precisely to avoid ambiguity in applying it.
+ **)
+Theorem apply_the_canceller
+        (ts : types)
+        (FM : fun_map ts) (LM : logic_ops ts) (EM : embed_ops ts)
+        (LMok : logic_opsOk LM) (EMok : embed_opsOk LM EM)
+        (tySL : typ)
+        (ILogicOps_SL : ILogicOps (typD ts nil tySL))
+        (pf : LM tySL = Some ILogicOps_SL)
+        (BILO : BILOperators (typD ts nil tySL))
+        (BIL : BILogic (typD ts nil tySL))
+        (PureOp : @Pure.PureOp (typD ts nil tySL))
+        (PureLaws : @Pure.Pure _ ILogicOps_SL BILO PureOp)
+        (Hpuretrue : Pure.pure ltrue)
+        (CSL : @ConcreteSepLog ts tySL BILO)
+        (CSLok : @ConcreteSepLogOk ts FM LM EM tySL BILO CSL)
+: forall (us vs : env (typD ts)) (lhs rhs lhs' rhs' : expr ilfunc)
+         (sub : SUBST.subst ilfunc),
+    the_canceller (@RSym_func ts FM LM EM) tySL
+                  (@SynSepLog_ConcreteSepLog ts tySL _ CSL)
+                  (@SepLogSpec_ConcreteSepLog ts tySL BILO CSL)
+                  (typeof_env us) (typeof_env vs) lhs rhs (SUBST.subst_empty ilfunc) =
+    (lhs', rhs', sub) ->
+    (let rsym := @RSym_ilfunc ts FM LM EM in
+    match @exprD ts ilfunc rsym us vs lhs' tySL with
+      | Some lhs0 =>
+        match @exprD ts ilfunc rsym us vs rhs' tySL with
+          | Some rhs0 =>
+            @Subst.substD
+              (FMapSubst.SUBST.subst ilfunc) (expr ilfunc) typ (typD ts)
+              (Expr_expr rsym)
+              (FMapSubst.SUBST.Subst_subst _)
+              (FMapSubst.SUBST.SubstOk_subst _) us vs sub
+            /\ (lhs0 |-- rhs0)
+          | None => False
+        end
+      | None =>
+        match exprD us vs rhs' tySL with
+          | Some _ => False
+          | None => True
+        end
+    end) ->
+    (let rsym := @RSym_ilfunc ts FM LM EM in
+    match @exprD ts ilfunc rsym us vs lhs tySL with
+      | Some lhs0 =>
+        match @exprD ts ilfunc rsym us vs rhs tySL with
+          | Some rhs0 => lhs0 |-- rhs0
+          | None => True
+        end
+      | None => True
+    end).
+Proof.
+  intros.
+  eapply the_cancellerOk in H; eauto with typeclass_instances.
+  { eapply SynSepLogOk_ConcreteSepLog; eauto. }
+  { unfold SepLogSpec_ConcreteSepLog.
+    instantiate (1 := @SepLogSpecOk_ConcreteSepLog _ _ _ _ _ _ _ _ _ _ _).
+    eapply Hpuretrue. }
+  Grab Existential Variables.
+  eapply CSLok.
+  Show Proof.
+Qed.
