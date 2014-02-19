@@ -348,6 +348,41 @@ Section PullQuant.
 (*  Let EqDec_typ : EqDec typ (@eq typ) := _. *)
   Local Existing Instance EqDec_typ.
 
+   	Lemma hlist_app_nil A F (xs : list A) (hnil : hlist F nil) (hys : hlist F xs) : hlist_app hnil hys = hys.
+   	Proof.
+   	    assert (hnil = Hnil) by apply hlist_nil_eta.
+   	    rewrite H. reflexivity.
+	Qed.
+
+	Lemma hlist_app_cons A F (xs ys : list A) (x : A) (el : F x) (hxs : hlist F xs) (hys : hlist F ys) :
+		Hcons el (hlist_app hxs hys) = hlist_app (Hcons el hxs) hys.
+	Proof.
+		simpl. reflexivity.
+	Qed.
+
+	   Lemma lift_entails tus xs ys zs e t de df (HILops : ILogicOps (typD ts nil t)) (HIL: ILogic (typD ts nil t))
+	   	(He : exprD' tus (xs ++ ys ++ zs) (lift (length xs) (length ys) e) t = Some de)
+	   	(Hf : exprD' tus (xs ++ zs) e t = Some df)
+	   	(hxs : hlist (typD ts nil) xs) 
+	   	(hys : hlist (typD ts nil) ys) 
+	   	(hzs : hlist (typD ts nil) zs) :
+	   	de (hlist_app hxs (hlist_app hys hzs)) |-- df (hlist_app hxs hzs).
+	   Proof.
+	   	induction ys; intros; simpl in *.
+		+ rewrite hlist_app_nil.
+		  rewrite He in Hf. inversion Hf. reflexivity.     
+		+ replace (S (length ys)) with (1 + length ys) in He by omega.
+		  rewrite <- lift_lift', <- lift_lift in He.
+		  pose proof (exprD'_lift RSym_sym tus xs (a::nil) (ys++zs) (lift (length xs) (length ys) e) t).
+		  simpl in *. forward; inv_all; subst.
+		  specialize (IHys t1).
+		  specialize (H1 hxs (Hcons (hlist_hd hys) Hnil) (hlist_app (hlist_tl hys) hzs)).
+		  simpl in H1.
+		  rewrite hlist_app_cons, <- hlist_cons_eta in H1.
+		  rewrite H1 at 1. apply IHys. reflexivity.
+	  Qed.
+
+
   Lemma Happ
   : forall tus tvs l (l_res : T) rs t ts,
       typeof_expr (typeof_env tus) tvs (apps l (map fst rs)) = Some t ->
@@ -429,15 +464,37 @@ Section PullQuant.
            destruct H3 as [ ? [ ? ? ] ].
            apply lexistsL. intros.
            apply lexistsL. intros.
-         (** Some lifting reasoning here, but everything else should work out
-          ** There really needs to be much better automation for reasoning
-          ** about the interaction between [typeof_expr] and [exprD']
-          **)
-           admit. }
+           apply landR.
+           apply landL1.
+           rewrite <- H14, H18.
+           apply lexistsR with x3.
+           
+		
+			replace (hlist_app x4 (hlist_app x3 vs)) with (hlist_app Hnil (hlist_app x4 (hlist_app x3 vs))) by reflexivity.
+			pose proof (@lift_entails tus nil (rev l3) (rev l2 ++ tvs) e3 x0).
+			simpl in H19.
+			replace (length (rev l3)) with (length l3) in H19 by (symmetry; apply rev_length).
+			specialize (H19 t10 x2 _ _ H15).
+			apply H19. assumption.
+		    
+		    apply landL2.
+		    rewrite <- H13.
+		    rewrite H17. 
+		    apply lexistsR with x4.
+		    eapply lift_entails.
+		    apply _. do 2 rewrite rev_length.
+		    eassumption.
+		    eassumption.
+	    }
          { intro; exfalso.
+           generalize dependent e4. admit.
+           }
+           }
+           intros. exfalso.
+           generalize dependent e3.
+           forward.
            (** contradiction **)
-           admit. } }
-       { intro. exfalso. admit. }
+           admit.
    Qed.
  
   Lemma Happ2
