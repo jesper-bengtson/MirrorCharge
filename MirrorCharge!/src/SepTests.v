@@ -104,7 +104,8 @@ Section SepTests.
   Ltac cancel :=
     match goal with
       | |- ?X |-- ?Y =>
-        let k t f l lhs rhs :=
+        let k t f l us lhs rhs :=
+            idtac us ;
             let tySLV := constr:(tyType 1%positive) in
             let tsV := t in
             let fsV := f in
@@ -120,9 +121,9 @@ Section SepTests.
             assert (tcOk : @tc_mapOk tsV l) by prove_tcs ;
             let embedOk := fresh in
             assert (embedOk : embed_mapOk l nil) by prove_tcs ;
-            let usV := fresh in
-            pose (usV := @nil _ : EnvI.env (typD tsV)) ;
-            let vsV := usV in
+            let usV := us in
+            let vsV := fresh in
+            pose (vsV := @nil _ : EnvI.env (typD tsV)) ;
             let x := fresh in
             change (@canceller_post t f lV emV tySLV ILOps usV vsV lhsV rhsV) ;
             let solver :=
@@ -132,7 +133,10 @@ Section SepTests.
                                       (EnvI.typeof_env usV) (EnvI.typeof_env vsV) lhs rhs
                                       (FMapSubst.SUBST.subst_empty ilfunc))
             in
-            let solved := eval vm_compute in solver in
+            let solver_red :=
+                eval cbv beta iota zeta delta
+                     [ EnvI.typeof_env List.map projT1 usV vsV ] in solver in
+            let solved := eval vm_compute in solver_red in
             match solved with
               | (?lhs', ?rhs', ?sub') =>
                 let lhs'V := fresh in
@@ -141,8 +145,10 @@ Section SepTests.
                 pose (rhs'V := rhs') ;
                 let sub'V := fresh in
                 pose (sub'V := sub') ;
+                idtac "10" ;
                 cut (@canceller_pre t f lV emV tySLV ILOps usV vsV lhs'V rhs'V sub'V) ;
-                [ exact_no_check (@apply_the_canceller
+                [ idtac "11" ;
+                  exact_no_check (@apply_the_canceller
                                     tsV fsV lV emV
                                     (@tc_mapOk_to_logic_opsOk tsV l tcOk)
                                     (@embed_mapOk_to_embed_opsOk tsV l nil embedOk)
@@ -155,10 +161,10 @@ Section SepTests.
                                        (fun us tvs => @eq_refl _ _)
                                        (fun us tvs => @eq_refl _ _))
                                     usV vsV lhsV rhsV lhs'V rhs'V sub'V
-                                    (@eq_refl _ (lhs'V,rhs'V,sub'V) <: (solver = (lhs'V,rhs'V,sub'V)))
+                                    (@eq_refl _ (lhs'V,rhs'V,sub'V) : (solver = (lhs'V,rhs'V,sub'V)))
                                  )
                 | cbv beta iota zeta delta
-                      [ canceller_pre exprD EnvI.split_env lhs'V rhs'V sub'V tsV fsV lV emV usV exprD'
+                      [ canceller_pre exprD EnvI.split_env lhs'V rhs'V sub'V tsV fsV lV emV usV  vsV exprD'
                         SymI.typeof_sym typ_cast_typ RSym_ilfunc
                         typeof_func embed tc_map_to_logic_ops logics typ_eq_odec
                         positive_eq_odec SymI.symAs TypesI.type_cast RType_typ
@@ -170,22 +176,11 @@ Section SepTests.
                         FMapSubst.SUBST.env FMapSubst.SUBST.raw_substD
                         FMapSubst.MAP.fold
                         FMapSubst.MAP.this FMapSubst.MAP.Raw.fold
+                        nth_error value error EnvI.lookupAs
                       ] ;
-                  try clear lhs'V rhs'V lhsV rhsV sub'V tsV fsV l lV emV usV embedOk tcOk
+                  try clear lhs'V rhs'V lhsV rhsV sub'V tsV fsV l lV emV vsV usV embedOk tcOk
                 ]
-            end ;
-
-            (*
-            pose (x := @canceller_post t f l emV (tyType 1%positive) ILOps usV vsV lhs rhs) ;
-*)
-(*
-            change (@Provable t ilfunc (@RSym_ilfunc_ctor t f l nil) nil nil eV) ;
-            cut (@tauto_call t l nil eV = true) ;
-            [ exact (@Apply_tauto_Prop t f l nil tcOk embedOk nil nil eV)
-            | try (vm_compute; reflexivity) ]
-
-            generalize (@apply_the_canceller t  *)
-              idtac
+            end
         in
         let stypes := eval cbv delta [ seed_types ] in seed_types in
         let sfuncs := eval cbv delta [ seed_funcs ] in seed_funcs in
@@ -245,12 +240,15 @@ Section SepTests.
          PT w x |-- PT w x'.
   Proof.
     prep.
-  Abort.
+    cancel.
+    split; eauto.
+  Qed.
 
   Goal forall w x y z, exists x' y' z',
          PT w x ** PT x y ** PT y z |-- PT y' z' ** PT x' y' ** PT w x'.
   Proof.
     prep.
+    cancel. (** This is because the ordering heuristic is really bad **)
   Abort.
 
   (** With premises **)

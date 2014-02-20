@@ -552,12 +552,31 @@ let fmap_option (f : 'a -> 'b) (x : 'a option) =
 
 exception Reification_failure of string
 
+let build_uvars : (Term.constr * Term.constr) list REIFY_MONAD.m =
+  REIFY_MONAD.bind REIFY_MONAD.ask_evar (fun evar ->
+    REIFY_MONAD.bind REIFY_MONAD.ask_env (fun env ->
+      REIFY_MONAD.bind REIFY_MONAD.get_evars
+	(mapM (fun e ->
+	  let te = Typing.type_of env evar e in
+	  REIFY_MONAD.bind (ReifyExtTypes.reify te) (fun rt ->
+	    REIFY_MONAD.ret (rt, e))))))
+
+let build_list_env types ls =
+  let big_type = Term.mkType (Univ.fresh_local_univ ()) in
+  let typ = resolve_symbol ["MirrorCore";"Ext";"Types"] "typ" in
+  let typD =
+    Term.mkApp (resolve_symbol ["MirrorCore";"Ext";"Types"] "typD",
+		[| types ; Std.to_list big_type [] |])
+  in
+  Std.to_list (Std.sigT typ typD)
+              (List.map (fun (a,b) -> Std.existT typ typD a b) ls)
+
 let reify_expr_main i_types i_funcs init_tcs es k gl =
   try
     let env = Tacmach.pf_env gl in
     let evar_map = Tacmach.project gl in
     let i_tcs = Hashtbl.create 3 in
-    let (res, r_types, r_funcs, r_logics) =
+    let (res, r_types, r_funcs, r_logics, r_evars) =
       let cmd =
 	REIFY_MONAD.bind (mapM (fun (t,tc) ->
 	  REIFY_MONAD.bind (ReifyExtTypes.reify t) (fun rt ->
@@ -565,11 +584,12 @@ let reify_expr_main i_types i_funcs init_tcs es k gl =
 	REIFY_MONAD.bind (mapM ReifyExtILFunc.reify es) (fun re ->
 	  REIFY_MONAD.bind (extract_functions evar_map env) (fun fs ->
 	    REIFY_MONAD.bind (extract_logic_classes evar_map env i_tcs) (fun tcs ->
-	      REIFY_MONAD.ret (re, fs, tcs)))))
+	      REIFY_MONAD.bind build_uvars (fun us ->
+		REIFY_MONAD.ret (re, fs, tcs, us))))))
       in
-      let ((res, r_funcs, r_tcs), r_types, _, r_evars) =
+      let ((res, r_funcs, r_tcs, r_evars), r_types, _, _) =
 	REIFY_MONAD.runM cmd i_types i_funcs i_tcs [] env evar_map in
-      (res, r_types, r_funcs, r_tcs)
+      (res, r_types, r_funcs, r_tcs, r_evars)
     in
     let r_types = build_types r_types in
     Plugin_utils.Use_ltac.pose "types" r_types (fun v_types ->
@@ -577,9 +597,11 @@ let reify_expr_main i_types i_funcs init_tcs es k gl =
       Plugin_utils.Use_ltac.pose "funcs" r_funcs (fun v_funcs ->
 	let r_logics = build_logic_classes v_types r_logics in
 	Plugin_utils.Use_ltac.pose "logics" r_logics (fun v_logics ->
-	  let ltac_args = List.map Plugin_utils.Use_ltac.to_ltac_val
-	    ([v_types; v_funcs; v_logics] @ res) in
-	  Plugin_utils.Use_ltac.ltac_apply k ltac_args))) gl
+	  let r_evars = build_list_env v_types r_evars in
+	  Plugin_utils.Use_ltac.pose "evars" r_evars (fun v_evars ->
+	    let ltac_args = List.map Plugin_utils.Use_ltac.to_ltac_val
+	      ([v_types; v_funcs; v_logics; v_evars] @ res) in
+	    Plugin_utils.Use_ltac.ltac_apply k ltac_args)))) gl
   with
     Reification_failure err ->
       failwith err
