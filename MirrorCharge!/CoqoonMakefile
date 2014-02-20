@@ -50,7 +50,7 @@ bin/OrderedCanceller.vo: src/OrderedCanceller.v bin/BILNormalize.vo bin/Iterated
 bin/Reify.vo: src/Reify.v bin/ILogicFunc.vo
 bin/SepLogFold.vo: src/SepLogFold.v
 bin/SepLogFoldWithAnd.vo: src/SepLogFoldWithAnd.v
-bin/SepTests.vo: src/SepTests.v bin/ILogicFunc.vo bin/OrderedCanceller.vo bin/Reify.vo
+bin/SepTests.vo: src/SepTests.v bin/ILogicFunc.vo bin/OrderedCanceller.vo bin/CancellerTac.vo bin/Reify.vo
 bin/SynSepLog.vo: src/SynSepLog.v bin/SepLogFold.vo
 bin/Tauto.vo: src/Tauto.v bin/ILogicFunc.vo
 bin/TautoTests.vo: src/TautoTests.v bin/ILogicFunc.vo bin/Tauto.vo bin/Reify.vo

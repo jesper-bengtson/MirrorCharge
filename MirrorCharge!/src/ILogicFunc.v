@@ -3,7 +3,7 @@ Require Import ILogic ILEmbed.
 Require Import MapPositive.
 Require Import ExtLib.Core.RelDec.
 Require Import ExtLib.Data.Positive.
-Require Import ExtLib.Tactics.Consider.
+Require Import ExtLib.Tactics.
 Require Import MirrorCore.SymI.
 Require Import MirrorCore.Ext.Types.
 Require Import MirrorCore.Ext.ExprCore.
@@ -286,16 +286,18 @@ Section RFunc_ctor.
   ; logicD : ILogicOps (typD ts nil logic_typ) }.
   Definition tc_map := list tc_logic_opt.
 
-  Fixpoint tc_map_to_logic_ops (ls : list tc_logic_opt) (t : typ) : option (ILogicOps (typD ts nil t)) :=
+  Fixpoint tc_map_to_logic_ops (ls : list tc_logic_opt) : logic_ops ts :=
     match ls with
-      | nil => None
+      | nil => fun _ => None
       | {| logic_typ := lt ; logicD := logic |} :: ls =>
-        match typ_eq_odec lt t with
-          | Some pf => Some match pf in _ = t return ILogicOps (typD ts nil t) with
-                              | eq_refl => logic
-                            end
-          | None => tc_map_to_logic_ops ls t
-        end
+        let otherwise := tc_map_to_logic_ops ls in
+        fun t =>
+          match typ_eq_odec lt t with
+            | Some pf => Some match pf in _ = t return ILogicOps (typD ts nil t) with
+                                | eq_refl => logic
+                              end
+            | None => otherwise t
+          end
     end.
   Definition tc_mapOk (t : tc_map) : Prop :=
     @List.Forall tc_logic_opt (fun x => @ILogic _ (logicD x)) t.
@@ -312,25 +314,26 @@ Section RFunc_ctor.
       { eapply IHForall. } }
   Qed.
 
-
   Record embed_opt : Type :=
   { embed_from : typ
   ; embed_to : typ
   ; embedD : EmbedOp (typD ts nil embed_from) (typD ts nil embed_to) }.
   Definition embed_map := list embed_opt.
 
-  Fixpoint embed_map_to_embed_ops (ls : embed_map) (t u: typ) : option (EmbedOp (typD ts nil t) (typD ts nil u)) :=
+  Fixpoint embed_map_to_embed_ops (ls : embed_map) : embed_ops ts :=
     match ls with
-      | nil => None
+      | nil => fun _ _ => None
       | {| embed_from := ef ; embed_to := et ; embedD := embed |} :: ls =>
-        match typ_eq_odec ef t , typ_eq_odec et u with
-          | Some pf , Some pf' =>
-            Some match pf in _ = t , pf' in _ = u
-                       return EmbedOp (typD ts nil t) (typD ts nil u) with
-                   | eq_refl , eq_refl => embed
-                 end
-          | _ , _ => None
-        end
+        let otherwise := embed_map_to_embed_ops ls in
+        fun t u =>
+          match typ_eq_odec ef t , typ_eq_odec et u with
+            | Some pf , Some pf' =>
+              Some match pf in _ = t , pf' in _ = u
+                         return EmbedOp (typD ts nil t) (typD ts nil u) with
+                     | eq_refl , eq_refl => embed
+                   end
+            | _ , _ => otherwise t u
+          end
     end.
   Definition embed_mapOk (t : tc_map) (e : embed_map) : Prop :=
     let gettc := tc_map_to_logic_ops t in
@@ -344,10 +347,15 @@ Section RFunc_ctor.
                 embed_opsOk (tc_map_to_logic_ops t) (embed_map_to_embed_ops e).
   Proof.
     induction 1.
-    { red. simpl. intros. Require Import ExtLib.Tactics. forward. }
-    { red. simpl. forward.
-      inv_all. subst. simpl in *.
-      rewrite H1 in *. rewrite H2 in *. inv_all. subst. assumption. }
+    { red. simpl. intros. forward. }
+    { red. simpl. forward. simpl in *.
+      specialize (IHForall t0 t').
+      rewrite H3 in *. rewrite H4 in *.
+      destruct (typ_eq_odec embed_from0 t0); try rewrite H6 in *; auto.
+      destruct (typ_eq_odec embed_to0 t'); try rewrite H6 in *; auto.
+      inv_all; subst.
+      rewrite H3 in *. rewrite H4 in *. inv_all; subst.
+      assumption. }
   Qed.
 
   Definition RSym_ilfunc_ctor (fm : PositiveMap.t (function ts)) (tm : list tc_logic_opt) (em : list embed_opt)
@@ -355,9 +363,9 @@ Section RFunc_ctor.
     let to := tc_map_to_logic_ops tm in
     let eo := embed_map_to_embed_ops em in
   {| typeof_sym := @typeof_func ts fm to eo
-  ; sym_eqb := fun a b => Some (rel_dec a b)
-  ; symD := @funcD ts fm to eo
-  |}.
+   ; sym_eqb := fun a b => Some (rel_dec a b)
+   ; symD := @funcD ts fm to eo
+   |}.
 End RFunc_ctor.
 
 (*

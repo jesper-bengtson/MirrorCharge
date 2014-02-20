@@ -272,6 +272,24 @@ Section PullQuant.
     apply lexists_iff_2. apply _.
   Qed.
 
+Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty))
+	(_ : gs Ty = Some ILO_Ty) :
+	forall tus xs tvs tm dtm,
+		exprD' tus (rev xs ++ tvs) tm Ty = Some dtm ->
+		exists dtm',
+			exprD' tus tvs (add_quants xs Ty tm) Ty = Some dtm' /\
+			forall vs, dtm' vs -|- lexists (fun vs' => dtm (HList.hlist_app vs' vs)).
+	Proof.
+		induction xs; simpl; intros.
+		+ exists dtm. split; [assumption|].
+		  intros. split.
+		  * apply lexistsR with Hnil. simpl. reflexivity.
+		  * apply lexistsL; intros. rewrite (hlist_eta x). simpl. reflexivity.
+		+ specialize (IHxs (a::tvs) tm).
+		admit.
+		(* Gregory, please have a look at this *)
+   Qed.
+    
   Lemma exprD'_add_quants_app_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty))
         (_ : gs Ty = Some ILO_Ty)
   : forall tus a tvs tm b x,
@@ -421,7 +439,58 @@ Section PullQuant.
        forward; inv_all; revert H0; revert ft; subst; intros.
        forward; inv_all; subst.
        red_exprD; forward; inv_all; subst.
+       red_exprD; forward; inv_all; subst.
+       red_exprD; forward; inv_all; subst.
+	   red_exprD; forward; inv_all; subst.
 
+	Lemma add_quants_app tus tvs xs ys t p q d (IL : ILogicOps (typD ts nil t))
+  		(H : exprD' tus tvs (add_quants (xs ++ ys) t (App (lift 0 (length ys) p) (lift (length ys) (length xs) q))) t = Some d) :
+  		exists tq dp dq,
+  		    typeof_expr (typeof_env tus) (rev ys ++ tvs) q = Some tq /\ 
+  			exprD' tus tvs (add_quants xs (tyArr tq t) p) (tyArr tq t) = Some dp /\ exprD' tus tvs (add_quants ys tq q) tq = Some dq /\
+  			forall vs, d vs |-- (dp vs) (dq vs).
+  	Proof.
+  		eapply exprD'_add_quants_app_Some in H; eauto.
+  		destruct H as [ ? [ ? ? ] ].
+  		rewrite <- (app_nil_r ys) in H.
+  		eapply exprD'_add_quants_app_Some in H; eauto.
+ 		destruct H as [ ? [ ? ? ] ].
+ 		simpl in H.
+ 		red_exprD; forward; inv_all; subst.
+ 		rewrite app_nil_r in *.
+ 		pose proof (exprD'_lift RSym_sym tus (rev ys) (rev xs) tvs q t1).
+ 		repeat rewrite rev_length in H. forward; inv_all; subst. simpl.
+ 		pose proof (exprD'_lift RSym_sym tus nil (rev ys) (rev xs ++ tvs) p (tyArr t1 t)).
+ 		repeat rewrite rev_length in H4. simpl in H4. forward; inv_all; subst.
+ 		assert (ILogicOps (typD ts nil (tyArr t1 t))) by admit.
+ 		apply exprD'_add_quants_rev_Some in H7.
+ 		destruct H7 as [? [? ?]].
+ 		assert (ILogicOps (typD ts nil t1)) by admit.
+ 		apply exprD'_add_quants_rev_Some in H5.
+ 		destruct H5 as [? [? ?]].
+ 		exists t1, x0, x1. 
+ 		split. admit.
+ 		split. assumption. split. assumption.
+ 		intros.
+ 		assert (ILogic (typD ts nil t)) by admit.
+ 		rewrite H0. apply lexistsL; intros.
+ 		rewrite H1. apply lexistsL; intros.
+ 		assert (t3 (hlist_app x3 (hlist_app x2 vs)) |-- x0 vs).
+		assert (ILogic (typD ts nil t1 -> typD ts nil t)) by admit.
+ 		rewrite H7. apply lexistsR with x2.
+ 		specialize (H8 Hnil x3 (hlist_app x2 vs)).
+ 		simpl in H8. rewrite H8. reflexivity.
+ 		assert (t4 (hlist_app x3 (hlist_app x2 vs)) |-- x1 vs).
+ 		assert (ILogic (typD ts nil t1)) by admit.
+ 		rewrite H9. apply lexistsR with x3.
+ 		specialize (H6 x3 x2 vs). rewrite H6. reflexivity.
+ 		
+ 		Abort.
+ 		(* This lemma is true with a bit more help, the problem comes from the requirement to have ILogics for partially applied functions, which is more or less trivial,
+ 		   but an extra Proper requirement is also needed that allows us to prove (f p |-- g q) if (f |-- g) and (p |-- q). The problem here is also that these propers need
+ 		   to be preserved when the existential quantifiers are stripped. This is true, but requires lemmas such as exprD'_add_quants_app_Some to keep track of that information
+ 		   as well. The question is if we want a lemma that is as general as this one, or if we are happy with the special cases. *)
+ 		
        eapply exprD'_add_quants_app_Some in H3; eauto.
        destruct H3 as [ ? [ ? ? ] ].
        rewrite <- (app_nil_r l3) in H3.
@@ -450,51 +519,25 @@ Section PullQuant.
        subst t7. revert H6. revert x2. clear H5.
        intro. rewrite (UIP_refl x2).
        clear x2.
-       consider (exprD' tus tvs (add_quants l2 x0 e3) x0).
-       { intros; forward.
-         consider (exprD' tus tvs (add_quants l3 x0 e4) x0).
-         { intros.
-           forward.
-           assert (ILogic (typD ts nil x0)) by admit.
-           Cases.rewrite_all.
-           setoid_rewrite H6.
-           eapply exprD'_add_quants_all_Some in H8; eauto.
-           destruct H8 as [ ? [ ? ? ] ].
-           apply exprD'_add_quants_all_Some in H3; eauto.
-           destruct H3 as [ ? [ ? ? ] ].
-           apply lexistsL. intros.
-           apply lexistsL. intros.
-           apply landR.
-           apply landL1.
-           rewrite <- H14, H18.
-           apply lexistsR with x3.
-           
-		
-			replace (hlist_app x4 (hlist_app x3 vs)) with (hlist_app Hnil (hlist_app x4 (hlist_app x3 vs))) by reflexivity.
-			pose proof (@lift_entails tus nil (rev l3) (rev l2 ++ tvs) e3 x0).
-			simpl in H19.
-			replace (length (rev l3)) with (length l3) in H19 by (symmetry; apply rev_length).
-			specialize (H19 t10 x2 _ _ H15).
-			apply H19. assumption.
-		    
-		    apply landL2.
-		    rewrite <- H13.
-		    rewrite H17. 
-		    apply lexistsR with x4.
-		    eapply lift_entails.
-		    apply _. do 2 rewrite rev_length.
-		    eassumption.
-		    eassumption.
-	    }
-         { intro; exfalso.
-           generalize dependent e4. admit.
-           }
-           }
-           intros. exfalso.
-           generalize dependent e3.
-           forward.
-           (** contradiction **)
-           admit.
+       clear H0.
+ 		pose proof (exprD'_lift RSym_sym tus (rev l3) (rev l2) tvs e4 x0).
+ 		repeat rewrite rev_length in H0. forward; inv_all; subst. simpl.
+ 		pose proof (exprD'_lift RSym_sym tus nil (rev l3) (rev l2 ++ tvs) e3 x0).
+ 		repeat rewrite rev_length in H8. simpl in H8. forward; inv_all; subst.
+        apply exprD'_add_quants_rev_Some in H12; eauto; destruct H12 as [? [? ?]].
+        apply exprD'_add_quants_rev_Some in H3; eauto; destruct H3 as [? [? ?]].
+        forward; inv_all; subst.
+        assert (ILogic (typD ts nil x0)) by admit.
+        rewrite H4. apply lexistsL; intros.
+        rewrite H6. apply lexistsL; intros.
+        apply landR.
+        + apply landL1.
+          rewrite <- H20. rewrite H15. 
+          apply lexistsR with x3.
+          specialize (H13 Hnil x4 (hlist_app x3 vs)). simpl in H13. rewrite H13. reflexivity.
+        + apply landL2.
+          rewrite <- H18. rewrite H16. apply lexistsR with x4.
+          rewrite H5. reflexivity.
    Qed.
  
   Lemma Happ2
