@@ -5,6 +5,8 @@ open Reify_gen
 open Reify_ext
 open Plugin_utils.Term_match
 
+let pp_constr fmt x = Pp.pp_with fmt (Printer.pr_constr x)
+
 let contrib_name = "reify_MirrorCharge.ILogicFunc"
 
 module Std = Plugin_utils.Coqstd.Std (struct let contrib_name = contrib_name end)
@@ -95,6 +97,11 @@ struct
     let evs = ref evs in
     let res = c e em [] tcs evs ts fs in
     (res, !ts, !fs, !evs)
+
+  let is_eqb x y =
+    bind ask_env (fun env ->
+      bind ask_evar (fun ev ->
+	ret  (Reductionops.is_conv env ev x y)))
 end
 
 (** this is the top-level recursion for term_reification **)
@@ -102,7 +109,7 @@ let reify_top = ref (fun _ -> assert false)
 
 (** To reify types **)
 module ReifyExtTypes =
-  Reify_ext.ReifyExtTypes (REIFY_MONAD)
+  Reify_ext.ReifyExtTypes (REIFY_MONAD) (REIFY_MONAD)
 
 module REIFY_ENV_FUNC =
   ReifyEnvOption (REIFY_MONAD)
@@ -112,6 +119,7 @@ module REIFY_ENV_FUNC =
       let put = REIFY_MONAD.put_funcs
       let get = REIFY_MONAD.get_funcs
      end)
+    (REIFY_MONAD)
 
 let add_typeclass ?safe:(safe=false) rt tc ht =
   try
@@ -352,7 +360,7 @@ module ReifyExtILFunc
 	type 'a m = 'a REIFY_MONAD.m
 	let put = REIFY_MONAD.put_evars
 	let get = REIFY_MONAD.get_evars
-       end))
+       end) (REIFY_MONAD))
     (REIFY_APP_WITH_TYPECLASS)
 ;;
 
@@ -437,6 +445,7 @@ let extract_functions (evar : Evd.evar_map) (env : Environ.env)
       None -> REIFY_MONAD.ret None
     | Some f ->
       let typ = Typing.type_of env evar f in
+      let _ = Format.printf "Function Type: %a\n" pp_constr typ in
       REIFY_MONAD.bind (reify_function_scheme ReifyExtTypes.reify typ) (fun (a,r_ty) ->
 	assert (a = 0) ;
 	REIFY_MONAD.ret (Some (r_ty, f)))
