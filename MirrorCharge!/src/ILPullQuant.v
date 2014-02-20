@@ -51,8 +51,8 @@ Section PullQuant.
       | Inj (ilf_true t), nil => (atomic f) us vs
       | Inj (ilf_and t), (_, a)::(_, b)::nil =>
         match a us vs, b us vs with
-          | Some (xs, a), Some (ys, b) => Some (xs ++ ys, 
-                                                App (App f (lift 0 (length ys) a)) 
+          | Some (xs, a), Some (ys, b) => Some (xs ++ ys,
+                                                App (App f (lift 0 (length ys) a))
                                                     (lift (length ys) (length xs) b))
           | _, _                       => None
         end
@@ -272,24 +272,74 @@ Section PullQuant.
     apply lexists_iff_2. apply _.
   Qed.
 
-Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty))
-	(_ : gs Ty = Some ILO_Ty) :
-	forall tus xs tvs tm dtm,
-		exprD' tus (rev xs ++ tvs) tm Ty = Some dtm ->
-		exists dtm',
-			exprD' tus tvs (add_quants xs Ty tm) Ty = Some dtm' /\
-			forall vs, dtm' vs -|- lexists (fun vs' => dtm (HList.hlist_app vs' vs)).
-	Proof.
-		induction xs; simpl; intros.
-		+ exists dtm. split; [assumption|].
-		  intros. split.
-		  * apply lexistsR with Hnil. simpl. reflexivity.
-		  * apply lexistsL; intros. rewrite (hlist_eta x). simpl. reflexivity.
-		+ specialize (IHxs (a::tvs) tm).
-		admit.
-		(* Gregory, please have a look at this *)
-   Qed.
-    
+  Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty))
+        (_ : gs Ty = Some ILO_Ty) :
+    forall tus xs tvs tm dtm,
+      exprD' tus (rev xs ++ tvs) tm Ty = Some dtm ->
+      exists dtm',
+        exprD' tus tvs (add_quants xs Ty tm) Ty = Some dtm' /\
+        forall vs, dtm' vs -|- lexists (fun vs' => dtm (HList.hlist_app vs' vs)).
+  Proof.
+    induction xs; simpl; intros.
+    + exists dtm. split; [assumption|].
+      intros. split.
+      * apply lexistsR with Hnil. simpl. reflexivity.
+      * apply lexistsL; intros. rewrite (hlist_eta x). simpl. reflexivity.
+    + specialize (IHxs (a::tvs) tm).
+      assert ((rev xs ++ a :: nil) ++ tvs = rev xs ++ a :: tvs).
+      { rewrite app_ass. reflexivity. }
+      rewrite exprD'_var_env with (H := H1) in IHxs.
+      rewrite H0 in IHxs.
+      specialize (IHxs (fun x => match H1 in _ = vs return hlist (typD ts nil) vs -> typD ts nil Ty with
+                                   | eq_refl => dtm
+                                 end x)).
+      destruct IHxs.
+      { clear.
+        generalize dependent ((rev xs ++ a :: nil) ++ tvs).
+        intros; subst. (** eta **) reflexivity. }
+      { destruct H2.
+        red_exprD.
+        rewrite H.
+        red_exprD.
+        rewrite H.
+        red_exprD.
+        rewrite H2. eexists; split; eauto.
+        simpl.
+        intros.
+        split.
+        { apply lexistsL; intros.
+          specialize (H3 (Hcons x0 vs)).
+          rewrite H3.
+          apply lexistsL; intros.
+          eapply (lexistsR (hlist_app x1 (Hcons x0 Hnil))).
+          change (Hcons x0 vs) with (hlist_app (Hcons x0 Hnil) vs).
+          rewrite hlist_app_assoc; eauto with typeclass_instances.
+          match goal with
+            | |- _ ?X |-- _ match _ with eq_refl => ?Y end =>
+              change Y with X; generalize X
+          end.
+          generalize (app_ass_trans (rev xs) (a :: nil) tvs).
+          generalize H1. simpl. rewrite <- H1.
+          uip_all. reflexivity. }
+        { apply lexistsL; intros.
+          rewrite <- (hlist_app_hlist_split _ _ x0).
+          apply (lexistsR (hlist_hd (snd (hlist_split (rev xs) (a :: nil) x0)))).
+          rewrite H3.
+          apply (lexistsR (fst (hlist_split (rev xs) (a :: nil) x0))).
+          rewrite hlist_app_assoc; eauto with typeclass_instances.
+          rewrite (hlist_eta (snd (hlist_split (rev xs) (a :: nil) x0))).
+          simpl.
+          rewrite (hlist_eta (hlist_tl (snd (hlist_split (rev xs) (a :: nil) x0)))).
+          simpl. intros.
+          match goal with
+            | |- _ match _ with eq_refl => ?X end |-- _ ?Y =>
+              change Y with X; generalize X
+          end.
+          generalize (app_ass_trans (rev xs) (a :: nil) tvs).
+          generalize H1. simpl. rewrite <- H1.
+          uip_all. reflexivity. } }
+  Qed.
+
   Lemma exprD'_add_quants_app_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty))
         (_ : gs Ty = Some ILO_Ty)
   : forall tus a tvs tm b x,
@@ -343,9 +393,9 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
       { intros.
         rewrite H4.
         rewrite exists_hlist_app; eauto with typeclass_instances.
-        setoid_rewrite H3. 
+        setoid_rewrite H3.
         eapply lexists_iff_2; eauto with typeclass_instances.
-        intros. 
+        intros.
         rewrite HList.hlist_app_assoc; eauto with typeclass_instances.
         uip_all. reflexivity. } }
   Qed.
@@ -363,42 +413,90 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
     apply exprD'_add_quants_app_Some in H0; eauto.
   Qed.
 
-(*  Let EqDec_typ : EqDec typ (@eq typ) := _. *)
   Local Existing Instance EqDec_typ.
 
-   	Lemma hlist_app_nil A F (xs : list A) (hnil : hlist F nil) (hys : hlist F xs) : hlist_app hnil hys = hys.
-   	Proof.
-   	    assert (hnil = Hnil) by apply hlist_nil_eta.
-   	    rewrite H. reflexivity.
-	Qed.
+  Lemma hlist_app_nil A F (xs : list A) (hnil : hlist F nil) (hys : hlist F xs) : hlist_app hnil hys = hys.
+  Proof.
+    assert (hnil = Hnil) by apply hlist_nil_eta.
+    rewrite H. reflexivity.
+  Qed.
 
-	Lemma hlist_app_cons A F (xs ys : list A) (x : A) (el : F x) (hxs : hlist F xs) (hys : hlist F ys) :
-		Hcons el (hlist_app hxs hys) = hlist_app (Hcons el hxs) hys.
-	Proof.
-		simpl. reflexivity.
-	Qed.
+  Lemma hlist_app_cons A F (xs ys : list A) (x : A) (el : F x) (hxs : hlist F xs) (hys : hlist F ys) :
+    Hcons el (hlist_app hxs hys) = hlist_app (Hcons el hxs) hys.
+  Proof.
+    simpl. reflexivity.
+  Qed.
 
-	   Lemma lift_entails tus xs ys zs e t de df (HILops : ILogicOps (typD ts nil t)) (HIL: ILogic (typD ts nil t))
-	   	(He : exprD' tus (xs ++ ys ++ zs) (lift (length xs) (length ys) e) t = Some de)
-	   	(Hf : exprD' tus (xs ++ zs) e t = Some df)
-	   	(hxs : hlist (typD ts nil) xs) 
-	   	(hys : hlist (typD ts nil) ys) 
-	   	(hzs : hlist (typD ts nil) zs) :
-	   	de (hlist_app hxs (hlist_app hys hzs)) |-- df (hlist_app hxs hzs).
-	   Proof.
-	   	induction ys; intros; simpl in *.
-		+ rewrite hlist_app_nil.
-		  rewrite He in Hf. inversion Hf. reflexivity.     
-		+ replace (S (length ys)) with (1 + length ys) in He by omega.
-		  rewrite <- lift_lift', <- lift_lift in He.
-		  pose proof (exprD'_lift RSym_sym tus xs (a::nil) (ys++zs) (lift (length xs) (length ys) e) t).
-		  simpl in *. forward; inv_all; subst.
-		  specialize (IHys t1).
-		  specialize (H1 hxs (Hcons (hlist_hd hys) Hnil) (hlist_app (hlist_tl hys) hzs)).
-		  simpl in H1.
-		  rewrite hlist_app_cons, <- hlist_cons_eta in H1.
-		  rewrite H1 at 1. apply IHys. reflexivity.
-	  Qed.
+  Lemma lift_entails tus xs ys zs e t de df (HILops : ILogicOps (typD ts nil t)) (HIL: ILogic (typD ts nil t))
+	(He : exprD' tus (xs ++ ys ++ zs) (lift (length xs) (length ys) e) t = Some de)
+	(Hf : exprD' tus (xs ++ zs) e t = Some df)
+	(hxs : hlist (typD ts nil) xs)
+	(hys : hlist (typD ts nil) ys)
+	(hzs : hlist (typD ts nil) zs) :
+    de (hlist_app hxs (hlist_app hys hzs)) |-- df (hlist_app hxs hzs).
+  Proof.
+    induction ys; intros; simpl in *.
+    + rewrite hlist_app_nil.
+      rewrite He in Hf. inversion Hf. reflexivity.
+    + replace (S (length ys)) with (1 + length ys) in He by omega.
+      rewrite <- lift_lift', <- lift_lift in He.
+      pose proof (exprD'_lift RSym_sym tus xs (a::nil) (ys++zs) (lift (length xs) (length ys) e) t).
+      simpl in *. forward; inv_all; subst.
+      specialize (IHys t1).
+      specialize (H1 hxs (Hcons (hlist_hd hys) Hnil) (hlist_app (hlist_tl hys) hzs)).
+      simpl in H1.
+      rewrite hlist_app_cons, <- hlist_cons_eta in H1.
+      rewrite H1 at 1. apply IHys. reflexivity.
+  Qed.
+
+  Lemma add_quants_app tus tvs xs ys t p q d (IL : ILogicOps (typD ts nil t))
+  	(H : exprD' tus tvs (add_quants (xs ++ ys) t (App (lift 0 (length ys) p) (lift (length ys) (length xs) q))) t = Some d) :
+    exists tq dp dq,
+      typeof_expr (typeof_env tus) (rev ys ++ tvs) q = Some tq /\
+      exprD' tus tvs (add_quants xs (tyArr tq t) p) (tyArr tq t) = Some dp /\ exprD' tus tvs (add_quants ys tq q) tq = Some dq /\
+      forall vs, d vs |-- (dp vs) (dq vs).
+  Proof.
+    eapply exprD'_add_quants_app_Some in H; eauto.
+    destruct H as [ ? [ ? ? ] ].
+    rewrite <- (app_nil_r ys) in H.
+    eapply exprD'_add_quants_app_Some in H; eauto.
+    destruct H as [ ? [ ? ? ] ].
+    simpl in H.
+    red_exprD; forward; inv_all; subst.
+    rewrite app_nil_r in *.
+    pose proof (exprD'_lift RSym_sym tus (rev ys) (rev xs) tvs q t1).
+    repeat rewrite rev_length in H. forward; inv_all; subst. simpl.
+    pose proof (exprD'_lift RSym_sym tus nil (rev ys) (rev xs ++ tvs) p (tyArr t1 t)).
+    repeat rewrite rev_length in H4. simpl in H4. forward; inv_all; subst.
+    assert (ILogicOps (typD ts nil (tyArr t1 t))) by admit.
+    apply exprD'_add_quants_rev_Some in H7.
+    destruct H7 as [? [? ?]].
+    assert (ILogicOps (typD ts nil t1)) by admit.
+    apply exprD'_add_quants_rev_Some in H5.
+    destruct H5 as [? [? ?]].
+    exists t1, x0, x1.
+    split. admit.
+    split. assumption. split. assumption.
+    intros.
+    assert (ILogic (typD ts nil t)) by admit.
+    rewrite H0. apply lexistsL; intros.
+    rewrite H1. apply lexistsL; intros.
+    assert (t3 (hlist_app x3 (hlist_app x2 vs)) |-- x0 vs).
+    assert (ILogic (typD ts nil t1 -> typD ts nil t)) by admit.
+    rewrite H7. apply lexistsR with x2.
+    specialize (H8 Hnil x3 (hlist_app x2 vs)).
+    simpl in H8. rewrite H8. reflexivity.
+    assert (t4 (hlist_app x3 (hlist_app x2 vs)) |-- x1 vs).
+    assert (ILogic (typD ts nil t1)) by admit.
+    rewrite H9. apply lexistsR with x3.
+    specialize (H6 x3 x2 vs). rewrite H6. reflexivity.
+
+  Abort.
+  (* This lemma is true with a bit more help, the problem comes from the requirement to have ILogics for partially applied functions, which is more or less trivial,
+ 		   but an extra Proper requirement is also needed that allows us to prove (f p |-- g q) if (f |-- g) and (p |-- q). The problem here is also that these propers need
+ 		   to be preserved when the existential quantifiers are stripped. This is true, but requires lemmas such as exprD'_add_quants_app_Some to keep track of that information
+ 		   as well. The question is if we want a lemma that is as general as this one, or if we are happy with the special cases. *)
+
 
 
   Lemma Happ
@@ -443,54 +541,7 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
        red_exprD; forward; inv_all; subst.
 	   red_exprD; forward; inv_all; subst.
 
-	Lemma add_quants_app tus tvs xs ys t p q d (IL : ILogicOps (typD ts nil t))
-  		(H : exprD' tus tvs (add_quants (xs ++ ys) t (App (lift 0 (length ys) p) (lift (length ys) (length xs) q))) t = Some d) :
-  		exists tq dp dq,
-  		    typeof_expr (typeof_env tus) (rev ys ++ tvs) q = Some tq /\ 
-  			exprD' tus tvs (add_quants xs (tyArr tq t) p) (tyArr tq t) = Some dp /\ exprD' tus tvs (add_quants ys tq q) tq = Some dq /\
-  			forall vs, d vs |-- (dp vs) (dq vs).
-  	Proof.
-  		eapply exprD'_add_quants_app_Some in H; eauto.
-  		destruct H as [ ? [ ? ? ] ].
-  		rewrite <- (app_nil_r ys) in H.
-  		eapply exprD'_add_quants_app_Some in H; eauto.
- 		destruct H as [ ? [ ? ? ] ].
- 		simpl in H.
- 		red_exprD; forward; inv_all; subst.
- 		rewrite app_nil_r in *.
- 		pose proof (exprD'_lift RSym_sym tus (rev ys) (rev xs) tvs q t1).
- 		repeat rewrite rev_length in H. forward; inv_all; subst. simpl.
- 		pose proof (exprD'_lift RSym_sym tus nil (rev ys) (rev xs ++ tvs) p (tyArr t1 t)).
- 		repeat rewrite rev_length in H4. simpl in H4. forward; inv_all; subst.
- 		assert (ILogicOps (typD ts nil (tyArr t1 t))) by admit.
- 		apply exprD'_add_quants_rev_Some in H7.
- 		destruct H7 as [? [? ?]].
- 		assert (ILogicOps (typD ts nil t1)) by admit.
- 		apply exprD'_add_quants_rev_Some in H5.
- 		destruct H5 as [? [? ?]].
- 		exists t1, x0, x1. 
- 		split. admit.
- 		split. assumption. split. assumption.
- 		intros.
- 		assert (ILogic (typD ts nil t)) by admit.
- 		rewrite H0. apply lexistsL; intros.
- 		rewrite H1. apply lexistsL; intros.
- 		assert (t3 (hlist_app x3 (hlist_app x2 vs)) |-- x0 vs).
-		assert (ILogic (typD ts nil t1 -> typD ts nil t)) by admit.
- 		rewrite H7. apply lexistsR with x2.
- 		specialize (H8 Hnil x3 (hlist_app x2 vs)).
- 		simpl in H8. rewrite H8. reflexivity.
- 		assert (t4 (hlist_app x3 (hlist_app x2 vs)) |-- x1 vs).
- 		assert (ILogic (typD ts nil t1)) by admit.
- 		rewrite H9. apply lexistsR with x3.
- 		specialize (H6 x3 x2 vs). rewrite H6. reflexivity.
- 		
- 		Abort.
- 		(* This lemma is true with a bit more help, the problem comes from the requirement to have ILogics for partially applied functions, which is more or less trivial,
- 		   but an extra Proper requirement is also needed that allows us to prove (f p |-- g q) if (f |-- g) and (p |-- q). The problem here is also that these propers need
- 		   to be preserved when the existential quantifiers are stripped. This is true, but requires lemmas such as exprD'_add_quants_app_Some to keep track of that information
- 		   as well. The question is if we want a lemma that is as general as this one, or if we are happy with the special cases. *)
- 		
+
        eapply exprD'_add_quants_app_Some in H3; eauto.
        destruct H3 as [ ? [ ? ? ] ].
        rewrite <- (app_nil_r l3) in H3.
@@ -532,14 +583,14 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
         rewrite H6. apply lexistsL; intros.
         apply landR.
         + apply landL1.
-          rewrite <- H20. rewrite H15. 
+          rewrite <- H20. rewrite H15.
           apply lexistsR with x3.
           specialize (H13 Hnil x4 (hlist_app x3 vs)). simpl in H13. rewrite H13. reflexivity.
         + apply landL2.
           rewrite <- H18. rewrite H16. apply lexistsR with x4.
           rewrite H5. reflexivity.
    Qed.
- 
+
   Lemma Happ2
   : forall tus tvs l (l_res : T) rs t ts,
       typeof_expr (typeof_env tus) tvs (apps l (map fst rs)) = Some t ->
@@ -550,7 +601,7 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
                  /\ PQR t (fst x) (snd x (typeof_env tus) tvs) tus tvs)
               ts rs ->
       PQR t (apps l (map fst rs)) (pq_app l l_res rs (typeof_env tus) tvs) tus tvs.
-  Proof. 
+  Proof.
    	intros; unfold PQR, TD, Teval in *.
    	destruct l; simpl in *; try apply I.
    	destruct i; simpl in *; try apply I.
@@ -580,15 +631,15 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
    	  forward; inv_all; subst.
    	  red_exprD; forward; inv_all; subst.
       clear H0.
-      
+
       Lemma add_quants_app xs tIL ys p :
       	add_quants xs tIL (add_quants ys tIL p) = add_quants (xs ++ ys) tIL p.
       Proof.
       	induction xs; simpl in *; [|rewrite IHxs]; reflexivity.
       Qed.
-      
-      Lemma add_quants_sub tus tvs p q xs t d tIL 
-        (H: forall d, exprD' tus ((rev xs)++tvs) p t = Some d -> 
+
+      Lemma add_quants_sub tus tvs p q xs t d tIL
+        (H: forall d, exprD' tus ((rev xs)++tvs) p t = Some d ->
               match exprD' tus ((rev xs)++tvs) q t, gs t with
       		    | Some d', Some _ => forall vs, d vs |-- d' vs
       		    | Some _, None    => True
@@ -610,10 +661,10 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
               rewrite <- app_assoc in H1; simpl in H1.
               specialize (IHxs (a::tvs) t0 H1).
               forward.
-              specialize (IHxs H0). 
+              specialize (IHxs H0).
               assert (ILogic (typD ts nil t)) by admit.
               setoid_rewrite IHxs. reflexivity.
-        Qed.      
+        Qed.
 
 
 
@@ -621,9 +672,9 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
            Proof.
            	admit.
            Qed.
-           
-   (*         
-           Lemma lift_appL tus tvs xs ys tIL p q t d 
+
+   (*
+           Lemma lift_appL tus tvs xs ys tIL p q t d
            		(H : exprD' tus tvs (add_quants (xs ++ ys) tIL
            			(App (lift (length xs) (length ys) p)
            				(lift 0 (length xs) q))) t = Some d) :
@@ -635,7 +686,7 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
    			Proof.
    				generalize dependent tvs. generalize dependent ys.
    				induction xs; intros; simpl in *.
-   				+ rewrite H. forward. 
+   				+ rewrite H. forward.
 			      assert (ILogic (typD ts nil t)) by admit.
 			      reflexivity.
 			    + red_exprD; forward; inv_all; revert H4; subst; simpl in *; intros.
@@ -645,7 +696,7 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
 			      uip_all.
 			      admit.
    			Qed.
-  *) 			
+  *)
    		   Lemma add_quants_typeof_expr xs p t tIL tus tvs (H : typeof_expr tus tvs (add_quants xs tIL p) = Some t) :
    		   	 typeof_expr tus (rev xs++tvs) p = Some t.
    		   Proof.
@@ -656,7 +707,7 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
    		   	   specialize (IHxs _ H0). rewrite <- app_assoc; simpl.
    		   	   apply IHxs.
 		   Qed.
-		   
+
 		   Lemma lift_appR tus tvs xs tIL p q t d
 		     (H : exprD' tus tvs (add_quants xs tIL (App (lift 0 (length xs) p) q)) t = Some d) :
 		     match exprD' tus tvs (App p (add_quants xs tIL q)) t, gs t with
@@ -691,8 +742,8 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
    	 	       red_exprD; forward; inv_all; subst.
    	 	       red_exprD; forward; inv_all; simpl in *; subst.
    	 	       rewrite typ_cast_typ_refl.
-   	 	       (* The following admit worries me *) 
-   	 	       assert (t3 = t) by admit; revert IHxs; subst. 
+   	 	       (* The following admit worries me *)
+   	 	       assert (t3 = t) by admit; revert IHxs; subst.
    	 	       intros. forward. rewrite typ_cast_typ_refl. intros.
    	 	       assert (ILogic (typD ts nil t)) by admit.
    	 	       apply lexistsL. intro x. rewrite IHxs; inv_all; subst.
@@ -700,7 +751,7 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
    	 	       simpl in H5. rewrite <- H5.
    	 	       admit.
    	 	   Qed.
-   	 (* Second attempt *)	   
+   	 (* Second attempt *)
 		   (*
 		   Lemma lift_appR'' tus tvs xs tIL p q t tq d
 		     (Hq : typeof_expr (typeof_env tus) tvs q = Some tq)
@@ -720,13 +771,13 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
 		       red_exprD; forward; inv_all; revert H4; subst; intros.
 		       red_exprD; forward; inv_all; simpl in *; subst.
 		       red_exprD; forward; inv_all; simpl in *; subst.
-		       specialize (IHxs (a::tvs) t0). 
+		       specialize (IHxs (a::tvs) t0).
 		       SearchAbout typeof_expr.
 		       (* GREGORY: Can we get a typeof_expr_weaken that weakens in the other direction? *)
 		       (*apply typeof_expr_weaken with (ue := nil) (ve := a::nil) in Hq.*)
-		       
+
 		       assert (typeof_expr (typeof_env tus) (a::tvs) q = Some tq) by admit.
-		       
+
 		       specialize (IHxs H1 (lift 0 1 p)).
 		       rewrite <- lift_lift' in H.
 		       replace (S (length xs)) with (length xs + 1) in H by omega.
@@ -745,8 +796,8 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
    	 	       rewrite typ_cast_typ_refl.
    	 	       Print ilf_exists.
    	 	       red_exprD.
-   	 	       (* GREGORY: The following admit worries me *) 
-   	 	       assert (t3 = t) by admit; revert IHxs; subst. 
+   	 	       (* GREGORY: The following admit worries me *)
+   	 	       assert (t3 = t) by admit; revert IHxs; subst.
    	 	       intros. forward. rewrite typ_cast_typ_refl. intros.
    	 	       assert (ILogic (typD ts nil t)) by admit.
    	 	       apply lexistsL. intro x. rewrite IHxs; inv_all; subst.
@@ -758,10 +809,10 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
    	 	   Lemma typ_eqb_refl a : typ_eqb a a = true.
    	 	   Proof.
    	 	   	induction a; simpl; try rewrite IHa1; try reflexivity; try assumption.
-   	 	    + unfold rel_dec. simpl. apply Pos.eqb_refl. 
+   	 	    + unfold rel_dec. simpl. apply Pos.eqb_refl.
    	 	    + apply NPeano.Nat.eqb_refl.
 	       Qed.
-	       
+
 		   Lemma lift_appL tus tvs xs tIL p q t d tq
 		     (Hq : typeof_expr (typeof_env tus) tvs q = Some tq)
 		     (H : exprD' tus tvs (add_quants xs tIL (App p (lift 0 (length xs) q))) t = Some d) :
@@ -787,7 +838,7 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
 		       pose proof (typeof_expr_lift RSym_sym (typeof_env tus) nil (a::nil) tvs q).
 		       simpl in H1. rewrite <- H1 in Hq.
 		       specialize (IHxs Hq H).
-		       forward. 
+		       forward.
 		       red_exprD; forward; inv_all; simpl in *; subst.
 		       (* GREGORY: In practice I don't think we need this assertion, but I don't think this lemma is provable without it. If we really
 		          want a library of relatively simple lemmas that work on MirrorShard terms, then I think we need this. *)
@@ -802,11 +853,11 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
 		       uip_all.
 		       pose proof (exprD'_lift RSym_sym tus nil (a::nil) tvs q t3). simpl in H6.
 		       forward.
-		       assert (ILogic (typD ts nil t)) by admit.		       
+		       assert (ILogic (typD ts nil t)) by admit.
 		       apply lexistsL; intros.
    	 	       admit.
    	 	   Qed.
-   	 	   
+
    	 	   Lemma add_quants_lift n m p xs t : lift n m (add_quants xs t p) = add_quants xs t (lift (n + length xs) m p).
    	 	   Proof.
    	 	     generalize dependent n; induction xs; simpl; intros.
@@ -814,8 +865,8 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
    	 	     + destruct m; simpl in *; [reflexivity|].
    	 	       rewrite IHxs. replace (n + S (length xs)) with (S (n + length xs)) by omega. reflexivity.
    	 	   Qed.
-		       
-		    
+
+
            Lemma lift_appR' tus tvs xs ys tIL p q t d
            		(H : exprD' tus tvs (add_quants (xs ++ ys) tIL
            			(App (lift 0 (length ys) p)
@@ -843,7 +894,7 @@ Lemma exprD'_add_quants_rev_Some (Ty : typ) (ILO_Ty : ILogicOps (typD ts nil Ty)
    		   	  replace (length (rev ys)) with (length ys) in * by admit.
    		   	  apply H0.
    		  Qed.
-		
+
 		  replace (App (Inj (ilf_and x0)) (lift 0 (length l3) e3)) with (lift 0 (length l3) (App (Inj (ilf_and x0)) e3)) in H3 by (destruct (length l3); simpl; reflexivity).
 		  apply lift_appR' in H3. forward; inv_all; subst.
 		  assert (typeof_expr (typeof_env tus) tvs (add_quants l3 x0 e4) = Some x0) by admit.
