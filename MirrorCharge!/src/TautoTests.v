@@ -62,7 +62,9 @@ Module PropTests.
                True
                t H2 _ Z eq_refl H1).
     { red. inversion 1. }
-    { admit. }
+    { (** TODO: this might not actually be true because it isn't working with
+       ** the environments **)
+      admit. }
   Qed.
 
   Ltac rtauto :=
@@ -78,16 +80,16 @@ Module PropTests.
     in
     match goal with
       | |- ?X =>
-        let k t f l e :=
+        let k t f l us e :=
             let eV := fresh in
             pose (eV := e) ;
             let tcOk := fresh in
             assert (tcOk : @tc_mapOk t l) by  prove_tcs ;
             let embedOk := fresh in
             assert (embedOk : embed_mapOk l nil) by prove_tcs ;
-            change (@Provable t ilfunc (@RSym_ilfunc_ctor t f l nil) nil nil eV) ;
+            change (@Provable t ilfunc (@RSym_ilfunc_ctor t f l nil) us nil eV) ;
             cut (@tauto_call t l nil eV = true) ;
-            [ exact (@Apply_tauto_Prop t f l nil tcOk embedOk nil nil eV)
+            [ exact (@Apply_tauto_Prop t f l nil tcOk embedOk us nil eV)
             | try (vm_compute; reflexivity) ]
         in
         reify_expr [ X ] k
