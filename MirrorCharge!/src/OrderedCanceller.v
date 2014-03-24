@@ -335,16 +335,15 @@ Section ordered_cancel.
       end.
   Proof.
     induction rhs; intros; forward.
-(*
     { repeat go_crazy SSL SSLO.
       simpl in H.
       consider (eprovePure s e); intros;
         eapply IHrhs in H4; clear IHrhs.
       { forward. inv_all; subst.
         red in eprovePureOk.
-        apply eprovePureOk with (us := us) in H.
+        apply eprovePureOk in H.
         simpl in H2.
-        consider (exprD' (join_env us) tvs
+        consider (exprD' tus tvs
                          (e_star SSL (conjunctives_to_expr_star SSL rem)
                                  (Conjuncts_to_expr rhs)) tySL); intros.
         { forward.
@@ -354,19 +353,20 @@ Section ordered_cancel.
           forward_reason.
           split; auto. intros.
           destruct H16. unfold exprD in H16.
-          rewrite split_env_join_env in *.
+          repeat rewrite split_env_join_env in *.
+          simpl in *.
           rewrite H2 in *.
           forward_reason.
           split; auto. split; auto. intros.
           forward_reason. split; auto.
-          destruct (SSLO.(e_empOk) (join_env us) tvs) as [ ? [ ? ? ] ].
+          destruct (SSLO.(e_empOk) tus tvs) as [ ? [ ? ? ] ].
           repeat go_crazy SSL SSLO.
           inv_all; subst.
           do 6 match goal with
                  | H : _ |- _ =>
                    rewrite H; clear H
                end.
-          rewrite <- empSPL with (P := x2 vs) at 1.
+          rewrite <- empSPL with (P := x2 us vs) at 1.
           eapply scME; eauto.
           eapply scME; eauto.
           apply landR; auto.
@@ -376,7 +376,7 @@ Section ordered_cancel.
       { (** eprovePure returns None **)
         forward. inv_all; subst.
         clear H.
-        consider (exprD' (join_env us) tvs
+        consider (exprD' tus tvs
            (e_star SSL
               (conjunctives_to_expr_star SSL
                  {|
@@ -394,13 +394,12 @@ Section ordered_cancel.
                                  pure := e :: pure rem |} (join_env us) (join_env vs)).
           { red. constructor; auto.
             forward. eauto. }
-          rewrite typeof_env_join_env in *.
           forward_reason.
           split; auto. split; auto. intros.
           forward_reason.
           split; auto.
           clear H13. unfold exprD in H10.
-          rewrite split_env_join_env in *.
+          repeat rewrite split_env_join_env in *.
           unfold conjunctives_to_expr_star in H, H1.
           simpl in *.
           repeat go_crazy SSL SSLO.
@@ -433,20 +432,19 @@ Section ordered_cancel.
           (spatial lhs) nil); intros.
       { destruct p. destruct p.
         eapply IHrhs in H4; clear IHrhs.
-        consider (exprD' (join_env us) tvs
+        consider (exprD' tus tvs
            (conjunctives_to_expr_star SSL
               {|
               spatial := l;
               star_true := star_true lhs;
               pure := pure lhs |}) tySL); intros.
-        { consider (exprD' (join_env us) tvs
+        { consider (exprD' tus tvs
            (e_star SSL (conjunctives_to_expr_star SSL rem)
               (Conjuncts_to_expr rhs)) tySL); intros.
           { forward. repeat go_crazy SSL SSLO.
             inv_all; subst.
             eapply findWithRest_spec in H.
             forward_reason. simpl in *. subst.
-            rewrite typeof_env_join_env in *.
             unfold conjunctives_to_expr_star in H4, H0.
             simpl in *. subst.
             generalize dependent (iterated_base (e_emp SSL) (e_star SSL)
@@ -471,15 +469,16 @@ Section ordered_cancel.
             forward_reason.
             split; auto.
             unfold exprD in *.
-            rewrite split_env_join_env in *.
+            repeat rewrite split_env_join_env in *.
+            simpl in *.
             repeat go_crazy SSL SSLO.
             inv_all; subst.
             rewrite H3; clear H3.
             rewrite H21; clear H21.
             rewrite H25; clear H25.
             rewrite sepSPC. rewrite sepSPA.
-            rewrite (sepSPC (x2 vs)). rewrite <- H11; clear H11.
-            transitivity (x15 vs ** t1 vs).
+            rewrite (sepSPC (x2 us vs)). rewrite <- H11; clear H11.
+            transitivity (x15 us vs ** t1 us vs).
             { do 7 match goal with
                      | H : _ |- _ => rewrite H; clear H
                    end.
@@ -509,7 +508,7 @@ Section ordered_cancel.
         simpl in *.
         progress forward.
         inv_all; subst.
-        consider (exprD' (join_env us) tvs
+        consider (exprD' tus tvs
            (e_star SSL
               (conjunctives_to_expr_star SSL
                  {|
@@ -556,7 +555,7 @@ Section ordered_cancel.
           destruct H0; congruence. } } }
     { simpl in H. inv_all; subst.
       simpl in *.
-      destruct (SSLO.(e_empOk) (join_env us) tvs) as [ ? [ ? ? ] ].
+      destruct (SSLO.(e_empOk) tus tvs) as [ ? [ ? ? ] ].
       repeat go_crazy SSL SSLO.
       inv_all; subst.
       intros.
@@ -570,7 +569,7 @@ Section ordered_cancel.
       rewrite empSPR; eauto. }
     { simpl in H. inv_all; subst.
       simpl in *.
-      destruct (SSLO.(e_empOk) (join_env us) tvs) as [ ? [ ? ? ] ].
+      destruct (SSLO.(e_empOk) tus tvs) as [ ? [ ? ? ] ].
       repeat go_crazy SSL SSLO.
       unfold conjunctives_to_expr_star. simpl.
       unfold conjunctives_to_expr_star in H1.
@@ -582,17 +581,17 @@ Section ordered_cancel.
                     apps (fst x2) (snd x2)) (spatial rem))).
       intros.
       repeat go_crazy SSL SSLO.
-      consider (exprD' (join_env us) tvs (e_star SSL e0 (e_star SSL e (e_true SSL))) tySL); intros.
+      consider (exprD' tus tvs (e_star SSL e0 (e_star SSL e (e_true SSL))) tySL); intros.
       { split; auto. intros.
         forward_reason.
         split; auto. split; auto. intros.
         split; auto.
-        destruct (SSLO.(e_trueOk) (join_env us) tvs) as [ ? [ ? ? ] ].
+        destruct (SSLO.(e_trueOk) tus tvs) as [ ? [ ? ? ] ].
         repeat go_crazy SSL SSLO. inv_all; subst. subst.
         do 7 match goal with
                | H : _ |- _ => rewrite H; clear H
              end.
-        destruct (SSLO.(e_trueOk) (join_env us) tvs) as [ ? [ ? ? ] ].
+        destruct (SSLO.(e_trueOk) tus tvs) as [ ? [ ? ? ] ].
         rewrite H3 in *. inv_all; subst.
         rewrite H6. repeat rewrite sepSPA.
         apply scME; auto.
@@ -604,8 +603,6 @@ Section ordered_cancel.
           rewrite empSPL. auto. } }
       { repeat (go_crazy SSL SSLO; try congruence). } }
   Qed.
-*)
-  Admitted.
 
   Variable order : conjunctives func -> Conjuncts.
   Definition order_spec :=
@@ -658,7 +655,7 @@ Section ordered_cancel.
         | _ , _ => True
       end.
   Proof.
-    intros. 
+    intros.
     unfold ordered_cancel in H.
     eapply cancelOk_lem' in H.
     generalize (@conjunctives_to_expr_conjunctives_to_expr_star_iff _ _ _ _ _ SSL _ tvs tus lhs).
@@ -671,23 +668,22 @@ Section ordered_cancel.
       | match ?X with _ => _ end =>
         consider X; intros
     end.
-(*
-    { forward. rewrite typeof_env_join_env in *.
+    { forward.
       forward_reason.
       split; auto. intros. subst vs.
       forward_reason.
       repeat go_crazy SSL SSLO.
       unfold conjunctives_to_expr_star in H4. simpl in *.
       red in orderOk.
-      specialize (orderOk rhs (join_env us) tvs).
+      specialize (orderOk rhs tus tvs).
       repeat go_crazy SSL SSLO.
       inv_all; subst.
-      specialize (orderOk vs' H16).
+      specialize (orderOk us' vs' H16).
       destruct orderOk.
       unfold iterated_base in *. simpl in *.
       assert (well_formed RSym_func tySL PureOp_SL
           {| spatial := nil; star_true := false; pure := nil |}
-          (join_env us) (join_env vs')) by constructor.
+          (join_env us') (join_env vs')) by constructor.
       specialize (H14 H24 H25).
       destruct H14 as [ ? [ ? ? ] ].
       specialize (H27 H17).
@@ -703,23 +699,22 @@ Section ordered_cancel.
       rewrite H19; clear H19. rewrite H21; clear H21.
       rewrite H23; clear H23.
       rewrite H22 in *. inv_all; subst.
-      destruct (SSLO.(e_empOk) (join_env us) tvs) as [ ? [ ? ? ] ].
+      destruct (SSLO.(e_empOk) tus tvs) as [ ? [ ? ? ] ].
       rewrite H4 in *. inv_all; subst.
       rewrite H5.
       repeat rewrite empSPL. reflexivity. }
     { exfalso.
       unfold conjunctives_to_expr_star in H3; simpl in H3.
       unfold iterated_base in H3; simpl in H3.
-      destruct (SSLO.(e_empOk) (join_env us) tvs) as [ ? [ ? ? ] ].
-      destruct (SSLO.(e_trueOk) (join_env us) tvs) as [ ? [ ? ? ] ].
+      destruct (SSLO.(e_empOk) tus tvs) as [ ? [ ? ? ] ].
+      destruct (SSLO.(e_trueOk) tus tvs) as [ ? [ ? ? ] ].
       unfold conjunctives_to_expr_star in H4.
       simpl in H4.
       unfold iterated_base in H4. simpl in H4.
       repeat (go_crazy SSL SSLO; try congruence).
-      specialize (orderOk rhs (join_env us) tvs).
+      specialize (orderOk rhs tus tvs).
       forward. }
   Qed.
-*) Admitted.
 
 End ordered_cancel.
 

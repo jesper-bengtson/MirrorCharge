@@ -44,11 +44,11 @@ Section syn_sep_log.
   { e_empOk : forall tus tvs,
               exists val,
                 exprD' tus tvs SSL.(e_emp) SL = Some val /\
-                forall vs us, val us vs -|- empSP
+                forall us vs, val us vs -|- empSP
   ; e_trueOk : forall tus tvs,
                exists val,
                  exprD' tus tvs SSL.(e_true) SL = Some val /\
-                 forall vs us, val us vs -|- ltrue
+                 forall us vs, val us vs -|- ltrue
   ; e_starOk : forall tus tvs x y valx valy,
                  exprD' tus tvs x SL = Some valx ->
                  exprD' tus tvs y SL = Some valy ->

@@ -1,4 +1,5 @@
 Require Import ExtLib.Core.RelDec.
+Require Import ExtLib.Tactics.
 Require Import MirrorCore.SymI.
 Require Import MirrorCore.EnvI.
 Require Import MirrorCore.Ext.Expr.
@@ -88,8 +89,6 @@ Section ordered_cancel_tac.
   Variable sls : SepLogSpec func.
   Hypothesis slsOk : @SepLogSpecOk ts _ _ tySL sls _ _.
 
-  Require Import ExtLib.Tactics.
-
   Ltac forward_reason :=
     repeat match goal with
              | H : ?X , H' : ?X -> _ |- _ =>
@@ -131,8 +130,8 @@ Section ordered_cancel_tac.
   Proof.
     unfold the_canceller. intros.
     consider (split_env us); intros.
-    generalize (@normalizeOk ts func _ _ _ _ _ _ sls slsOk SSL SSLO lhs us (typeof_env vs)).
-    generalize (@normalizeOk ts func _ _ _ _ _ _ sls slsOk SSL SSLO rhs us (typeof_env vs)).
+    generalize (@normalizeOk ts func _ _ _ _ _ _ sls slsOk SSL SSLO lhs (typeof_env us) (typeof_env vs)).
+    generalize (@normalizeOk ts func _ _ _ _ _ _ sls slsOk SSL SSLO rhs (typeof_env us) (typeof_env vs)).
     consider (split_env vs); intros.
     consider (ordered_cancel
               (doUnifySepLog 100 (typeof_env us) (typeof_env vs)) eprovePure
@@ -157,7 +156,6 @@ Section ordered_cancel_tac.
                              SSL SSLO _ _ Pure_true
                              (@simple_order func)
                              (@simple_orderOk ts func _ tySL _ _ _ _ SSL SSLO _)
-                             h
                              (normalize sls lhs x x0)
                              (normalize sls rhs x x0)
                              (@FMapSubst.SUBST.subst_empty _)
@@ -168,22 +166,23 @@ Section ordered_cancel_tac.
            end.
     unfold exprD in *.
     rewrite H2 in *.
+    rewrite H1 in *. simpl in *.
     inv_all; subst.
-    assert (us = join_env h).
-    { apply split_env_projT2_join_env. auto. }
-    rewrite <- H5 in *.
     forward.
     assert (Subst.WellTyped_subst (typeof_env us) (typeof_env vs)
           (SUBST.subst_empty func)) by eapply Subst.WellTyped_empty.
     forward_reason.
-    specialize (H14 h0).
-    specialize (H7 h0).
-    specialize (H10 h0).
+    specialize (H9 h h0).
+    specialize (H6 h h0).
+    specialize (H13 h h0).
+    assert (us = join_env h).
+    { apply split_env_projT2_join_env. auto. }
     assert (vs = join_env h0).
     { apply split_env_projT2_join_env. auto. }
+    rewrite <- H15 in *.
     rewrite <- H16 in *.
     forward_reason.
-    rewrite H7. rewrite H10. assumption.
+    rewrite H6. rewrite H9. assumption.
   Qed.
 End ordered_cancel_tac.
 
@@ -213,11 +212,11 @@ Section SepLogBuilder.
 
   Record ConcreteSepLogOk tySL (BILO : BILOperators (typD ts nil tySL))
          (CSL : ConcreteSepLog) : Type :=
-  { starOk : forall us tvs,
-    exprD' us tvs (Inj CSL.(ctor_star)) (tyArr tySL (tyArr tySL tySL)) =
-    Some (fun _ => sepSP)
-  ; empOk : forall us tvs,
-    exprD' us tvs (Inj CSL.(ctor_emp)) tySL = Some (fun _ => empSP)
+  { starOk : forall tus tvs,
+    exprD' tus tvs (Inj CSL.(ctor_star)) (tyArr tySL (tyArr tySL tySL)) =
+    Some (fun _ _ => sepSP)
+  ; empOk : forall tus tvs,
+    exprD' tus tvs (Inj CSL.(ctor_emp)) tySL = Some (fun _ _ => empSP)
   }.
 
   Definition func_eq : func -> func -> bool :=
@@ -248,13 +247,15 @@ Section SepLogBuilder.
     abstract (simpl; intros; unfold func_eq in H;
               consider (RelDec.rel_dec (equ := @eq ilfunc) (ctor_emp csl) e);
               intros; subst;
-              unfold exprD; destruct (split_env vs);
-              rewrite (cslOk.(empOk) us x); reflexivity).
+              unfold exprD; destruct (split_env vs); destruct (split_env us);
+              simpl in *;
+              rewrite (cslOk.(empOk) x0 x); reflexivity).
     abstract (simpl; intros; unfold func_eq in H;
               consider (RelDec.rel_dec (equ := @eq ilfunc) (ctor_star csl) e);
               intros; subst;
-              unfold exprD; destruct (split_env vs);
-              rewrite (cslOk.(starOk) us x); reflexivity).
+              unfold exprD; destruct (split_env vs); destruct (split_env us);
+              simpl in *;
+              rewrite (cslOk.(starOk) x0 x); reflexivity).
   Defined.
 
   Definition SynSepLog_ConcreteSepLog : SynSepLog ilfunc :=
@@ -305,20 +306,20 @@ Section SepLogBuilder.
       end; auto. }
   Qed.
 
-  Lemma lem_empOk : forall (us : env (typD ts)) (tvs : list typ),
-   exists val : HList.hlist (typD ts nil) tvs -> typD ts nil tySL,
-     exprD' us tvs (e_emp SynSepLog_ConcreteSepLog) tySL = Some val /\
-     (forall vs : HList.hlist (typD ts nil) tvs, val vs -|- empSP).
+  Lemma lem_empOk : forall (tus : list typ) (tvs : list typ),
+   exists val,
+     exprD' tus tvs (e_emp SynSepLog_ConcreteSepLog) tySL = Some val /\
+     (forall us (vs : HList.hlist (typD ts nil) tvs), val us vs -|- empSP).
   Proof.
     simpl; intros.
-    eexists. split. apply (cslOk.(empOk) us tvs).
+    eexists. split. apply (cslOk.(empOk) tus tvs).
     intros. reflexivity.
   Qed.
 
-  Lemma lem_trueOk : forall (us : env (typD ts)) (tvs : list typ),
-   exists val : HList.hlist (typD ts nil) tvs -> typD ts nil tySL,
-     exprD' us tvs (e_true SynSepLog_ConcreteSepLog) tySL = Some val /\
-     (forall vs : HList.hlist (typD ts nil) tvs, val vs -|- ltrue).
+  Lemma lem_trueOk : forall (tus tvs : list typ),
+   exists val,
+     exprD' tus tvs (e_true SynSepLog_ConcreteSepLog) tySL = Some val /\
+     (forall us vs, val us vs -|- ltrue).
   Proof.
     simpl; intros.
     red_exprD.
@@ -328,20 +329,19 @@ Section SepLogBuilder.
     eexists; split; eauto. simpl. reflexivity.
   Qed.
 
-  Lemma lem_starOk : forall (us : env (typD ts)) (tvs : list typ) (x y : expr ilfunc)
-     (valx valy : HList.hlist (typD ts nil) tvs -> typD ts nil tySL),
-   exprD' us tvs x tySL = Some valx ->
-   exprD' us tvs y tySL = Some valy ->
-   exists val : HList.hlist (typD ts nil) tvs -> typD ts nil tySL,
-     exprD' us tvs (e_star SynSepLog_ConcreteSepLog x y) tySL = Some val /\
-     (forall vs : HList.hlist (typD ts nil) tvs,
-      val vs -|- valx vs ** valy vs).
+  Lemma lem_starOk : forall (tus tvs : list typ) (x y : expr ilfunc) valx valy,
+   exprD' tus tvs x tySL = Some valx ->
+   exprD' tus tvs y tySL = Some valy ->
+   exists val,
+     exprD' tus tvs (e_star SynSepLog_ConcreteSepLog x y) tySL = Some val /\
+     (forall us vs,
+      val us vs -|- valx us vs ** valy us vs).
   Proof.
     simpl; intros.
-    generalize (cslOk.(starOk) us tvs).
+    generalize (cslOk.(starOk) tus tvs).
     red_exprD. intros.
     forward. inv_all; subst.
-    exists (fun g => sepSP (valx g) (valy g)).
+    exists (fun u g => sepSP (valx u g) (valy u g)).
     split; [ | intros; reflexivity ].
     generalize typeof_star. simpl. intro.
     rewrite H3. simpl.
@@ -363,24 +363,23 @@ Section SepLogBuilder.
                change Y with X ; rewrite H
            end.
     f_equal.
-    change (let K := (fun x g => (x g) (t3 g) (t1 g)) in
-            K (fun _ : HList.hlist (typD ts nil) tvs => t) =
-            K (fun _ : HList.hlist (typD ts nil) tvs => sepSP)).
+    change (let K := (fun x u g => (x u g) (t3 u g) (t1 u g)) in
+            K (fun _ (_ : HList.hlist (typD ts nil) tvs) => t) =
+            K (fun _ (_ : HList.hlist (typD ts nil) tvs) => sepSP)).
     intro. clearbody K. f_equal. auto.
   Qed.
 
   Lemma lem_starOk'
-  : forall (us : env (typD ts)) (tvs : list typ) (x y : expr ilfunc)
-           (val : HList.hlist (typD ts nil) tvs -> typD ts nil tySL),
-      exprD' us tvs (e_star SynSepLog_ConcreteSepLog x y) tySL = Some val ->
-      exists valx valy : HList.hlist (typD ts nil) tvs -> typD ts nil tySL,
-        exprD' us tvs x tySL = Some valx /\
-        exprD' us tvs y tySL = Some valy /\
-        (forall vs : HList.hlist (typD ts nil) tvs,
-           val vs -|- valx vs ** valy vs).
+  : forall (tus tvs : list typ) (x y : expr ilfunc) val,
+      exprD' tus tvs (e_star SynSepLog_ConcreteSepLog x y) tySL = Some val ->
+      exists valx valy,
+        exprD' tus tvs x tySL = Some valx /\
+        exprD' tus tvs y tySL = Some valy /\
+        (forall us vs,
+           val us vs -|- valx us vs ** valy us vs).
   Proof.
     simpl; intros.
-    generalize (cslOk.(starOk) us tvs); intros.
+    generalize (cslOk.(starOk) tus tvs); intros.
     red_exprD.
     forward. inv_all; subst.
     generalize dependent (symD (ctor_star csl)).
@@ -402,14 +401,13 @@ Section SepLogBuilder.
   Qed.
 
   Lemma lem_andOk
-  : forall (us : env (typD ts)) (tvs : list typ) (x y : expr ilfunc)
-           (valx valy : HList.hlist (typD ts nil) tvs -> typD ts nil tySL),
-      exprD' us tvs x tySL = Some valx ->
-      exprD' us tvs y tySL = Some valy ->
-      exists val : HList.hlist (typD ts nil) tvs -> typD ts nil tySL,
-        exprD' us tvs (e_and SynSepLog_ConcreteSepLog x y) tySL = Some val /\
-        (forall vs : HList.hlist (typD ts nil) tvs,
-           val vs -|- valx vs //\\ valy vs).
+  : forall (tus tvs : list typ) (x y : expr ilfunc) valx valy,
+      exprD' tus tvs x tySL = Some valx ->
+      exprD' tus tvs y tySL = Some valy ->
+      exists val,
+        exprD' tus tvs (e_and SynSepLog_ConcreteSepLog x y) tySL = Some val /\
+        (forall us vs,
+           val us vs -|- valx us vs //\\ valy us vs).
   Proof.
     simpl; intros.
     red_exprD.
@@ -428,14 +426,14 @@ Section SepLogBuilder.
   Qed.
 
   Lemma lem_andOk'
-  : forall (us : env (typD ts)) (tvs : list typ) (x y : expr ilfunc)
-           (val : HList.hlist (typD ts nil) tvs -> typD ts nil tySL),
-      exprD' us tvs (e_and SynSepLog_ConcreteSepLog x y) tySL = Some val ->
-      exists valx valy : HList.hlist (typD ts nil) tvs -> typD ts nil tySL,
-        exprD' us tvs x tySL = Some valx /\
-        exprD' us tvs y tySL = Some valy /\
-        (forall vs : HList.hlist (typD ts nil) tvs,
-           val vs -|- valx vs //\\ valy vs).
+  : forall (tus tvs : list typ) (x y : expr ilfunc)
+           val,
+      exprD' tus tvs (e_and SynSepLog_ConcreteSepLog x y) tySL = Some val ->
+      exists valx valy,
+        exprD' tus tvs x tySL = Some valx /\
+        exprD' tus tvs y tySL = Some valy /\
+        (forall us vs,
+           val us vs -|- valx us vs //\\ valy us vs).
   Proof.
     simpl; intros.
     red_exprD.
@@ -459,10 +457,10 @@ Section SepLogBuilder.
     eauto using lem_empOk, lem_trueOk, lem_starOk, lem_starOk', lem_andOk, lem_andOk'.
   Qed.
 
-  Lemma lem_falseOk : forall (us : env (typD ts)) (tvs : list typ),
-   exists val : HList.hlist (typD ts nil) tvs -> typD ts nil tySL,
-     exprD' us tvs (Inj (ilf_false tySL)) tySL = Some val /\
-     (forall vs : HList.hlist (typD ts nil) tvs, val vs -|- lfalse).
+  Lemma lem_falseOk : forall (tus tvs : list typ),
+   exists val,
+     exprD' tus tvs (Inj (ilf_false tySL)) tySL = Some val /\
+     (forall us vs, val us vs -|- lfalse).
   Proof.
     simpl; intros.
     red_exprD.
@@ -496,25 +494,25 @@ Section SepLogBuilder.
     { consider (x ?[ eq ] Inj (ctor_emp csl)); intros; subst.
       { rewrite H0. eexists; split; eauto.
         intros.
-        destruct (lem_empOk us tvs).
+        destruct (lem_empOk tus tvs).
         simpl in H1. rewrite H in *. destruct H1; inv_all; subst.
         rewrite H2. rewrite empSPL. reflexivity. }
       { consider (y ?[ eq ] Inj (ctor_emp csl)); intros; subst.
         { rewrite H. eexists; split; eauto.
           intros.
-          destruct (lem_empOk us tvs).
+          destruct (lem_empOk tus tvs).
           simpl in *. rewrite H0 in *. destruct H2; inv_all; subst.
           rewrite H3. rewrite empSPR; eauto with typeclass_instances. }
         { eapply lem_starOk; eauto. } } }
     { consider (x ?[ eq ] Inj (ctor_emp csl)); intros; subst.
       { rewrite H0.
-        destruct (lem_empOk us tvs) as [ ? [ ? ? ] ].
+        destruct (lem_empOk tus tvs) as [ ? [ ? ? ] ].
         simpl in *. Cases.rewrite_all_goal.
         do 2 eexists; split; eauto. split; eauto.
         intros. rewrite H1. rewrite empSPL. reflexivity. }
       { consider (y ?[ eq ] Inj (ctor_emp csl)); intros; subst.
         { rewrite H1.
-          destruct (lem_empOk us tvs) as [ ? [ ? ? ] ].
+          destruct (lem_empOk tus tvs) as [ ? [ ? ? ] ].
           simpl in *. Cases.rewrite_all_goal.
           do 2 eexists; split; eauto. split; eauto.
           intros. rewrite H2. rewrite empSPR; eauto with typeclass_instances. }
@@ -524,15 +522,15 @@ Section SepLogBuilder.
                  consider X; intros
              end; try eapply lem_andOk; eauto;
       subst; Cases.rewrite_all_goal; eexists; split; eauto; intros.
-      { generalize (lem_trueOk us tvs); simpl.
+      { generalize (lem_trueOk tus tvs); simpl.
         rewrite H. destruct 1 as [ ? [ ? ? ] ].
         inv_all; subst.
         rewrite H2. rewrite ltrue_unitL; eauto with typeclass_instances. }
-      { generalize (lem_trueOk us tvs); simpl.
+      { generalize (lem_trueOk tus tvs); simpl.
         rewrite H0. destruct 1 as [ ? [ ? ? ] ].
         inv_all; subst.
         rewrite H3. rewrite ltrue_unitR; eauto with typeclass_instances. } }
-    { destruct (lem_trueOk us tvs) as [ ? [ ? ? ] ].
+    { destruct (lem_trueOk tus tvs) as [ ? [ ? ? ] ].
       simpl in *.
       repeat match goal with
                | _ : context [ exprD' _ _ match ?X with _ => _ end _ ] |- _ =>
@@ -552,9 +550,9 @@ Definition canceller_post
            (ILogicOps_SL : ILogicOps (typD ts nil tySL))
            us vs lhs rhs : Prop :=
   let rsym := @RSym_ilfunc ts FM LM EM in
-  match @exprD ts ilfunc rsym us vs lhs tySL with
+  match @exprD typ (typD ts) (expr ilfunc) (Expr_expr rsym) us vs lhs tySL with
     | Some lhs0 =>
-      match @exprD ts ilfunc rsym us vs rhs tySL with
+      match @exprD typ (typD ts) (expr ilfunc) (Expr_expr rsym) us vs rhs tySL with
         | Some rhs0 => lhs0 |-- rhs0
         | None => True
       end
@@ -568,9 +566,9 @@ Definition canceller_pre
            (ILogicOps_SL : ILogicOps (typD ts nil tySL))
            us vs lhs' rhs' sub : Prop :=
   let rsym := @RSym_ilfunc ts FM LM EM in
-  match @exprD ts ilfunc rsym us vs lhs' tySL with
+  match @exprD typ (typD ts) (expr ilfunc) (Expr_expr rsym) us vs lhs' tySL with
     | Some lhs0 =>
-      match @exprD ts ilfunc rsym us vs rhs' tySL with
+      match @exprD typ (typD ts) (expr ilfunc) (Expr_expr rsym) us vs rhs' tySL with
         | Some rhs0 =>
           @Subst.substD
             (FMapSubst.SUBST.subst ilfunc) (expr ilfunc) typ (typD ts)
@@ -625,7 +623,7 @@ Proof.
 Qed.
 
 
-(**
+(** THIS IS OLD
 Module SepLogBuilder2.
   Require Import ILogicFunc.
 
