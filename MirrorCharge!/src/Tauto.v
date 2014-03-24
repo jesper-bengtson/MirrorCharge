@@ -1,5 +1,7 @@
 Require Import Coq.Bool.Bool.
-Require Import Setoid Morphisms RelationClasses.
+Require Import Coq.Setoids.Setoid.
+Require Import Coq.Classes.Morphisms.
+Require Import Coq.Classes.RelationClasses.
 Require Import ILogic ILEmbed.
 Require Import ExtLib.Core.RelDec.
 Require Import ExtLib.Recur.Relation.
@@ -10,6 +12,7 @@ Require Import ExtLib.Tactics.Consider.
 Require Import MirrorCore.Ext.ExprCore.
 Require Import MirrorCore.Ext.Types.
 Require Import MirrorCore.EnvI.
+Require Import MirrorCore.ExprI.
 Require Import MirrorCore.Ext.ExprD.
 Require Import MirrorCore.Ext.ExprTactics.
 Require Import ILogicFunc.
@@ -133,44 +136,29 @@ Section Tauto.
         destruct e1; eauto using FactsD_known_cons.
         destruct e1_1; eauto using FactsD_known_cons.
         destruct i; eauto using FactsD_known_cons.
-        repeat (red_exprD; Cases.rewrite_all_goal; forward; simpl in *; inv_all; try subst).
-        revert H11. repeat subst.
-        rewrite typ_cast_typ_refl in *. inv_all; subst.
-        intros; subst. specialize (H t). rewrite H3 in *. inv_all; subst.
+        repeat (red_exprD; Cases.rewrite_all_goal; forward;
+                simpl in *; inv_all; try subst).
+        destruct (H0 e2 _ f _ _ _ H5 H2 eq_refl) as [ ? [ ? ? ] ].
         consider (known_learn e2 f); intros.
-        { eexists; split. reflexivity.
-          eapply H0 in H1; eauto with typeclass_instances.
-          destruct H1. destruct H1.
-          simpl in H1. inv_all. subst.
-          etransitivity. 2: eassumption.
-          eapply landR.
-          { eapply landL1. reflexivity. }
-          { eapply landL2. eapply landL2. reflexivity. } }
-        { eapply H0 in H1; eauto with typeclass_instances.
-          destruct H1. destruct H1. simpl in H1.
-          consider (known_learn e1_2 l); simpl; intros.
-          { eexists; split; eauto.
-            eapply H0 in H6; try eassumption; eauto with typeclass_instances.
-            destruct H6. destruct H6.
-            simpl in *. inv_all; subst.
-            etransitivity; [ | eassumption ].
-            eapply landR.
-            { etransitivity; [ | eassumption ].
-              eapply landR.
-              { eapply landL1. reflexivity. }
-              { eapply landL2; eapply landL2; reflexivity. } }
-            { eapply landL2. eapply landL1. reflexivity. } }
-          { eapply H0 in H6. 4: eassumption. 2: eauto with typeclass_instances.
-            2: eauto.
-            destruct H6. destruct H6.
-            eexists; split; eauto.
-            etransitivity; [ | eassumption ].
-            eapply landR.
-            { etransitivity; [ | eassumption ].
-              eapply landR.
-              { eapply landL1. reflexivity. }
-              { eapply landL2. eapply landL2. reflexivity. } }
-            { eapply landL2. eapply landL1. reflexivity. } } } }
+        { simpl in *.
+          inv_all; subst.
+          eexists; split; try reflexivity.
+          rewrite <- H4.
+          apply landR.
+          - apply landL1. reflexivity.
+          - apply landL2.
+            rewrite H1 in *. inv_all; subst.
+            apply landL2. reflexivity. }
+        { destruct (H0 e1_2 _ l _ _ _ H7 H6 eq_refl) as [ ? [ ? ? ] ].
+          eexists; split. eassumption.
+          rewrite H1 in *. inv_all; subst.
+          rewrite <- H9.
+          apply landR.
+          - etransitivity; [ | eapply H4 ].
+            apply landR.
+            + apply landL1. reflexivity.
+            + apply landL2. apply landL2. reflexivity.
+          - apply landL2. apply landL1. reflexivity. } }
     Qed.
 
     Lemma FactsD_learn : forall f f' e v P,
@@ -379,18 +367,15 @@ Section Tauto.
         destruct i; eauto using assumption_sound.
         { eapply andb_true_iff in H4. destruct H4.
           repeat (red_exprD; forward; inv_all; subst).
-          red_exprD. rewrite H6 in *.
-          red_exprD. rewrite H6 in *.
-          rewrite typ_cast_typ_refl in *.
-          simpl in *. forward; subst. inv_all; subst.
-          inversion x0; subst. clear H9.
+          simpl in *. forward; inv_all; subst.
+          subst. subst.
+          simpl in *. forward. inv_all; subst. clear H11 H12.
           uip_all'.
-          rewrite H6 in H2. inv_all; subst.
-          specialize (H t). rewrite H6 in *.
+          rewrite H2 in *; inv_all; subst.
           eapply landR.
           { eapply H0; eauto.
             eauto with typeclass_instances. }
-          { destruct (@FactsD_learn us vs _ _ H6 env (learn e1_2 env) e1_2 t1 x H7 H3 eq_refl).
+          { destruct (@FactsD_learn us vs _ _ H2 env (learn e1_2 env) e1_2 _ x H10 H3 eq_refl).
             destruct H1.
             eapply H0 in H5. 5: eassumption. 4: eauto. 3: eauto. 2: eauto with typeclass_instances.
             etransitivity; [ | eassumption ].
@@ -399,20 +384,16 @@ Section Tauto.
             { eapply H0; eauto. eauto with typeclass_instances. } } }
         { eapply orb_true_iff in H4.
           repeat (red_exprD; forward; inv_all; simpl in *; try subst).
-          revert H13. repeat subst.
-          specialize (H t).
-          rewrite H5 in *. inv_all; subst.
-          uip_all'; intros. subst.
+          revert x0. uip_all'.
+          rewrite H1 in *. inv_all; subst.
           destruct H4.
           { eapply lorR1. eapply H0; eauto. eauto with typeclass_instances. }
           { eapply lorR2. eapply H0; eauto. eauto with typeclass_instances. } }
         { repeat (red_exprD; forward; inv_all; simpl in *; try subst).
-          revert H13; repeat subst.
-          uip_all'. intros; subst.
-          specialize (H t).
-          rewrite H5 in *; inv_all; subst.
+          uip_all'.
+          rewrite H1 in *; inv_all; subst.
           eapply limplAdj.
-          destruct (@FactsD_learn us vs _ _ H5 env _ _ _ _ H9 H3 eq_refl).
+          destruct (@FactsD_learn us vs _ _ H1 env _ _ _ _ H9 H3 eq_refl).
           destruct H2.
           etransitivity.
           2: eapply H0. 6: eassumption. 5: eassumption. 4: eauto. 3: eauto. 2: eauto with typeclass_instances.

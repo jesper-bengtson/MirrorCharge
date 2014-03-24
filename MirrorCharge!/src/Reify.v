@@ -10,11 +10,12 @@ Set Printing All.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Definition Provable a b c d e f : Prop :=
-  match @exprD a b c d e f tyProp with
+Definition Provable ts d e f g : Prop :=
+  match @exprD typ (typD ts) _ (@Expr_expr ts ilfunc d) e f g tyProp with
     | Some x => x
     | None => False
   end.
+
 
 Definition foo : list (option Type) := @cons (option Type) (@Some Type nat) nil.
 Inductive Dyn : Type :=
@@ -24,13 +25,14 @@ Axiom ILogicOps_ext : forall (A B : Type), ILogicOps B -> ILogicOps (A -> B).
 
 Definition logics : list (@sigT Type ILogicOps) :=
   (@existT _ _ (nat -> Prop) (@ILogicOps_ext nat Prop _)) :: nil.
+Print Provable.
 Ltac reify_goal := idtac ;
   match goal with
     | |- ?X =>
-      let k t f l e :=
-          let funcs := fresh "funcs" in
-          try pose (funcs := @RSym_ilfunc_ctor t f l nil) ;
-          (try change (@Provable t ilfunc funcs nil nil e))
+      let k t f l evs e :=
+          (let funcs := fresh "funcs" in
+           pose (funcs := @RSym_ilfunc_ctor t f l nil) ;
+           change (@Provable t funcs nil nil e))
       in
       let ts := eval cbv delta [foo] in foo in
       let fs := eval cbv delta [funcs] in funcs in

@@ -87,7 +87,7 @@ Module PropTests.
             assert (tcOk : @tc_mapOk t l) by  prove_tcs ;
             let embedOk := fresh in
             assert (embedOk : embed_mapOk l nil) by prove_tcs ;
-            change (@Provable t ilfunc (@RSym_ilfunc_ctor t f l nil) us nil eV) ;
+            change (@Provable t (@RSym_ilfunc_ctor t f l nil) us nil eV) ;
             cut (@tauto_call t l nil eV = true) ;
             [ exact (@Apply_tauto_Prop t f l nil tcOk embedOk us nil eV)
             | try (vm_compute; reflexivity) ]

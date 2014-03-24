@@ -9,16 +9,16 @@
  **  Inj a * Inj b * Inj c * P * Q * R [* true]?
  ** where [Inj p = p /\ emp]
  **)
-Require Import Morphisms.
+Require Import Coq.Classes.Morphisms.
 Require Import ExtLib.Data.Positive.
 Require Import ExtLib.Data.HList.
 Require Import ExtLib.Tactics.
 Require Import BILogic ILogic Pure.
 Require Import MirrorCore.EnvI.
 Require Import MirrorCore.SymI.
+Require Import MirrorCore.ExprSem.
 Require Import MirrorCore.Ext.Expr.
 Require Import MirrorCore.Ext.AppFull.
-Require Import MirrorCore.Ext.ExprSem.
 Require Import Iterated.
 Require Import ILogicFunc SepLogFold.
 Require Import SynSepLog.
@@ -137,8 +137,6 @@ Section conjunctives.
       let pur := iterated_base SSL.(e_emp) SSL.(e_star) (map (SSL.(e_and) SSL.(e_emp)) c.(pure)) in
       SSL.(e_star) pur (SSL.(e_star) spa (if c.(star_true) then SSL.(e_true) else SSL.(e_emp))).
 
-    Require Import MirrorCore.Ext.ExprSem.
-
     Section with_pure.
 
     Variable PureOp_it : @PureOp (typD ts nil SL).
@@ -165,8 +163,8 @@ Section conjunctives.
       { intros.
         generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
                       (Sem_equiv _ SL lequiv us vs)
-                      (@Reflexive_Sem_equiv _ _ _ SL lequiv _ us vs)
-                      (@Transitive_Sem_equiv _ _ _ SL lequiv _ us vs)
+                      (@Reflexive_Sem_equiv _ _ _ _ SL lequiv _ us vs)
+                      (@Transitive_Sem_equiv _ _ _ _ SL lequiv _ us vs)
                       (@Sem_equiv_e_and_assoc _ _ _ SL _ _ _ SSL SSLO us vs)
                       (@Sem_equiv_Proper_e_and _ _ _ SL _ _ _ _ SSLO us vs)
                       (@Sem_equiv_e_true_e_and_unitLL _ _ _ SL _ _ _ _ SSLO us vs)
@@ -185,30 +183,32 @@ Section conjunctives.
     Qed.
 
     Lemma iterated_base_true_and_star_emp'
-    : forall us tvs ps,
+    : forall tus tvs ps,
         match
-            exprD' us tvs (iterated_base SSL.(e_true) SSL.(e_and) ps) SL
-          , exprD' us tvs (iterated_base SSL.(e_emp) SSL.(e_star) (map (SSL.(e_and) SSL.(e_emp)) ps)) SL
+            exprD' tus tvs (iterated_base SSL.(e_true) SSL.(e_and) ps) SL
+          , exprD' tus tvs (iterated_base SSL.(e_emp) SSL.(e_star) (map (SSL.(e_and) SSL.(e_emp)) ps)) SL
         with
           | Some x , Some x' =>
-            forall Q vs,
+            forall Q us vs,
               List.Forall
                 (fun e : expr sym =>
-                   exists val : typD ts nil SL, exprD us (join_env vs) e SL = Some val /\ Pure.pure val)
+                   exists val : typD ts nil SL,
+                        exprD (join_env us) (join_env vs) e SL = Some val
+                     /\ Pure.pure val)
                 ps ->
-              (x vs //\\ Q -|- x' vs ** Q)
+              (x us vs //\\ Q -|- x' us vs ** Q)
           | None , None => True
           | _ , _ => False
         end.
     Proof.
       induction ps; simpl; intros.
       { unfold iterated_base in *; simpl in *.
-        destruct (SSLO.(e_empOk) us tvs) as [ ? [ ? ? ] ].
-        destruct (e_trueOk SSLO us tvs) as [ ? [ ? ? ] ].
+        destruct (SSLO.(e_empOk) tus tvs) as [ ? [ ? ? ] ].
+        destruct (e_trueOk SSLO tus tvs) as [ ? [ ? ? ] ].
         Cases.rewrite_all_goal; intros.
         rewrite H0. rewrite H2.
         rewrite empSPL. rewrite ltrue_unitL; eauto. }
-      {         (*
+      { (*
 generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
                       (Sem_equiv' _ SL lequiv us vs)
                       (@Reflexive_Sem_equiv' _ _ _ SL lequiv _ us tvs)
@@ -286,8 +286,8 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
         rewrite empSPL. rewrite ltrue_unitL; eauto. }
       { generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
                       (Sem_equiv _ SL lequiv us vs)
-                      (@Reflexive_Sem_equiv _ _ _ SL lequiv _ us vs)
-                      (@Transitive_Sem_equiv _ _ _ SL lequiv _ us vs)
+                      (@Reflexive_Sem_equiv _ _ _ _ SL lequiv _ us vs)
+                      (@Transitive_Sem_equiv _ _ _ _ SL lequiv _ us vs)
                       (@Sem_equiv_e_and_assoc _ _ _ SL _ _ _ SSL SSLO us vs)
                       (@Sem_equiv_Proper_e_and _ _ _ SL _ _ _ _ SSLO us vs)
                       (@Sem_equiv_e_true_e_and_unitLL _ _ _ SL _ _ _ _ SSLO us vs)
@@ -297,8 +297,8 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
                    a ps).
         generalize (@iterated_base_cons _ SSL.(e_emp) SSL.(e_star)
                       (Sem_equiv _ SL lequiv us vs)
-                      (@Reflexive_Sem_equiv _ _ _ SL lequiv _ us vs)
-                      (@Transitive_Sem_equiv _ _ _ SL lequiv _ us vs)
+                      (@Reflexive_Sem_equiv _ _ _ _ SL lequiv _ us vs)
+                      (@Transitive_Sem_equiv _ _ _ _ SL lequiv _ us vs)
                       (@Sem_equiv_e_star_assoc _ _ _ SL _ _ _ _ SSL SSLO us vs)
                       (@Sem_equiv_Proper_e_star _ _ _ SL _ _ _ _ _ SSLO us vs)
                       (@Sem_equiv_e_emp_e_star_unitLL _ _ _ SL _ _ _ _ _ SSLO us vs)
@@ -489,15 +489,15 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
 *)
 
     Theorem conjunctives_to_expr_conjunctives_to_expr_star_iff
-    : forall tvs us c,
+    : forall tvs tus c,
         match
-            exprD' us tvs (conjunctives_to_expr c) SL
-          , exprD' us tvs (conjunctives_to_expr_star c) SL
+            exprD' tus tvs (conjunctives_to_expr c) SL
+          , exprD' tus tvs (conjunctives_to_expr_star c) SL
         with
           | Some cE , Some cE' =>
-            forall (vs : hlist (typD ts nil) tvs),
-            well_formed _ c us (join_env vs) ->
-            cE vs -|- cE' vs
+            forall us (vs : hlist (typD ts nil) tvs),
+            well_formed _ c (join_env us) (join_env vs) ->
+            cE us vs -|- cE' us vs
           | None , None => True
           | _ , _ => False
         end.
@@ -611,13 +611,12 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
 
     Definition R_conjunctives
                (e : expr sym) (c : conjunctives) (tus tvs : tenv typ) : Prop :=
-      forall us : hlist _ tus,
       forall val,
-        exprD' (ts := ts) (join_env us) tvs e SL = Some val ->
+        exprD' (ts := ts) tus tvs e SL = Some val ->
         exists val',
-             exprD' (join_env us) tvs (conjunctives_to_expr c) SL = Some val'
-          /\ (forall vs,
-                (val vs -|- val' vs) /\ well_formed _ c (join_env us) (join_env vs)).
+             exprD' tus tvs (conjunctives_to_expr c) SL = Some val'
+          /\ (forall us vs,
+                (val us vs -|- val' us vs) /\ well_formed _ c (join_env us) (join_env vs)).
 
     Ltac forward_ex_and :=
       repeat match goal with
@@ -629,8 +628,6 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
     Proof.
       destruct IL. destruct lentailsPre. auto.
     Qed.
-
-    Require Import MirrorCore.Ext.ExprSem.
 
     Lemma something_smart
     : forall a b c d,
@@ -647,14 +644,15 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
     Qed.
 
     Lemma well_formed_pure
-    : forall x us tvs (vs : hlist _ tvs),
-        well_formed _ x us (join_env vs) ->
+    : forall x us vs,
+        well_formed _ x us vs ->
         forall x7,
-          exprD' us tvs (iterated_base SSL.(e_true) SSL.(e_and) (pure x)) SL = Some x7 ->
-          Pure.pure (x7 vs).
+          exprD us vs (iterated_base SSL.(e_true) SSL.(e_and) (pure x)) SL = Some x7 ->
+          Pure.pure x7.
     Proof.
       unfold well_formed. destruct x; simpl.
       induction 1; simpl; intros.
+(*
       { unfold iterated_base in H. simpl in *.
         destruct (SSLO.(e_trueOk) us tvs).
         rewrite H in *. destruct H0.
@@ -672,7 +670,8 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
           unfold exprD in H. rewrite split_env_join_env in *.
           rewrite H1 in *. inv_all; subst.
           auto. } }
-    Qed.
+    Qed. *)
+    Admitted.
 
     Lemma Forall_app
     : forall T (P : T -> Prop) xs ys,
@@ -705,16 +704,16 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
     Qed.
 
     Lemma cte_mkStar
-    : forall us tvs r_res l_res rval lval,
-        exprD' us tvs (conjunctives_to_expr r_res) SL = Some rval ->
-        exprD' us tvs (conjunctives_to_expr l_res) SL = Some lval ->
+    : forall tus tvs r_res l_res rval lval,
+        exprD' tus tvs (conjunctives_to_expr r_res) SL = Some rval ->
+        exprD' tus tvs (conjunctives_to_expr l_res) SL = Some lval ->
         exists val,
-          exprD' us tvs (conjunctives_to_expr (mkStar l_res r_res)) SL = Some val /\
-          forall vs,
-            well_formed _ l_res us (join_env vs) ->
-            well_formed _ r_res us (join_env vs) ->
-            (val vs -|- lval vs ** rval vs) /\
-            well_formed _ (mkStar l_res r_res) us (join_env vs).
+          exprD' tus tvs (conjunctives_to_expr (mkStar l_res r_res)) SL = Some val /\
+          forall us vs,
+            well_formed _ l_res (join_env us) (join_env vs) ->
+            well_formed _ r_res (join_env us) (join_env vs) ->
+            (val us vs -|- lval us vs ** rval us vs) /\
+            well_formed _ (mkStar l_res r_res) (join_env us) (join_env vs).
     Proof.
 (*
       intros.
@@ -901,14 +900,14 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
           (BIL : @BILogic _ ILO BILO)
           (sls : SepLogSpec sym) (slsOk : SepLogSpecOk _ _ sls _ _)
           (ssl : SynSepLog sym) (sslo : SynSepLogOk _ _ _ _ ssl)
-  : forall (e : expr sym) us tvs,
-      match exprD' (ts := ts) us tvs e SL
-          , exprD' us tvs (conjunctives_to_expr ssl (normalize sls e (typeof_env us) tvs)) SL
+  : forall (e : expr sym) tus tvs,
+      match exprD' (ts := ts) tus tvs e SL
+          , exprD' tus tvs (conjunctives_to_expr ssl (normalize sls e tus tvs)) SL
       with
         | Some l , Some r =>
-          forall vs,
-            (l vs -|- r vs) /\
-            well_formed (slsOk.(_PureOp)) (normalize sls e (typeof_env us) tvs) us (join_env vs)
+          forall us vs,
+            (l us vs -|- r us vs) /\
+            well_formed (slsOk.(_PureOp)) (normalize sls e tus tvs) (join_env us) (join_env vs)
         | None , None => True
         | _ , _ => False
       end.
