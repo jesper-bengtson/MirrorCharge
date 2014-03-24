@@ -145,10 +145,8 @@ Section SepTests.
                 pose (rhs'V := rhs') ;
                 let sub'V := fresh in
                 pose (sub'V := sub') ;
-                idtac "10" ;
                 cut (@canceller_pre t f lV emV tySLV ILOps usV vsV lhs'V rhs'V sub'V) ;
-                [ idtac "11" ;
-                  exact_no_check (@apply_the_canceller
+                [ exact_no_check (@apply_the_canceller
                                     tsV fsV lV emV
                                     (@tc_mapOk_to_logic_opsOk tsV l tcOk)
                                     (@embed_mapOk_to_embed_opsOk tsV l nil embedOk)
@@ -161,7 +159,7 @@ Section SepTests.
                                        (fun us tvs => @eq_refl _ _)
                                        (fun us tvs => @eq_refl _ _))
                                     usV vsV lhsV rhsV lhs'V rhs'V sub'V
-                                    (@eq_refl _ (lhs'V,rhs'V,sub'V) : (solver = (lhs'V,rhs'V,sub'V)))
+                                    (@eq_refl _ (lhs'V,rhs'V,sub'V) <: (solver = (lhs'V,rhs'V,sub'V)))
                                  )
                 | cbv beta iota zeta delta
                       [ canceller_pre exprD EnvI.split_env lhs'V rhs'V sub'V tsV fsV lV emV usV  vsV exprD'
@@ -176,7 +174,9 @@ Section SepTests.
                         FMapSubst.SUBST.env FMapSubst.SUBST.raw_substD
                         FMapSubst.MAP.fold
                         FMapSubst.MAP.this FMapSubst.MAP.Raw.fold
-                        nth_error value error EnvI.lookupAs
+                        nth_error value error EnvI.lookupAs ExprI.exprD' Expr_expr
+                        ExprDI.nth_error_get_hlist_nth projT1 projT2
+                        HList.hlist_hd HList.hlist_tl
                       ] ;
                   try clear lhs'V rhs'V lhsV rhsV sub'V tsV fsV l lV emV vsV usV embedOk tcOk
                 ]
@@ -190,8 +190,6 @@ Section SepTests.
          ** to [reify_expr].
          **)
     end.
-
-
 
   (** Propositional **)
   Variables P Q R S T : SL.
