@@ -23,6 +23,7 @@ OBJECTS = \
 	bin/CancellerTac.vo \
 	bin/ILFFold.vo \
 	bin/ILPullQuant.vo \
+	bin/ILPullQuantStar.vo \
 	bin/ILogicFunc.vo \
 	bin/Iterated.vo \
 	bin/MonadicCanceller.vo \
@@ -43,6 +44,7 @@ bin/BILNormalize.vo: src/BILNormalize.v bin/Iterated.vo bin/ILogicFunc.vo bin/Se
 bin/CancellerTac.vo: src/CancellerTac.v bin/BILNormalize.vo bin/OrderedCanceller.vo bin/SynSepLog.vo bin/SepLogFold.vo bin/ILogicFunc.vo
 bin/ILFFold.vo: src/ILFFold.v bin/ILogicFunc.vo
 bin/ILPullQuant.vo: src/ILPullQuant.v bin/ILogicFunc.vo
+bin/ILPullQuantStar.vo: src/ILPullQuantStar.v bin/ILogicFunc.vo bin/ILFFold.vo
 bin/ILogicFunc.vo: src/ILogicFunc.v
 bin/Iterated.vo: src/Iterated.v
 bin/MonadicCanceller.vo: src/MonadicCanceller.v bin/BILNormalize.vo

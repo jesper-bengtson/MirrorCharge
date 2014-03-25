@@ -19,6 +19,7 @@ Require Import ExtLib.Tactics.EqDep.
 Require Import Ext.SetoidFold.
 Require Import Relation_Definitions.
 Require Import MirrorCore.Ext.AppFull.
+Require Import ILFFold.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -61,14 +62,11 @@ Section PullQuant.
         match a us vs, b us vs with
           | Some (xs, a), Some (ys, b) => Some (xs ++ ys,
                                                 App (App f (lift 0 (length ys) a))
-          | Some (xs, a), Some (ys, b) => Some (xs ++ ys,
-                                                App (App f (lift 0 (length ys) a))
                                                     (lift (length ys) (length xs) b))
           | _, _                       => None
         end
       | _, _ => None
     end.
-
 
   Definition pq_exists (t t_logic : typ) (_ : expr ilfunc) (a : T) : T :=
     fun us vs =>
@@ -91,7 +89,7 @@ Section PullQuant.
       | None         => None
     end.
 
-  Definition TD (t : typ) (e : TT) (us : env (typD ts)) (vs : tenv typ) :=
+  Definition TD (t : typ) (e : TT) (us vs : tenv typ) :=
     match Teval e t with
       | Some e => exprD' us vs e t
       | None   => None
@@ -113,11 +111,11 @@ Section PullQuant.
       | None => True
     end.
 
-  Definition PQR (t : typ) (e : expr ilfunc) (arg : TT) (us : env (typD ts)) (vs : tenv typ) :=
+  Definition PQR (t : typ) (e : expr ilfunc) (arg : TT) (us vs : tenv typ) :=
     match TD t arg us vs, exprD' us vs e t, gs t with
       | None, _, _ => True
       | _, _, None => True
-      | Some p, Some q, Some _ => forall vs, (p vs) |-- (q vs)
+      | Some p, Some q, Some _ => forall us vs, (p us vs) |-- (q us vs)
       | _, _, _ => False
     end.
 
@@ -148,8 +146,8 @@ Section PullQuant.
   Defined.
   Hint Extern 1 (Reflexive _) => (apply Refl_from_env_lequiv; [ assumption ]) : typeclass_instances.
 
-  Lemma Hatomic tus tvs t e (H : typeof_expr (typeof_env tus) tvs e = Some t) :
-    PQR t e (atomic e (typeof_env tus) tvs) tus tvs.
+  Lemma Hatomic tus tvs t e (H : typeof_expr tus tvs e = Some t) :
+    PQR t e (atomic e tus tvs) tus tvs.
   Proof.
     unfold atomic, PQR, TD; simpl. forward.
     reflexivity.
@@ -157,20 +155,20 @@ Section PullQuant.
 
   Lemma Habs
   : forall tus tvs t t' e e_res,
-      typeof_expr (typeof_env tus) tvs (Abs t e) = Some (tyArr t t') ->
-      @PQR t' e (e_res (typeof_env tus) (t :: tvs)) tus (t :: tvs) ->
-      @PQR (tyArr t t') (Abs t e) (pq_abs t e e_res (typeof_env tus) tvs) tus tvs.
+      typeof_expr tus tvs (Abs t e) = Some (tyArr t t') ->
+      @PQR t' e (e_res tus (t :: tvs)) tus (t :: tvs) ->
+      @PQR (tyArr t t') (Abs t e) (pq_abs t e e_res tus tvs) tus tvs.
   Proof.
     intros; apply Hatomic; assumption.
   Qed.
 
   Lemma Hex
-  : forall (tus : env (typD ts)) (tvs : tenv typ) t t_logic e (e_res : T),
-      typeof_expr (typeof_env tus) tvs (App (Inj (ilf_exists t t_logic)) (Abs t e)) = Some t_logic ->
-      PQR t_logic e (e_res (typeof_env tus) (t :: tvs)) tus (t :: tvs) ->
+  : forall (tus tvs : tenv typ) t t_logic e (e_res : T),
+      typeof_expr tus tvs (App (Inj (ilf_exists t t_logic)) (Abs t e)) = Some t_logic ->
+      PQR t_logic e (e_res tus (t :: tvs)) tus (t :: tvs) ->
       PQR t_logic
           (App (Inj (ilf_exists t t_logic)) (Abs t e))
-          (@pq_exists t t_logic e e_res (typeof_env tus) tvs) tus tvs.
+          (@pq_exists t t_logic e e_res tus tvs) tus tvs.
   Proof.
     intros.
     unfold PQR, pq_exists in *; simpl in *.
@@ -178,7 +176,7 @@ Section PullQuant.
     red_exprD; forward; inv_all; subst.
     red_exprD.
     unfold type_of_apply in H2; simpl in H2. forward. destruct H2; subst. inv_all; subst.
-    remember (e_res (typeof_env tus) (t :: tvs)) as o; destruct o; [| compute in H4; congruence].
+    remember (e_res tus (t :: tvs)) as o; destruct o; [| compute in H4; congruence].
     destruct p; simpl in *.
     unfold TD in H4; simpl in H4. inv_all; subst.
     red_exprD; forward; inv_all. clear H12. revert H9; subst; intros.
@@ -212,7 +210,7 @@ Section PullQuant.
       exprD' tus tvs (add_quants (a :: b) Ty tm) Ty = Some x ->
       exists y,
         exprD' tus (a :: tvs) (add_quants b Ty tm) Ty = Some y /\
-        forall g, x g -|- lexists (fun v => y (HList.Hcons v g)).
+        forall u g, x u g -|- lexists (fun v => y u (HList.Hcons v g)).
   Proof.
     simpl.
     intros.
@@ -288,7 +286,7 @@ Section PullQuant.
       exprD' tus (rev xs ++ tvs) tm Ty = Some dtm ->
       exists dtm',
         exprD' tus tvs (add_quants xs Ty tm) Ty = Some dtm' /\
-        forall vs, dtm' vs -|- lexists (fun vs' => dtm (HList.hlist_app vs' vs)).
+        forall us vs, dtm' us vs -|- lexists (fun vs' => dtm us (HList.hlist_app vs' vs)).
   Proof.
     induction xs; simpl; intros.
     + exists dtm. split; [assumption|].
@@ -300,7 +298,7 @@ Section PullQuant.
       { rewrite app_ass. reflexivity. }
       rewrite exprD'_var_env with (H := H1) in IHxs.
       rewrite H0 in IHxs.
-      specialize (IHxs (fun x => match H1 in _ = vs return hlist (typD ts nil) vs -> typD ts nil Ty with
+      specialize (IHxs (fun x => match H1 in _ = vs return hlist (typD ts nil) tus -> hlist (typD ts nil) vs -> typD ts nil Ty with
                                    | eq_refl => dtm
                                  end x)).
       destruct IHxs.
@@ -318,7 +316,7 @@ Section PullQuant.
         intros.
         split.
         { apply lexistsL; intros.
-          specialize (H3 (Hcons x0 vs)).
+          specialize (H3 us (Hcons x0 vs)).
           rewrite H3.
           apply lexistsL; intros.
           eapply (lexistsR (hlist_app x1 (Hcons x0 Hnil))).
@@ -356,7 +354,7 @@ Section PullQuant.
       exprD' tus tvs (add_quants (a ++ b) Ty tm) Ty = Some x ->
       exists y,
         exprD' tus (rev a ++ tvs) (add_quants b Ty tm) Ty = Some y /\
-        forall g, x g -|- lexists (fun v => y (HList.hlist_app v g)).
+        forall us g, x us g -|- lexists (fun v => y us (HList.hlist_app v g)).
   Proof.
     induction a.
     { simpl.
@@ -375,15 +373,15 @@ Section PullQuant.
       assert ((rev a0 ++ a :: nil) ++ tvs = rev a0 ++ a :: tvs).
       { rewrite app_ass. reflexivity. }
       intros.
-      exists (fun z =>
-                x1 match H0 in _ = t return HList.hlist (typD ts nil) t with
-                     | eq_refl => z
-                   end).
+      exists (fun us z =>
+                x1 us match H0 in _ = t return HList.hlist (typD ts nil) t with
+                       | eq_refl => z
+                      end).
       generalize H.
       change (a :: tvs) with ((a :: nil) ++ tvs) in *.
-      assert (forall g : HList.hlist (typD ts nil) tvs,
-                x g -|- Exists v : HList.hlist (typD ts nil) (a :: nil), x0 (HList.hlist_app v g)).
-      { intros. specialize (H1 g).
+      assert (forall us, forall g : HList.hlist (typD ts nil) tvs,
+                x us g -|- Exists v : HList.hlist (typD ts nil) (a :: nil), x0 us (HList.hlist_app v g)).
+      { intros. specialize (H1 us g).
         rewrite H1.
         split.
         { apply lexistsL; intros.
@@ -416,7 +414,7 @@ Section PullQuant.
       exprD' tus tvs (add_quants a Ty tm) Ty = Some x ->
       exists y,
         exprD' tus (rev a ++ tvs) tm Ty = Some y /\
-        forall g, x g -|- lexists (fun v => y (HList.hlist_app v g)).
+        forall us g, x us g -|- lexists (fun v => y us (HList.hlist_app v g)).
   Proof.
     intros.
     rewrite <- (app_nil_r a) in H0.
@@ -430,11 +428,6 @@ Section PullQuant.
     assert (hnil = Hnil) by apply hlist_nil_eta.
     rewrite H. reflexivity.
   Qed.
-  Lemma hlist_app_nil A F (xs : list A) (hnil : hlist F nil) (hys : hlist F xs) : hlist_app hnil hys = hys.
-  Proof.
-    assert (hnil = Hnil) by apply hlist_nil_eta.
-    rewrite H. reflexivity.
-  Qed.
 
   Lemma hlist_app_cons A F (xs ys : list A) (x : A) (el : F x) (hxs : hlist F xs) (hys : hlist F ys) :
     Hcons el (hlist_app hxs hys) = hlist_app (Hcons el hxs) hys.
@@ -442,13 +435,13 @@ Section PullQuant.
     simpl. reflexivity.
   Qed.
 
-  Lemma lift_entails tus xs ys zs e t de df (HILops : ILogicOps (typD ts nil t)) (HIL: ILogic (typD ts nil t))
+  Lemma lift_entails tus xs ys zs e t de df us (HILops : ILogicOps (typD ts nil t)) (HIL: ILogic (typD ts nil t))
 	(He : exprD' tus (xs ++ ys ++ zs) (lift (length xs) (length ys) e) t = Some de)
 	(Hf : exprD' tus (xs ++ zs) e t = Some df)
 	(hxs : hlist (typD ts nil) xs)
 	(hys : hlist (typD ts nil) ys)
 	(hzs : hlist (typD ts nil) zs) :
-    de (hlist_app hxs (hlist_app hys hzs)) |-- df (hlist_app hxs hzs).
+    de us (hlist_app hxs (hlist_app hys hzs)) |-- df us (hlist_app hxs hzs).
   Proof.
     induction ys; intros; simpl in *.
     + rewrite hlist_app_nil.
@@ -458,18 +451,18 @@ Section PullQuant.
       pose proof (exprD'_lift RSym_sym tus xs (a::nil) (ys++zs) (lift (length xs) (length ys) e) t).
       simpl in *. forward; inv_all; subst.
       specialize (IHys t1).
-      specialize (H1 hxs (Hcons (hlist_hd hys) Hnil) (hlist_app (hlist_tl hys) hzs)).
+      specialize (H1 us hxs (Hcons (hlist_hd hys) Hnil) (hlist_app (hlist_tl hys) hzs)).
       simpl in H1.
       rewrite hlist_app_cons, <- hlist_cons_eta in H1.
       rewrite H1 at 1. apply IHys. reflexivity.
   Qed.
-
+(*
   Lemma add_quants_app tus tvs xs ys t p q d (IL : ILogicOps (typD ts nil t))
   	(H : exprD' tus tvs (add_quants (xs ++ ys) t (App (lift 0 (length ys) p) (lift (length ys) (length xs) q))) t = Some d) :
     exists tq dp dq,
-      typeof_expr (typeof_env tus) (rev ys ++ tvs) q = Some tq /\
+      typeof_expr tus (rev ys ++ tvs) q = Some tq /\
       exprD' tus tvs (add_quants xs (tyArr tq t) p) (tyArr tq t) = Some dp /\ exprD' tus tvs (add_quants ys tq q) tq = Some dq /\
-      forall vs, d vs |-- (dp vs) (dq vs).
+      forall us vs, d us vs |-- (dp us vs) (dq us vs).
   Proof.
     eapply exprD'_add_quants_app_Some in H; eauto.
     destruct H as [ ? [ ? ? ] ].
@@ -516,39 +509,19 @@ Section PullQuant.
  		   but an extra Proper requirement is also needed that allows us to prove (f p |-- g q) if (f |-- g) and (p |-- q). The problem here is also that these propers need
  		   to be preserved when the existential quantifiers are stripped. This is true, but requires lemmas such as exprD'_add_quants_app_Some to keep track of that information
  		   as well. The question is if we want a lemma that is as general as this one, or if we are happy with the special cases. *)
+*)
 
-  Lemma lift_entails tus xs ys zs e t de df (HILops : ILogicOps (typD ts nil t)) (HIL: ILogic (typD ts nil t))
-	(He : exprD' tus (xs ++ ys ++ zs) (lift (length xs) (length ys) e) t = Some de)
-	(Hf : exprD' tus (xs ++ zs) e t = Some df)
-	(hxs : hlist (typD ts nil) xs)
-	(hys : hlist (typD ts nil) ys)
-	(hzs : hlist (typD ts nil) zs) :
-    de (hlist_app hxs (hlist_app hys hzs)) |-- df (hlist_app hxs hzs).
-  Proof.
-    induction ys; intros; simpl in *.
-    + rewrite hlist_app_nil.
-      rewrite He in Hf. inversion Hf. reflexivity.
-    + replace (S (length ys)) with (1 + length ys) in He by omega.
-      rewrite <- lift_lift', <- lift_lift in He.
-      pose proof (exprD'_lift RSym_sym tus xs (a::nil) (ys++zs) (lift (length xs) (length ys) e) t).
-      simpl in *. forward; inv_all; subst.
-      specialize (IHys t1).
-      specialize (H1 hxs (Hcons (hlist_hd hys) Hnil) (hlist_app (hlist_tl hys) hzs)).
-      simpl in H1.
-      rewrite hlist_app_cons, <- hlist_cons_eta in H1.
-      rewrite H1 at 1. apply IHys. reflexivity.
-  Qed.
 
   Lemma Happ
   : forall tus tvs l (l_res : T) rs t ts,
-      typeof_expr (typeof_env tus) tvs (apps l (map fst rs)) = Some t ->
+      typeof_expr tus tvs (apps l (map fst rs)) = Some t ->
       let ft := fold_right tyArr t ts in
-      PQR ft l (l_res (typeof_env tus) tvs) tus tvs ->
+      PQR ft l (l_res tus tvs) tus tvs ->
       Forall2 (fun t x =>
-                    typeof_expr (typeof_env tus) tvs (fst x) = Some t
-                 /\ PQR t (fst x) (snd x (typeof_env tus) tvs) tus tvs)
+                    typeof_expr tus tvs (fst x) = Some t
+                 /\ PQR t (fst x) (snd x tus tvs) tus tvs)
               ts rs ->
-      PQR t (apps l (map fst rs)) (pq_app l l_res rs (typeof_env tus) tvs) tus tvs.
+      PQR t (apps l (map fst rs)) (pq_app l l_res rs tus tvs) tus tvs.
    Proof.
      intros; unfold PQR, TD, Teval in *.
      destruct l; simpl in *; try apply I.
@@ -625,7 +598,7 @@ Section PullQuant.
         + apply landL1.
           rewrite <- H20. rewrite H15.
           apply lexistsR with x3.
-          specialize (H13 Hnil x4 (hlist_app x3 vs)). simpl in H13. rewrite H13. reflexivity.
+          specialize (H13 us Hnil x4 (hlist_app x3 vs)). simpl in H13. rewrite H13. reflexivity.
         + apply landL2.
           rewrite <- H18. rewrite H16. apply lexistsR with x4.
           rewrite H5. reflexivity.
@@ -697,7 +670,7 @@ Section PullQuant.
         + apply lorR1.
           rewrite <- H20. rewrite H15.
           apply lexistsR with x3.
-          specialize (H13 Hnil x4 (hlist_app x3 vs)). simpl in H13. rewrite H13. reflexivity.
+          specialize (H13 us Hnil x4 (hlist_app x3 vs)). simpl in H13. rewrite H13. reflexivity.
         + apply lorR2.
           rewrite <- H18. rewrite H16. apply lexistsR with x4.
           rewrite H5. reflexivity.
