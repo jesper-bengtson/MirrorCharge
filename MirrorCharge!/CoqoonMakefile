@@ -28,6 +28,7 @@ OBJECTS = \
 	bin/Iterated.vo \
 	bin/MonadicCanceller.vo \
 	bin/OrderedCanceller.vo \
+	bin/QuantCancel.vo \
 	bin/Reify.vo \
 	bin/SepLogFold.vo \
 	bin/SepLogFoldWithAnd.vo \
@@ -44,11 +45,12 @@ bin/BILNormalize.vo: src/BILNormalize.v bin/Iterated.vo bin/ILogicFunc.vo bin/Se
 bin/CancellerTac.vo: src/CancellerTac.v bin/BILNormalize.vo bin/OrderedCanceller.vo bin/SynSepLog.vo bin/SepLogFold.vo bin/ILogicFunc.vo
 bin/ILFFold.vo: src/ILFFold.v bin/ILogicFunc.vo
 bin/ILPullQuant.vo: src/ILPullQuant.v bin/ILogicFunc.vo
-bin/ILPullQuantStar.vo: src/ILPullQuantStar.v bin/ILogicFunc.vo bin/ILFFold.vo
+bin/ILPullQuantStar.vo: src/ILPullQuantStar.v bin/ILogicFunc.vo bin/ILFFold.vo bin/SepLogFold.vo
 bin/ILogicFunc.vo: src/ILogicFunc.v
 bin/Iterated.vo: src/Iterated.v
 bin/MonadicCanceller.vo: src/MonadicCanceller.v bin/BILNormalize.vo
 bin/OrderedCanceller.vo: src/OrderedCanceller.v bin/BILNormalize.vo bin/Iterated.vo bin/SynSepLog.vo
+bin/QuantCancel.vo: src/QuantCancel.v bin/ILogicFunc.vo bin/ILFFold.vo bin/SepLogFold.vo bin/ILPullQuantStar.vo bin/CancellerTac.vo bin/SynSepLog.vo
 bin/Reify.vo: src/Reify.v bin/ILogicFunc.vo
 bin/SepLogFold.vo: src/SepLogFold.v
 bin/SepLogFoldWithAnd.vo: src/SepLogFoldWithAnd.v
