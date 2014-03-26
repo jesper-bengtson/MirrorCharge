@@ -19,7 +19,7 @@ Require Import ExtLib.Tactics.EqDep.
 Require Import Ext.SetoidFold.
 Require Import Relation_Definitions.
 Require Import MirrorCore.Ext.AppFull.
-
+(*
 Set Implicit Arguments.
 Unset Strict Implicit.
 Set Maximal Implicit Insertion.
@@ -1871,3 +1871,4 @@ Section PullForallRight.
 	end.
 
 End PullForallRight.
+*)
