@@ -173,7 +173,7 @@ struct
       M.bind (reify_typeclass rt tc) (fun tc ->
 	if tc then
 	  M.bind (ReifyExtTypes.reify tq) (fun rtq ->
-	    M.ret (Term.mkApp (Lazy.force f, [| rt ; rtq |])))
+	    M.ret (Term.mkApp (Lazy.force f, [| rtq ; rt |])))
 	else
 	  (** This slot is already taken **)
 	  assert false))
@@ -330,7 +330,7 @@ struct
       let ary_len = Array.length ts in
       if cnt = ary_len then
 	ReifyILFunc.reify (Term.mkApp (t,ts))
-      else if cnt > ary_len then
+      else if cnt < ary_len then
 	Array.fold_left (fun acc x ->
 	  REIFY_MONAD.bind acc (fun acc ->
 	    REIFY_MONAD.bind (reify_expr x) (fun x ->
@@ -338,7 +338,16 @@ struct
 	  (ReifyILFunc.reify (Term.mkApp (t,Array.sub ts 0 cnt)))
 	  (Array.sub ts cnt (ary_len - cnt))
       else
-	assert false (** We can't reify this term **)
+	(let _ = Format.printf "Function Type: %a\ncnt=%d ary_len=%d\n" pp_constr t cnt ary_len in
+	 let rec print_each i =
+	   if i < ary_len then
+	     let _ = Format.printf "[%d] = %a\n" i pp_constr (Array.get ts i) in
+	     print_each (i + 1)
+	   else
+	     () in
+	 let _ = print_each 0 in
+	 assert false (** We can't reify this term **)
+	)
     with
       Not_found ->
 	(** this isn't a type-class function, so we just do the usual thing **)
@@ -636,19 +645,19 @@ let do_it ts fs tcs es k gl =
  **)
 TACTIC EXTEND reify_Ext_SymEnv_reify_expr
     (** full definition **)
-  | ["reify_expr" "{types:" constr(ts) "}"
-	          "{funcs:" constr(fs) "}"
-		  "{logics:" constr(ls) "}"
+  | ["reify_expr" "<types:" constr(ts) ">"
+	          "<funcs:" constr(fs) ">"
+		  "<logics:" constr(ls) ">"
 	"[" constr_list(es) "]" tactic(k) ] ->
     [ fun gl -> do_it (Some ts) (Some fs) (Some ls) es k gl ]
     (** Abbreviations **)
   | ["reify_expr" "[" constr_list(es) "]" tactic(k) ] ->
     [ fun gl -> do_it None None None es k gl ]
-  | ["reify_expr" "{types:" constr(ts) "}" "[" constr_list(es) "]" tactic(k) ] ->
+  | ["reify_expr" "<types:" constr(ts) ">" "[" constr_list(es) "]" tactic(k) ] ->
     [ fun gl -> do_it (Some ts) None None es k gl ]
-  | ["reify_expr" "{funcs:" constr(fs) "}" "[" constr_list(es) "]" tactic(k) ] ->
+  | ["reify_expr" "<funcs:" constr(fs) ">" "[" constr_list(es) "]" tactic(k) ] ->
     [ fun gl -> do_it None (Some fs) None es k gl ]
-  | ["reify_expr" "{types:" constr(ts) "}"
-	          "{funcs:" constr(fs) "}" "[" constr_list(es) "]" tactic(k) ] ->
+  | ["reify_expr" "<types:" constr(ts) ">"
+	          "<funcs:" constr(fs) ">" "[" constr_list(es) "]" tactic(k) ] ->
     [ fun gl -> do_it (Some ts) (Some fs) None es k gl ]
 END;;

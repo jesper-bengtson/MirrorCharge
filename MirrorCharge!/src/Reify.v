@@ -37,7 +37,7 @@ Ltac reify_goal := idtac ;
       let ts := eval cbv delta [foo] in foo in
       let fs := eval cbv delta [funcs] in funcs in
       let ls := eval cbv delta [logics] in logics in
-      reify_expr {types:ts} {funcs:fs} {logics:ls} [X] k
+      reify_expr <types:ts> <funcs:fs> <logics:ls> [X] k
   end.
 
 Goal True.
