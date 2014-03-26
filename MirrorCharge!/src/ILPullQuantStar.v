@@ -57,14 +57,14 @@ Section PullQuant.
           | Some (xs, a), Some (ys, b) => Some (xs ++ ys,
                                                 App (App f (lift 0 (length ys) a))
                                                     (lift (length ys) (length xs) b))
-          | _, _                       => None
+          | _, _                       => Some (nil, apps f (map fst args))
         end
       | Inj (ilf_or t), (_, a)::(_, b)::nil =>
         match a us vs, b us vs with
           | Some (xs, a), Some (ys, b) => Some (xs ++ ys,
                                                 App (App f (lift 0 (length ys) a))
                                                     (lift (length ys) (length xs) b))
-          | _, _                       => None
+          | _, _                       => Some (nil, apps f (map fst args))
         end
       | Inj f, (_, a)::(_, b)::nil =>
       	if slspec.(is_star) f then
@@ -72,11 +72,11 @@ Section PullQuant.
 	          | Some (xs, a), Some (ys, b) => Some (xs ++ ys,
 	                                                App (App (Inj f) (lift 0 (length ys) a))
 	                                                    (lift (length ys) (length xs) b))
-	          | _, _                       => None
+	          | _, _                       => Some (nil, apps (Inj f) (map fst args))
 	        end
-	    else 
-	    	None
-      | _, _ => None
+	    else
+	    	Some (nil, apps (Inj f) (map fst args))
+      | _, _ => Some (nil, apps f (map fst args))
     end.
 
   Definition pq_exists (t t_logic : typ) (_ : expr ilfunc) (a : T) : T :=

@@ -177,6 +177,12 @@ Section SepTests.
                         nth_error value error EnvI.lookupAs ExprI.exprD' Expr_expr
                         ExprDI.nth_error_get_hlist_nth projT1 projT2
                         HList.hlist_hd HList.hlist_tl
+                        (** For Raw **)
+                        Subst2.substD RawSubst2.SubstOk_list_subst RawSubst2.substD_for_domain
+                        Subst2.lookup Subst2.domain List.map
+                        RawSubst2.Subst_list_subst RawSubst2.list_subst_domain
+                        RawSubst2.list_subst_domain' fold_left
+                        RawSubst2.list_subst_lookup
                       ] ;
                   try clear lhs'V rhs'V lhsV rhsV sub'V tsV fsV l lV emV vsV usV embedOk tcOk
                 ]
@@ -185,7 +191,7 @@ Section SepTests.
         let stypes := eval cbv delta [ seed_types ] in seed_types in
         let sfuncs := eval cbv delta [ seed_funcs ] in seed_funcs in
         let slogics := eval cbv delta [ seed_logics ] in seed_logics in
-        reify_expr {types:stypes} {funcs:sfuncs} {logics:slogics} [ X Y ] k
+        reify_expr <types:stypes> <funcs:sfuncs> <logics:slogics> [ X Y ] k
         (** TODO: It is important that I can pass pre-reified environments
          ** to [reify_expr].
          **)
@@ -198,21 +204,21 @@ Section SepTests.
   Proof.
     prep.
     cancel.
-    split; auto.
+    reflexivity.
   Qed.
 
   Goal P ** Q |-- Q ** P.
   Proof.
     prep.
     cancel.
-    split; auto.
+    reflexivity.
   Qed.
 
   Goal P ** Q ** R ** S ** T |-- T ** S ** R ** Q ** P.
   Proof.
     prep.
     cancel.
-    split; auto.
+    reflexivity.
   Qed.
 
   (** Predicate **)
@@ -222,7 +228,7 @@ Section SepTests.
   Proof.
     prep.
     cancel.
-    split; auto.
+    reflexivity.
   Qed.
 
   Goal forall w x y z,
@@ -230,7 +236,7 @@ Section SepTests.
   Proof.
     prep.
     cancel.
-    split; auto.
+    reflexivity.
   Qed.
 
   (** With Meta-variables **)
@@ -239,8 +245,10 @@ Section SepTests.
   Proof.
     prep.
     cancel.
-    split; eauto.
-  Qed.
+    split; reflexivity.
+    Set Printing Implicit.
+    Show Proof.
+  Time Qed.
 
   Goal forall w x y z, exists x' y' z',
          PT w x ** PT x y ** PT y z |-- PT y' z' ** PT x' y' ** PT w x'.

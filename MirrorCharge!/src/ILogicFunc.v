@@ -13,14 +13,14 @@ Set Implicit Arguments.
 Set Strict Implicit.
 
 Inductive ilfunc :=
-| ilf_entails : typ -> ilfunc
-| ilf_true : typ -> ilfunc
-| ilf_false : typ -> ilfunc
-| ilf_and : typ -> ilfunc
-| ilf_or: typ -> ilfunc
-| ilf_impl : typ -> ilfunc
-| ilf_exists : typ -> typ -> ilfunc
-| ilf_forall : typ -> typ -> ilfunc
+| ilf_entails (logic : typ)
+| ilf_true (logic : typ)
+| ilf_false (logic : typ)
+| ilf_and (logic : typ)
+| ilf_or (logic : typ)
+| ilf_impl (logic : typ)
+| ilf_exists (arg logic : typ)
+| ilf_forall (arg logic : typ)
 (** It may be a little nicer to remove embed **)
 | ilf_embed (from to : typ)
 | fref (fi : positive).
