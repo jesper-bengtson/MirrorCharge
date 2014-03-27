@@ -3,7 +3,7 @@ plugin: myocamlbuild.ml
 
 clean:
 	@ ocamlbuild -clean
-	@ rm -f myocamlbuild.ml
+	@ rm -f myocamlbuild.ml Makefile.paths
 
 myocamlbuild.ml:
 	@ ln -s $(COQLIB)user-contrib/PluginUtils/myocamlbuild.ml myocamlbuild.ml
