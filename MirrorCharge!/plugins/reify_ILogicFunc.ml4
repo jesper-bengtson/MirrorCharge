@@ -645,19 +645,19 @@ let do_it ts fs tcs es k gl =
  **)
 TACTIC EXTEND reify_Ext_SymEnv_reify_expr
     (** full definition **)
-  | ["reify_expr" "<types:" constr(ts) ">"
-	          "<funcs:" constr(fs) ">"
-		  "<logics:" constr(ls) ">"
+  | ["reify_expr" "~types:" constr(ts)
+	          "~funcs:" constr(fs)
+		  "~logics:" constr(ls)
 	"[" constr_list(es) "]" tactic(k) ] ->
     [ fun gl -> do_it (Some ts) (Some fs) (Some ls) es k gl ]
     (** Abbreviations **)
   | ["reify_expr" "[" constr_list(es) "]" tactic(k) ] ->
     [ fun gl -> do_it None None None es k gl ]
-  | ["reify_expr" "<types:" constr(ts) ">" "[" constr_list(es) "]" tactic(k) ] ->
+  | ["reify_expr" "~types:" constr(ts) "[" constr_list(es) "]" tactic(k) ] ->
     [ fun gl -> do_it (Some ts) None None es k gl ]
-  | ["reify_expr" "<funcs:" constr(fs) ">" "[" constr_list(es) "]" tactic(k) ] ->
+  | ["reify_expr" "~funcs:" constr(fs) "[" constr_list(es) "]" tactic(k) ] ->
     [ fun gl -> do_it None (Some fs) None es k gl ]
-  | ["reify_expr" "<types:" constr(ts) ">"
-	          "<funcs:" constr(fs) ">" "[" constr_list(es) "]" tactic(k) ] ->
+  | ["reify_expr" "~types:" constr(ts)
+	          "~funcs:" constr(fs) "[" constr_list(es) "]" tactic(k) ] ->
     [ fun gl -> do_it (Some ts) (Some fs) None es k gl ]
 END;;

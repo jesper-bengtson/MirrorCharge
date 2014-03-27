@@ -191,7 +191,7 @@ Section SepTests.
         let stypes := eval cbv delta [ seed_types ] in seed_types in
         let sfuncs := eval cbv delta [ seed_funcs ] in seed_funcs in
         let slogics := eval cbv delta [ seed_logics ] in seed_logics in
-        reify_expr <types:stypes> <funcs:sfuncs> <logics:slogics> [ X Y ] k
+        reify_expr ~types:stypes ~funcs:sfuncs ~logics:slogics [ X Y ] k
         (** TODO: It is important that I can pass pre-reified environments
          ** to [reify_expr].
          **)

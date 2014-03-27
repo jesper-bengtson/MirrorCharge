@@ -1,5 +1,5 @@
 plugin: myocamlbuild.ml
-	ocamlbuild -use-ocamlfind mirror-charge.otarget
+	ocamlbuild mirror-charge.otarget
 
 clean:
 	@ ocamlbuild -clean
