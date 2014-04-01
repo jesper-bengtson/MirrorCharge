@@ -330,7 +330,9 @@ Section Tauto.
           | None => assumption env p
           | Some _ => tauto (lower_to from to env) p'
         end
-      | _ => assumption env p
+      | _ =>
+        (** TODO: This is the source of incompleteness **)
+        assumption env p
     end.
 
   Lemma tauto_sound : forall (p : expr ilfunc) (t : typ) env us vs x v
