@@ -415,7 +415,7 @@ Section PullQuant.
         rewrite H4.
         rewrite exists_hlist_app; eauto with typeclass_instances.
         setoid_rewrite H3.
-        eapply lexists_iff_2; eauto with typeclass_instances.
+        eapply lexists_iff_2. eauto with typeclass_instances.
         intros.
         rewrite HList.hlist_app_assoc; eauto with typeclass_instances.
         uip_all. reflexivity. } }

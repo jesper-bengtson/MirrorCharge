@@ -6,7 +6,6 @@ Add ML Path "plugins".
 Add ML Path "../plugins".
 Declare ML Module "reify_ILogicFunc_plugin".
 
-Set Printing All.
 Set Implicit Arguments.
 Set Strict Implicit.
 
@@ -25,7 +24,7 @@ Axiom ILogicOps_ext : forall (A B : Type), ILogicOps B -> ILogicOps (A -> B).
 
 Definition logics : list (@sigT Type ILogicOps) :=
   (@existT _ _ (nat -> Prop) (@ILogicOps_ext nat Prop _)) :: nil.
-Print Provable.
+
 Ltac reify_goal := idtac ;
   match goal with
     | |- ?X =>
@@ -36,8 +35,10 @@ Ltac reify_goal := idtac ;
       in
       let ts := eval cbv delta [foo] in foo in
       let fs := eval cbv delta [funcs] in funcs in
+      let ls := eval cbv delta [logics] in logics in 
+      reify_expr <types: ts> <funcs: fs> <logics: ls> [X] k
       let ls := eval cbv delta [logics] in logics in
-      reify_expr <types:ts> <funcs:fs> <logics:ls> [X] k
+      reify_expr ~types:ts ~funcs:fs ~logics:ls [X] k
   end.
 
 Goal True.

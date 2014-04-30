@@ -21,7 +21,7 @@ Inductive ilfunc :=
 | ilf_impl (logic : typ)
 | ilf_exists (arg logic : typ)
 | ilf_forall (arg logic : typ)
-(** It may be a little nicer to remove embed **)
+(* It may be a little nicer to remove embed *)
 | ilf_embed (from to : typ)
 | fref (fi : positive).
 
@@ -57,14 +57,14 @@ Proof.
          end; intuition.
 Qed.
 
-(** TODO: Build an ordered map over types **)
-(** the canonical implementation doesn't work!
+(* TODO: Build an ordered map over types *)
+(* the canonical implementation doesn't work!
 Inductive tree : (typ -> Type) -> Type :=
 | Node : forall F, option (F tyProp) ->
          tree (fun t => tree (fun u => F (tyArr t u))) ->
          tree F
 | Empty : forall F, tree F.
-**)
+*)
 
 Section RFunc.
   Variable ts : types.
