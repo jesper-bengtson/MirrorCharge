@@ -270,8 +270,7 @@ End pt_quant_morphisms.
   Definition PQR_aux var pt (t : typ) 
                      (arg : list typ * expr ilfunc)
                      (e : expr ilfunc) (us vs : tenv typ) 
-                      :=
-   
+                      :=  
     match (TD pt t arg) us vs, exprD' us vs e t, gs t with
       | None, _, _ => False
       | _, _, None => True 
@@ -281,9 +280,9 @@ End pt_quant_morphisms.
     
   Definition PQR (e : pq_env) (t : typ) (l : expr ilfunc) (arg : TT) (us vs : tenv typ) :=
   	   forall var pt, 
-  	     forall t' typs, t = fold_right tyArr t' typs ->
-  	     exists modes, forall (ILOps : ILogicOps (typD ts nil t')) xs,
-  	     valid_env us vs xs pt var ILOps typs l modes /\
+  	     (forall t' typs, t = fold_right tyArr t' typs ->
+  	       exists modes, forall (ILOps : ILogicOps (typD ts nil t')) xs,
+  	       valid_env us vs xs pt var ILOps typs l modes) /\
   	     PQR_aux var pt t (arg var pt) l us vs.
 
   Lemma ILogic_from_env (t : typ) (i : ILogicOps (typD ts nil t)) (pf : gs t = Some i)
@@ -312,29 +311,25 @@ End pt_quant_morphisms.
   Defined.
   Hint Extern 1 (Reflexive _) => (apply Refl_from_env_lequiv; [ assumption ]) : typeclass_instances.
 
+  Lemma valid_env_eq tus tvs xs pt var t (ILOps : ILogicOps (typD ts nil t)) typs l :
+  	valid_env tus tvs xs pt var ILOps typs l (map (fun _ => None) typs).
+  Proof.
+    unfold valid_env; intros. clear H.
+    induction typs; simpl; constructor; intros.
+    + assert (exists IL : ILogic (typD ts nil t), True) by admit.
+      destruct H. destruct var, pt; reflexivity.
+    + specialize (IHtyps (fun us vs => df us vs e)).
+      simpl in *. apply IHtyps.
+  Qed.
+
   Lemma HVar (e : pq_env) tus tvs t v (H : typeof_expr tus tvs (Var v) = Some t) :
     PQR e t (Var v) (atomic (Var v) tus tvs) tus tvs.
   Proof.
-    admit.
-    (*
-    unfold atomic, PQR, PQR_aux, TD, Teval; simpl; intros. 
-    simpl in *. rewrite H0 in *.
-    exists (map (fun _ => None) typs). intros. split.
-    unfold valid_env; intros.
-    red_exprD; forward; inv_all; subst.
-    
-    Check Eqdep.EqdepTheory.inj_pair2.
-    destruct s.
-    assert (x0 = x). apply Eqdep.EqdepTheory.inj_pair2 in H1.
-    apply Eqdep.EqdepTheory.inj_pair2 in H1. subst.
-    induction typs. simpl. apply ve_nil.
-    simpl in *. apply ve_none. intros. 
-    destruct var, pt. simpl. simpl in *. red_exprD. forward.
-    unfold v
-    split; [intros; inversion H0|]. simpl in *.
-    pose proof (typeof_expr_exprD'_impl RSym_sym tus tvs (Var v) H); destruct H0.
-    destruct var, pt; forward; simpl in *; forward; inv_all; subst; forward; reflexivity.
-    *)
+    unfold atomic, PQR, PQR_aux, TD, Teval; simpl; intros; split.
+    + intros. exists (map (fun _ => None) typs).
+      intros. apply valid_env_eq.
+    + pose proof (typeof_expr_exprD'_impl RSym_sym tus tvs (Var v) H).
+      destruct H0. forward; inv_all; subst. reflexivity.
   Qed.
 
   Lemma Habs (e : pq_env) 
@@ -343,16 +338,15 @@ End pt_quant_morphisms.
       @PQR e t' f (e_res tus (t :: tvs)) tus (t :: tvs) ->
       @PQR e (tyArr t t') (Abs t f) (pq_abs t f e_res tus tvs) tus tvs.
   Proof.
-    admit.
-    (*
     intros.
-    unfold atomic, PQR, PQR_aux, TD, Teval; simpl; intros.
-    split; [intros; inversion H1|]. simpl in *.
-    pose proof (typeof_expr_exprD'_impl RSym_sym tus tvs (Abs t f) H); destruct H1.
-    destruct var, pt; forward; simpl in *; forward; inv_all; subst; forward; simpl in *.
-    specialize (gsOk (tyArr t t')). forward. inv_all; subst. simpl in *.
-    admit. admit. admit. admit. (* I have no idea why this doesn't work *)
-    *)
+    unfold atomic, PQR, PQR_aux, TD, Teval; simpl; intros; split.
+    + intros. exists (map (fun _ => None) typs).
+      intros. apply valid_env_eq.
+    + pose proof (typeof_expr_exprD'_impl RSym_sym tus tvs (Abs t f) H); destruct H1.
+	  forward; inv_all; subst.
+	  assert (exists IL : ILogic (typD ts nil (tyArr t t')), True).
+	  eexists; [|apply I]. apply _.
+	  destruct H2. reflexivity.
   Qed.
 
   Lemma Hex 
@@ -363,23 +357,22 @@ End pt_quant_morphisms.
           (App (Inj (ilf_exists t t_logic)) (Abs t f))
           (@pq_exists t t_logic f e_res tus tvs) tus tvs.
   Proof.
-    admit.
-    (*
-    unfold PQR; intros. 
-    specialize (H0 var pt).
-    split; [intros; inversion H1|].
-    destruct pt; simpl in *; unfold PQR_aux, TD, Teval in *; simpl in *.
-    + red_exprD; forward; inv_all; subst.  
-      red_exprD; forward; inv_all; subst.
-      rewrite typ_cast_typ_refl.
-      destruct var; intros; uip_all; reflexivity.
-    + red_exprD; forward; simpl in *; inv_all; simpl in *; subst. unfold add_quant; simpl. 
-      red_exprD; forward; simpl in *; inv_all; simpl in *. subst.  intros. destruct H4; subst.
-      red_exprD; forward; simpl in *; inv_all; simpl in *; subst.
-      red_exprD; forward; inv_all; simpl in *; subst.
-      uip_all. subst. destruct H3 as [_ H3].
-      destruct var; intros; setoid_rewrite H3; reflexivity.
-      *)
+    intros.
+    unfold PQR in *; intros; split. 
+    + intros. exists (map (fun _ => None) typs).
+      intros. apply valid_env_eq.
+    + specialize (H0 var pt); destruct H0 as [_ H0]. 
+      destruct pt; simpl in *; unfold PQR_aux, TD, Teval in *; simpl in *.
+      * red_exprD; forward; inv_all; subst.
+        red_exprD; forward; inv_all; subst.
+        rewrite typ_cast_typ_refl.
+        intros. reflexivity.
+      * red_exprD; forward; simpl in *; inv_all; simpl in *; subst. unfold add_quant; simpl.
+        red_exprD; forward; simpl in *; inv_all; simpl in *; subst.  
+        red_exprD; forward; simpl in *; inv_all; subst.
+        red_exprD. intros. destruct H4; subst. 
+        destruct var; intros; simpl. setoid_rewrite H3. reflexivity.
+        unfold flip. setoid_rewrite <- H3. reflexivity.
   Qed.
 
   Lemma typeof_expr_apps uvs vvs e lst (H: typeof_expr uvs vvs e = None) :
