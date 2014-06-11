@@ -4,7 +4,7 @@
 Require Import ExtLib.Tactics.
 Require Import MirrorCore.TypesI.
 Require Import MirrorCore.SymI.
-Require Import MirrorCore.Subst.
+Require Import MirrorCore.SubstI.
 Require Import MirrorCore.EnvI.
 Require Import MirrorCore.ExprSem.
 Require Import MirrorCore.Ext.Expr.

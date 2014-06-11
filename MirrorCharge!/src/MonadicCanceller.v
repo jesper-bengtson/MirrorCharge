@@ -5,7 +5,7 @@ Require Import ExtLib.Structures.MonadPlus.
 Require Import ExtLib.Data.Lazy.
 Require Import MirrorCore.TypesI.
 Require Import MirrorCore.SymI.
-Require Import MirrorCore.Subst.
+Require Import MirrorCore.SubstI.
 Require Import MirrorCore.Ext.Expr.
 Require Import BILNormalize.
 
