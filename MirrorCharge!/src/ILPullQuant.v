@@ -52,6 +52,12 @@ Section PullQuant.
 
   Definition add_quants (pt : pull_type) (t : typ) (xs : list typ) (e : expr ilfunc) :=
     fold_right (fun x a => add_quant pt t x a) e xs.
+    
+ Definition add_quants' us vs (pt : pull_type) (xs : list typ) (e : expr ilfunc) :=
+ 	match typeof_expr us (rev xs ++ vs) e with
+ 	  | Some t => add_quants pt t xs e
+ 	  | None => e
+ 	end.
  
  Definition pt_quant (pt : pull_type) := 
  	match pt with
@@ -120,36 +126,26 @@ End pt_quant_morphisms.
      Local Existing Instance ILogic_Ops_fold_fun.
      Local Existing Instance ILogic_fold_fun.
   
-  
   Local Existing Instance ILFun_Ops.
   
-  Inductive valid_arg (pt : pull_type) (var : variance) (t : typ) (ILOps : ILogicOps (typD ts nil t)) (A : Type) : 
-    forall typs : list typ,  (A -> typD ts nil (fold_right tyArr t typs)) -> list (option (variance * pull_type)) -> Prop :=
-    | ve_nil f : @valid_arg pt var t ILOps A nil f nil
-    | ve_none te typs (f : A -> typD ts nil te -> typD ts nil (fold_right tyArr t typs)) args : 
-      (forall (e : typD ts nil te), (var_entail var _) (((pt_quant pt) _ _ f) e) ((pt_quant pt) _ _ (fun x => (f x) e))) ->
-      (forall e, @valid_arg pt var t ILOps A typs (fun x => (f x) e) args) ->
-      @valid_arg pt var t ILOps A (te::typs) f (None::args)
-    | ve_some te typs (f : A -> typD ts nil te -> typD ts nil (fold_right tyArr t typs)) pt' var' args :
-      (forall B x (e : B -> typD ts nil te) (ILOps' : ILogicOps (typD ts nil te)), 
-             (var_entail var _) ((pt_quant pt) _ _ (fun y => (f x) (e y))) ((f x) ((pt_quant pt') _ _ e))) ->
-      (forall (e : typD ts nil te), (var_entail var _) ((pt_quant pt) _ _ (fun x => (f x) e)) (((pt_quant pt) _ _ f) e)) ->
-      (forall e e' (ILOps' : ILogicOps (typD ts nil te)) x, (var_entail var' _) e e' -> (var_entail var _) ((f x) e) ((f x) e')) ->
-      @valid_arg pt var t ILOps A (te::typs) f ((Some (var', pt'))::args).
+  Definition modes := list (option (variance * pull_type)).
 
-  Definition valid_env (tus tvs : tenv typ) (xs : list typ) (pt : pull_type) (var : variance) (t : typ) (ILOps : ILogicOps (typD ts nil t)) (typs : list typ)
-                       (f : expr ilfunc) modes :=
-                       forall df, exprD' tus (rev xs ++ tvs) f (fold_right tyArr t typs) = Some df ->
-                       forall us vs, @valid_arg pt var t ILOps (HList.hlist _ (rev xs)) typs (fun x => df us (HList.hlist_app x vs)) modes.
+  Inductive valid_arg (pt : pull_type) (var : variance) (t : typ) (ILt : ILogicOps (typD ts nil t)) :
+    forall (typs : list typ), (typD ts nil (fold_right tyArr t typs))  -> modes -> Prop :=
+    | ve_nil typs f : @valid_arg pt var t ILt typs f nil
+    | ve_none typs t' f ms : (forall a, @valid_arg pt var t _ typs (f a) ms) -> @valid_arg pt var t _ (t'::typs) f (None::ms)
+    | ve_some typs t' f p v ms : 
+                              (forall a, @valid_arg pt var t _ typs (f a) ms) ->
+                              (forall a b (ILt' : ILogicOps (typD ts nil t')), gs t' = Some ILt' -> (var_entail v ILt') a b -> (var_entail var _) (f a) (f b)) ->
+                              (forall T (a : T -> (typD ts nil t')) (ILt' : ILogicOps (typD ts nil t')), gs t' = Some ILt' ->  (var_entail var _) ((pt_quant pt) _ _ (fun x => f (a x))) (f ((pt_quant p) _ _ a))) ->
+                              @valid_arg pt var t _ (t'::typs) f (Some (v, p)::ms).
   
-
-  Lemma valid_arg_some_inv (pt pt' : pull_type) (var var' : variance) (t te : typ) (ILOps : ILogicOps (typD ts nil t)) (A : Type) 
-    (typs : list typ) (f : A -> typD ts nil te -> typD ts nil (fold_right tyArr t typs)) (modes : list (option (variance * pull_type))) 
-    (H : @valid_arg pt var t ILOps A (te::typs) f ((Some (var', pt'))::modes)) : 
-      (forall B x (e : B -> typD ts nil te) (ILOps' : ILogicOps (typD ts nil te)), 
-             (var_entail var _)  ((pt_quant pt) _ _ (fun y => (f x) (e y))) ((f x) ((pt_quant pt') _ _ e))) /\
-      (forall (e : typD ts nil te), (var_entail var _) ((pt_quant pt) _ _ (fun x => (f x) e)) (((pt_quant pt) _ _ f) e)) /\
-      (forall e e' (ILOps' : ILogicOps (typD ts nil te)) x, (var_entail var' _) e e' -> (var_entail var _) ((f x) e) ((f x) e')).
+  Lemma valid_arg_some_inv (pt pt' : pull_type) (var var' : variance) (t te : typ) (ILOps : ILogicOps (typD ts nil t))
+    (typs : list typ) (f : typD ts nil te -> typD ts nil (fold_right tyArr t typs)) (ms : modes)  (ILt' : ILogicOps (typD ts nil te))
+    (H : @valid_arg pt var t ILOps (te::typs) f ((Some (var', pt'))::ms)) :
+                              (forall a, @valid_arg pt var t _ typs (f a) ms) /\
+                              (forall a b (ILte : ILogicOps (typD ts nil te)), gs te = Some ILte -> (var_entail var' ILte) a b -> (var_entail var _) (f a) (f b)) /\
+                              (forall T (a : T -> (typD ts nil te)) (ILte : ILogicOps (typD ts nil te)), gs te = Some ILte -> (var_entail var _) ((pt_quant pt) _ _ (fun x => f (a x))) (f ((pt_quant pt') _ _ a))).
   Proof.
     change (typD ts nil te -> typD ts nil (fold_right tyArr t typs)) with (typD ts nil (fold_right tyArr t (te::typs))) in f.
     inversion H. subst.
@@ -157,132 +153,122 @@ End pt_quant_morphisms.
     intuition.
   Qed.
 
-  Lemma valid_arg_none_inv (pt : pull_type) (var : variance) (t te : typ) (ILOps : ILogicOps (typD ts nil t)) (A : Type) 
-    (typs : list typ) (f : A -> typD ts nil te -> typD ts nil (fold_right tyArr t typs)) (modes : list (option (variance * pull_type))) 
-    (H : @valid_arg pt var t ILOps A (te::typs) f (None::modes)) : 
-      (forall (e : typD ts nil te), (var_entail var _) (((pt_quant pt) _ _ f) e) ((pt_quant pt) _ _ (fun x => (f x) e))) /\
-      (forall e, @valid_arg pt var t ILOps A typs (fun x => (f x) e) modes).
+  Lemma f_eq : forall t typs, typD ts nil (fold_right tyArr t typs) = fold_right (fun T A : Type => T -> A) (typD ts nil t) (map (typD ts nil) typs).
   Proof.
-    change (typD ts nil te -> typD ts nil (fold_right tyArr t typs)) with (typD ts nil (fold_right tyArr t (te::typs))) in f.
-    inversion H. subst.
-    apply Eqdep.EqdepTheory.inj_pair2 in H3. subst.
-    intuition.
+    induction typs.
+    simpl. reflexivity.
+    simpl. rewrite IHtyps. reflexivity.
   Qed.
+      
+  Definition valid_env (tus tvs : tenv typ) (pt : pull_type) (var : variance) (f : expr ilfunc) (ms : modes) :=
+    forall t typs df (ILt : ILogicOps (typD ts nil t)), gs t = Some ILt -> exprD' tus tvs f (fold_right tyArr t typs) = Some df -> forall us vs, @valid_arg pt var t ILt typs (df us vs) ms. 
 
-  Lemma valid_arg_empty (pt : pull_type) (var : variance) (t : typ) (ILOps : ILogicOps (typD ts nil t)) (A : Type) o
-    (f : A -> typD ts nil t) (modes : list (option (variance * pull_type))) 
-    (H : @valid_arg pt var t ILOps A nil f (o::modes)) : False.
-  Proof.
-    change (typD ts nil t) with (typD ts nil (fold_right tyArr t nil)) in f.
-    inversion H.
-  Qed.
+  Section valid_arg_test.
+    Context {t : typ} `{IL : ILogic (typD ts nil t)}.
+    
+    Lemma test (H : gs t = Some ILOps) : @valid_arg PExists CoVariant t ILOps (t::t::nil) land (Some(CoVariant, PExists)::Some(CoVariant, PExists)::nil).
+    Proof.
+      eapply (@ve_some); intros; simpl in *.
+      eapply (@ve_some); intros; simpl in *.
+      
+      apply ve_nil.
+      rewrite H0 in H. inv_all; subst.
+      rewrite H1. reflexivity.
+      
+      apply lexistsL; intro x.
+      apply landR; [apply landL1; reflexivity|apply landL2].
+      rewrite H0 in H; inv_all; subst.
+      apply lexistsR with x. reflexivity.
+      
+      intros.
+      simpl in *.
+      Transparent ILFun_Ops.
+      rewrite H0 in H. inv_all; subst.
+      intros c. simpl. rewrite H1.
+      reflexivity.
+      simpl; intros.
 
-  Definition TT := variance -> pull_type -> list typ * expr ilfunc.
+	  apply lexistsL; intro x.
+	  rewrite H0 in H; inv_all; subst.
+	  apply landR. apply lexistsR with x.
+	  apply landL1. reflexivity. apply landL2. reflexivity.      
+   Qed.
 
-  Let T:Type := tenv typ -> tenv typ -> TT.
-  Definition atomic (e : expr ilfunc) : T := fun _ _ _ _ => (nil, e).
+  End valid_arg_test.
+ 
+  Definition TT := variance -> pull_type -> list typ * modes * expr ilfunc.
 
-  Record pq_env := {
-    pq_env_fun :> ilfunc -> variance -> pull_type -> list (option (variance * pull_type));
-    pq_env_sound : forall f pt var t tus tvs xs (ILOps : ILogicOps (typD ts nil t)) typs, 
-    	typeof_expr tus tvs (Inj f) = Some (fold_right tyArr t typs) ->
-    	valid_env tus tvs xs pt var ILOps typs (Inj f) (pq_env_fun f var pt)
-  }.
-(*
-  Fixpoint typ_empty_mode (t : typ) : list (option (variance * pull_type)) :=
-  	match t with
-  		| tyArr t t' => None::(typ_empty_mode t')
-  		| _          => nil
+  Fixpoint arity (t : typ) :=
+    match t with
+      | tyArr t t' => S (arity t')
+      | _          => 0
     end.
 
-  Program Definition pq_env_empty := {| pq_env_fun := fun f _ _ => match typeof_expr nil nil (Inj f) with 
-                                                                     | Some t => typ_empty_mode t
-                                                                     | None   => nil
-                                                                   end;
-                                        pq_env_sound := _ |}.
-  Next Obligation.
-	unfold valid_env; intros.
-	simpl.
-	remember (typeof_func funcs gs es f). destruct o; [|congruence]. 
-	inv_all; subst.
-	induction typs. simpl.
-	simpl in Heqo.
-	SearchAbout typeof_func.
-	Print typeof_func.
-	destruct f. simpl in *.
-	forward. inv_all; subst. simpl.
-	
-	reflexivity.
-	forward.
-	induction typs. simpl.
-	simpl.
-  
-  Definition env_sound (e : pq_env) tus tvs p := 
-        forall pt var xs t (ILOps : ILogicOps (typD ts nil t)) typs,
-    	typeof_expr tus (rev xs ++ tvs)  = Some (fold_right tyArr t typs) ->
-    	valid_env tus tvs xs pt var ILOps typs (Inj f) (e f var pt).  	
-  *)  
+  Fixpoint empty_modes (n : nat) : modes :=
+    match n with 
+      | 0   => nil
+      | S n => None::(empty_modes n)
+    end.
+    
+  Let T:Type := tenv typ -> tenv typ -> TT.
+  Definition atomic (e : expr ilfunc) : T := fun tus tvs _ _ => (nil, nil, e).
+
   Definition pq_var (v : var) : T := atomic (Var v).
   Definition pq_uvar (u : uvar) : T := atomic (UVar u).
   Definition pq_inj (s : ilfunc) : T := atomic (Inj s).
   Definition pq_abs (x : typ) (e : expr ilfunc) (_ : T) : T :=
     atomic (Abs x e).
-    
-  Fixpoint pq_app_aux (us vs : tenv typ) (ats : list (option (variance * pull_type))) (f : list typ * expr ilfunc) (args : list (expr ilfunc * T)) : list typ * expr ilfunc :=
-  match ats, args with
-  	| Some (var, pt)::ats, (_, t)::args =>
-  	  match f, t us vs var pt with
-  	  	| (xs, f'), (ys, a) => pq_app_aux us vs ats (xs ++ ys, App (lift 0 (length ys) f') (lift (length ys) (length xs) a)) args
-  	  end
-  	| None::ats, (e, _)::args => 
-  	  match f with
-  	    | (xs, f') => pq_app_aux us vs ats (xs, App f' (lift 0 (length xs) e)) args
-  	  end
-  	| _, _ => match f with
-  			  | (xs, f') => (xs, apps f' (map fst args))
-  			  end
-  end.
   
-  Definition pq_app (e : pq_env) (f : expr ilfunc) (_ : T) (args : list (expr ilfunc * T)) : T :=
-  	fun us vs var pt => 
-  		match f with
-  			| Inj f => pq_app_aux us vs (e f var pt) (nil, Inj f) args
-  			| _     => (nil, apps f (map fst args))
-  		end.
- 
-  Definition pq_exists (t t_logic : typ) (f : expr ilfunc) (a : T) : T :=
+  Fixpoint pq_app_aux (us vs : tenv typ) (pt : pull_type) (f : list typ * modes * expr ilfunc) (args : list (expr ilfunc * T)) : list typ * modes * expr ilfunc :=
+  match f, args with
+    | (xs, Some (var, pt')::ms, f'), (e, t)::args' => 
+      match t us vs var pt', typeof_expr us vs e with
+        | (ys, _, a), Some t =>
+	          match gs t with
+	            | Some _ => pq_app_aux us vs pt (xs ++ ys, ms, App (lift 0 (length ys) f') (lift (length ys) (length xs) a)) args'
+	            | None   => (nil, ms, apps (add_quants' us vs pt xs f') (map fst args))
+	          end
+        | _, None => (nil, ms, apps (add_quants' us vs pt xs f') (map fst args))
+    end
+    | (xs, None::ms, f'), (e, _)::args => pq_app_aux us vs pt (xs, ms, App f' (lift 0 (length xs) e)) args
+    | (xs, ms, f'), _ => (nil, ms, apps (add_quants' us vs pt xs f') (map fst args))
+  end.
+
+  Definition pq_app (_ : expr ilfunc) (f : T) (args : list (expr ilfunc * T)) : T :=
+    fun us vs var pt => pq_app_aux us vs pt (f us vs var pt) args.
+  
+   Definition pq_exists (t t_logic : typ) (f : expr ilfunc) (a : T) : T :=
     fun us vs vm pt =>
       match pt with
-      	| PExists => let (ts, a) := a us (t :: vs) vm pt in (t::ts, a)
-      	| _       => (nil, App (Inj (ilf_exists t t_logic)) (Abs t f)) 
+      	| PExists => match a us (t :: vs) vm pt with
+      	               | (ts, ms, a) => (t::ts, ms, a)
+      	             end
+      	| _       => (nil, nil, App (Inj (ilf_exists t t_logic)) (Abs t f)) 
       	
       end.
 
-  Definition pqArgs (e : pq_env) : AppFullFoldArgs ilfunc TT :=
-    @Build_AppFullFoldArgs ilfunc TT pq_var pq_uvar pq_inj pq_abs (pq_app e).
-
-  Definition Teval (pt : pull_type) (e : list typ * expr ilfunc) (t : typ) :=
-    let (xs, a) := e in add_quants pt t xs a.
-        
-  Definition TD (pt : pull_type) (t : typ) (e : list typ * expr ilfunc) (us vs : tenv typ) :=
+  Definition Teval (pt : pull_type) (e : list typ * modes * expr ilfunc) (t : typ) :=
+    match e with 
+      | (xs, _, a) => add_quants pt t xs a
+    end.
+    
+  Definition TD (pt : pull_type) (t : typ) (e : list typ * modes * expr ilfunc) (us vs : tenv typ) :=
     exprD' us vs (Teval pt e t) t.
 
   Definition PQR_aux var pt (t : typ) 
-                     (arg : list typ * expr ilfunc)
+                     (arg : list typ * modes * expr ilfunc)
                      (e : expr ilfunc) (us vs : tenv typ) 
                       :=  
     match (TD pt t arg) us vs, exprD' us vs e t, gs t with
       | None, _, _ => False
-      | _, _, None => True 
-      | Some p, Some q, Some _ => forall us vs, (var_entail var _) (p us vs) (q us vs)
-      | _, _, _ => False
+      | _, None, _ => False
+      | _, _, None => True
+      | Some p, Some q, Some ILOps => forall us vs, (var_entail var ILOps) (p us vs) (q us vs)
     end.
     
-  Definition PQR (e : pq_env) (t : typ) (l : expr ilfunc) (arg : TT) (us vs : tenv typ) :=
+  Definition PQR (t : typ) (l : expr ilfunc) (arg : TT) (us vs : tenv typ) :=
   	   forall var pt, 
-  	     (forall t' typs, t = fold_right tyArr t' typs ->
-  	       exists modes, forall (ILOps : ILogicOps (typD ts nil t')) xs,
-  	       valid_env us vs xs pt var ILOps typs l modes) /\
+  	     @valid_env us vs pt var l (snd (fst (arg var pt))) /\
   	     PQR_aux var pt t (arg var pt) l us vs.
 
   Lemma ILogic_from_env (t : typ) (i : ILogicOps (typD ts nil t)) (pf : gs t = Some i)
@@ -311,27 +297,16 @@ End pt_quant_morphisms.
   Defined.
   Hint Extern 1 (Reflexive _) => (apply Refl_from_env_lequiv; [ assumption ]) : typeclass_instances.
 
-  Lemma valid_env_eq tus tvs xs pt var t (ILOps : ILogicOps (typD ts nil t)) typs l :
-  	valid_env tus tvs xs pt var ILOps typs l (map (fun _ => None) typs).
+  Lemma HVar tus tvs t v (H : typeof_expr tus tvs (Var v) = Some t) :
+    PQR t (Var v) (atomic (Var v) tus tvs) tus tvs.
   Proof.
-    unfold valid_env; intros. clear H.
-    induction typs; simpl; constructor; intros.
-    + assert (exists IL : ILogic (typD ts nil t), True) by admit.
-      destruct H. destruct var, pt; reflexivity.
-    + specialize (IHtyps (fun us vs => df us vs e)).
-      simpl in *. apply IHtyps.
-  Qed.
-
-  Lemma HVar (e : pq_env) tus tvs t v (H : typeof_expr tus tvs (Var v) = Some t) :
-    PQR e t (Var v) (atomic (Var v) tus tvs) tus tvs.
-  Proof.
-    unfold atomic, PQR, PQR_aux, TD, Teval; simpl; intros; split.
-    + intros. exists (map (fun _ => None) typs).
-      intros. apply valid_env_eq.
+    unfold atomic, PQR, PQR_aux, TD, Teval; simpl in *; intros; split.
+    + unfold valid_env; intros. constructor.
     + pose proof (typeof_expr_exprD'_impl RSym_sym tus tvs (Var v) H).
-      destruct H0. forward; inv_all; subst. reflexivity.
+      destruct H0. forward; inv_all; subst. 
+      simpl. forward; inv_all; subst. reflexivity.
   Qed.
-
+(*
   Lemma Habs (e : pq_env) 
   : forall tus tvs t t' f e_res,
       typeof_expr tus tvs (Abs t f) = Some (tyArr t t') ->
@@ -374,7 +349,7 @@ End pt_quant_morphisms.
         destruct var; intros; simpl. setoid_rewrite H3. reflexivity.
         unfold flip. setoid_rewrite <- H3. reflexivity.
   Qed.
-
+*)
   Lemma typeof_expr_apps uvs vvs e lst (H: typeof_expr uvs vvs e = None) :
     typeof_expr uvs vvs (apps e lst) = None.
   Proof.
@@ -389,27 +364,9 @@ End pt_quant_morphisms.
       | |- match ?o with | Some _ => _ | None => True end => destruct o; apply I
     end.
 
-  Lemma pqapp_nil pq_env l l_res tus tvs pt vars : 
-  	pq_app pq_env l l_res nil tus tvs pt vars = (nil, l).
-  Proof.
-    unfold pq_app.
-    destruct l; try reflexivity.
-    destruct (pq_env i pt vars); [reflexivity|]. simpl. destruct o; try reflexivity.
-    destruct p; reflexivity.
-  Qed.
-(*
-  Lemma pqapp_cons_cases pq_env a ats l l_res tus tvs pt vars xs e 
-  	(H : pq_app pq_env l l_res (a :: ats) tus tvs pt vars = (xs, e)) :
-  	(xs = nil /\ e = l) \/
-  	(exists f, l = Inj f /\ pq_app_aux tus tvs (pq_env f pt vars) (nil, Inj f) (a :: ats) = (xs, e)).
-  Proof.
-    destruct l; simpl in *; inv_all; subst; try (left; split; reflexivity).
-    right. exists v. firstorder.
-  Qed.
-*)
-  Lemma PQR_app_nil t pq_env l l_res tus tvs 
+  Lemma PQR_app_nil t l l_res tus tvs 
     (H : typeof_expr tus tvs l = Some t) :
-  	PQR pq_env t l (pq_app pq_env l l_res nil tus tvs) tus tvs.
+  	PQR t l (pq_app l l_res nil tus tvs) tus tvs.
   Proof.
     admit.
     (*
@@ -427,14 +384,14 @@ End pt_quant_morphisms.
   Proof.
     generalize dependent tvs. generalize dependent f.
     induction xs; intros.
-    + simpl in *; reflexivity.
+    + simpl in *. reflexivity.
     + simpl in *. rewrite <- app_assoc. simpl in *.
       rewrite IHxs; destruct pt; simpl in *; forward; inv_all; subst; simpl; forward.
   Qed.
 
-  Lemma PQR_atomic vars pt t xs f tus tvs (ILOps : ILogicOps (typD ts nil t)) (HIL : gs t = Some ILOps)
+  Lemma PQR_atomic vars pt t xs ms f tus tvs (ILOps : ILogicOps (typD ts nil t)) (HIL : gs t = Some ILOps)
    (H : typeof_expr tus (rev xs ++ tvs) f = Some t) : 
-   PQR_aux vars pt t (xs, f) (add_quants pt t xs f) tus tvs.
+   PQR_aux vars pt t (xs, ms, f) (add_quants pt t xs f) tus tvs.
   Proof.
     rewrite add_quants_typeof_expr with (pt := pt) in H; [|eassumption].
     apply typeof_expr_exprD' in H. destruct H.
@@ -456,11 +413,11 @@ End pt_quant_morphisms.
     + simpl. rewrite IHargs, lift_app; reflexivity.
   Qed.
 
-  Lemma PQR_atom tus tvs vars pt xs t f g (ILOps : ILogicOps (typD ts nil t)) (Hgs : gs t = Some ILOps)
+  Lemma PQR_atom tus tvs vars pt xs ms t f g (ILOps : ILogicOps (typD ts nil t)) (Hgs : gs t = Some ILOps)
     (Hf : typeof_expr tus (rev xs ++ tvs) f = Some t)
     (Hg : typeof_expr tus tvs g = Some t)
     (Heq : forall df dg, exprD' tus tvs (add_quants pt t xs f) t = Some df -> exprD' tus tvs g t = Some dg -> forall us vs, df us vs -|- dg us vs) :
-    PQR_aux vars pt t (xs, f) g tus tvs.
+    PQR_aux vars pt t (xs, ms, f) g tus tvs.
   Proof.
     unfold PQR_aux, TD, Teval.
     apply typeof_expr_exprD' in Hg. destruct Hg.
@@ -470,9 +427,9 @@ End pt_quant_morphisms.
 	rewrite Heq; reflexivity. 
   Qed.
 
-	Lemma PQR_typeof vars pt t xs f g tus tvs (ILOps : ILogicOps (typD ts nil t)) (Hgs : gs t = Some ILOps)
+	Lemma PQR_typeof vars pt t xs ms f g tus tvs (ILOps : ILogicOps (typD ts nil t)) (Hgs : gs t = Some ILOps)
 	    (Hf : typeof_expr tus tvs (add_quants pt t xs f) = Some t)
-	 	(H : PQR_aux vars pt t (xs, f) g tus tvs) :
+	 	(H : PQR_aux vars pt t (xs, ms, f) g tus tvs) :
 	 	typeof_expr tus tvs g = Some t.
 	 Proof.
 	   	unfold PQR_aux, TD, Teval in H. 
@@ -481,18 +438,6 @@ End pt_quant_morphisms.
 	    eapply ExprD3.EXPR_DENOTE_core.exprD'_typeof; eassumption.
 	Qed.
 
-    Lemma PQR_typeof2 vars pt t xs f g tus tvs (ILOps : ILogicOps (typD ts nil t)) (Hgs : gs t = Some ILOps)
-        (Hg : typeof_expr tus tvs g = Some t)
-     	(H : PQR_aux vars pt t (xs, f) g tus tvs) :
-        typeof_expr tus tvs (add_quants pt t xs f) = Some t.
-     Proof.
-       	unfold PQR_aux, TD, Teval in H. 
-       	apply typeof_expr_exprD'_impl in Hg.
-        destruct Hg. forward. inv_all; subst.
-        eapply ExprD3.EXPR_DENOTE_core.exprD'_typeof. eassumption.
-    Qed.
-
-  
   Lemma exprD'_add_quants_cons_Some (pt : pull_type) (Ty : typ) (IL_Ty : ILogicOps (typD ts nil Ty))
         (_ : gs Ty = Some IL_Ty)
   : forall tus tvs tm a b x,
@@ -865,20 +810,50 @@ End pt_quant_morphisms.
     apply exprD'_add_quants_app_Some in H0; eauto.
   Qed.
 
- Lemma PQR_aux_rewrite tus tvs e1 e2 t vars pt e3 (ILOps : ILogicOps (typD ts nil t)) (Hgs : gs t = Some ILOps) (IL : ILogic (typD ts nil t))
+ Lemma PQR_aux_rewrite tus tvs e1 e2 t vars pt e3 de2 de3 (ILOps : ILogicOps (typD ts nil t)) (Hgs : gs t = Some ILOps) (IL : ILogic (typD ts nil t))
+    (He1 : exprD' tus tvs e2 t = Some de2) (He3 : exprD' tus tvs e3 t = Some de3) (H : forall us vs, (var_entail vars _) (de2 us vs) (de3 us vs))
+ 	(HPQR : PQR_aux vars pt t e1 e2 tus tvs) :
+ 	PQR_aux vars pt t e1 e3 tus tvs.
+ Proof.
+   	unfold PQR_aux, TD, Teval in *.
+   	forward; inv_all; subst.
+   	rewrite <- H. apply HPQR.
+ Qed.
+
+ Lemma PQR_aux_rewrite2 tus tvs e1 e2 t vars pt e3 (ILOps : ILogicOps (typD ts nil t)) (Hgs : gs t = Some ILOps) (IL : ILogic (typD ts nil t))
     (H : forall de2, exprD' tus tvs e2 t = Some de2 -> exists de3, exprD' tus tvs e3 t = Some de3 /\ forall us vs, (var_entail vars _) (de2 us vs) (de3 us vs))
  	(He2 : PQR_aux vars pt t e1 e2 tus tvs) :
  	PQR_aux vars pt t e1 e3 tus tvs.
  Proof.
    	unfold PQR_aux, TD, Teval in *.
    	forward; inv_all; subst.
-   	specialize (H2 t1 eq_refl).
-   	destruct H2. destruct H0.
+   	specialize (H1 t1 eq_refl).
+   	destruct H1. destruct H0.
    	forward; inv_all; subst.
-   	rewrite He2, H2; reflexivity.
- Qed.
+   	rewrite He2, H1; reflexivity.
+  Qed.  
 
-     Lemma apps_rewrite tus tvs e1 e2 rs t dea1 (ILOps : ILogicOps (typD ts nil t)) vars
+     Lemma apps_rewrite tus tvs e1 e2 rs t typs de1 de2 (ILOps : ILogicOps (typD ts nil t)) vars
+        (He1 : exprD' tus tvs e1 (fold_right tyArr t typs) = Some de1) 
+        (He2 : exprD' tus tvs e2 (fold_right tyArr t typs) = Some de2)
+        (Heq : forall us vs, (var_entail vars _) (de1 us vs) (de2 us vs))
+        (H : Forall2 (fun t e => typeof_expr tus tvs e = Some t) typs rs) :
+        exists dea1 dea2, exprD' tus tvs (apps e1 rs) t = Some dea1 /\ exprD' tus tvs (apps e2 rs) t = Some dea2 /\ forall us vs, (var_entail vars _) (dea1 us vs) (dea2 us vs).
+     Proof.
+       generalize dependent e1; generalize dependent e2; generalize dependent rs; induction typs; simpl in *; intros.
+       + inversion H; subst. simpl. exists de1, de2; tauto.
+       + inversion H; subst; simpl in *; clear H.
+         destruct (typeof_expr_exprD'_impl _ tus tvs y H2) as [v Hv].
+         assert (typeof_expr tus tvs e1 = Some (tyArr a (fold_right tyArr t typs))) by (eapply ExprD3.EXPR_DENOTE_core.exprD'_typeof; eassumption).
+         assert (typeof_expr tus tvs e2 = Some (tyArr a (fold_right tyArr t typs))) by (eapply ExprD3.EXPR_DENOTE_core.exprD'_typeof; eassumption).
+         specialize (IHtyps (fun us vs => (de1 us vs) (v us vs)) (fun us vs => (de2 us vs) (v us vs))).
+         apply IHtyps; try assumption; intros.
+         * specialize (Heq us vs). destruct vars; simpl in *; specialize (Heq (v us vs)); apply Heq.
+         * red_exprD; forward; inv_all; subst. forward; inv_all; subst. rewrite typ_cast_typ_refl. reflexivity.
+         * red_exprD; forward; inv_all; subst. forward; inv_all; subst. rewrite typ_cast_typ_refl. reflexivity.
+     Qed.
+ 
+     Lemma apps_rewrite2 tus tvs e1 e2 rs t dea1 (ILOps : ILogicOps (typD ts nil t)) vars
         (H : exprD' tus tvs (apps e1 rs) t = Some dea1) 
         (He: forall typs de1, exprD' tus tvs e1 (fold_right tyArr t typs) = Some de1 -> 
         	                exists de2, exprD' tus tvs e2 (fold_right tyArr t typs) = Some de2 /\ forall us vs, (var_entail vars _ ) (de1 us vs) (de2 us vs)) :
@@ -886,7 +861,7 @@ End pt_quant_morphisms.
      Proof.
        generalize dependent e1; generalize dependent e2; induction rs; simpl in *; intros.
        + specialize (He nil). apply He. simpl. apply H.
-      + eapply IHrs; [eassumption |].
+       + eapply IHrs; [eassumption |].
          intros.
          red_exprD; forward; inv_all; subst. clear IHrs.
          specialize (He (t1::typs) _ H2).
@@ -903,158 +878,152 @@ End pt_quant_morphisms.
          Local Transparent ILFun_Ops.
          destruct vars; apply H5.
     Qed.
-
  
-  Lemma Happ pq_env
-  : forall tus tvs l (l_res : T) rs t ts,
-      typeof_expr tus tvs (apps l (map fst rs)) = Some t ->
-      let ft := fold_right tyArr t ts in
-      PQR pq_env ft l (l_res tus tvs) tus tvs ->
-      Forall2 (fun t x =>
-                    typeof_expr tus tvs (fst x) = Some t
-                 /\ PQR pq_env t (fst x) (snd x tus tvs) tus tvs)
-              ts rs ->
-      PQR pq_env t (apps l (map fst rs)) (pq_app pq_env l l_res rs tus tvs) tus tvs.
-   Proof.
-     intros.
-     intros vars pt. simpl.
-     assert (exists ILOps, (gs t) = Some ILOps) by admit. destruct H2.
-     specialize (H0 vars pt).
-     assert (typeof_expr tus tvs l = Some ft). {
-     	clear H0. generalize dependent l; generalize dependent ts0.
-     	induction rs; simpl in *; intros; inversion H1; simpl.
-     	+ apply H.
-     	+ specialize (IHrs _ H6 _ H).
-     	  destruct H5 as [H5 _].
-     	  simpl in *; forward; inv_all; subst; simpl in *.
-     	  f_equal. unfold type_of_apply in IHrs.
-     	  destruct t0; try congruence.
-     	  forward.
-     }
+       Lemma PQR_valid v p t xs ms e f tus tvs (ILOps : ILogicOps (typD ts nil t)) (Hgs : gs t = Some ILOps)
+          (H : PQR_aux v p t (xs, ms, e) f tus tvs) (Hvalid : valid_env tus tvs p v f ms) : 
+         valid_env tus (rev xs ++ tvs) p v e ms.
+       Proof.
+         admit.
+         (*
+         unfold valid_env in *; intros.
+         unfold PQR_aux, TD, Teval in H.
+         forward; inv_all; subst.
+         replace xs with (xs ++ nil) in H by (apply app_nil_r).
+         pose proof (exprD'_add_quants_app_Some H3 H).
+         destruct H5 as [? [? ?]].   
+         pose proof H1. pose proof H5.      
+         eapply ExprD3.EXPR_DENOTE_core.exprD'_typeof in H1.		        
+         eapply ExprD3.EXPR_DENOTE_core.exprD'_typeof in H5.
+         simpl in *. rewrite H5 in H1. inv_all; subst.
+         specialize (Hvalid _ _ _ _ H0 H2 us (snd (hlist_split _ _ vs))).
+         rewrite app_nil_r in *.
+         rewrite H8 in H7. inv_all; subst.
+         specialize (H6 us (snd (hlist_split _ _ vs))).
+         specialize (H4 us (snd (hlist_split _ _ vs))).
+         rewrite H6 in H4.
+         
+         clear -H4 Hvalid.
+         generalize dependent typs. induction ms; intros; [constructor|].
+         destruct a; [destruct p0|]; simpl in *.
+         + destruct typs; simpl in *. admit. (* Trivially false, but must construct inversion rule *)
+           apply ve_some. intros. 
+           apply valid_arg_some_inv in Hvalid.
+           destruct Hvalid as [? [? ?]].
+           specialize (IHms typs (fun tus tvs => t2 tus tvs a) (H a) (fun tus tvs => df tus tvs a) _).
+           simpl in *.
+           apply IHms.
+           
+         *)
+       Qed.
 
-     intros.  
-     specialize (H0 t ts0 eq_refl).
-     destruct H0 as [H0 H5].
-     exists nil. intros.
-     split; [admit|].
-     destruct l. simpl.
-     admit.
-     replace (apps (Inj i) (map fst rs)) with (apps (add_quants pt (fold_right tyArr t ts0) nil (Inj i)) (map fst rs)).
-
-
-     Lemma Happ_aux pq_env tus tvs pt vars f rs t modes xs typs (ILOps : ILogicOps (typD ts nil t)) (IL : ILogic (typD ts nil t)) (Hgs : gs t = Some ILOps)
+     Lemma Happ_aux tus tvs pt vars f rs t ms xs typs (ILOps : ILogicOps (typD ts nil t)) (IL : ILogic (typD ts nil t)) (Hgs : gs t = Some ILOps)
         (Hf : typeof_expr tus (rev xs ++ tvs) f = Some (fold_right tyArr t typs))
         (Hrs : Forall2
 		       (fun (t : typ) (x : expr ilfunc * (tenv typ -> tenv typ -> TT)) =>
 		        typeof_expr tus tvs (fst x) = Some t /\
-		        PQR pq_env t (fst x) (snd x tus tvs) tus tvs) typs rs)
-        (Henv : @valid_env tus tvs xs pt vars t ILOps typs f modes) :
-     	PQR_aux vars pt t (pq_app_aux tus tvs modes (xs, f) rs)
+		        PQR t (fst x) (snd x tus tvs) tus tvs) typs rs)
+        (Henv : @valid_env tus (rev xs ++ tvs) pt vars f ms) :
+     	PQR_aux vars pt t (pq_app_aux tus tvs pt (xs, ms, f) rs)
      	                  (apps (add_quants pt (fold_right tyArr t typs) xs f) (map fst rs)) tus tvs.
-     Proof.
-        generalize dependent typs. generalize dependent f. generalize dependent modes. generalize dependent xs.
+     Proof.     
+        generalize dependent typs. generalize dependent f. generalize dependent ms. generalize dependent xs.
        	induction rs; intros.
-       	+ inversion Hrs; subst. destruct modes; simpl in *. 
+       	+ inversion Hrs; subst. destruct ms; simpl in *.  
        	  * unfold PQR_aux, TD, Teval. simpl. forward; inv_all; subst.
        	    rewrite add_quants_typeof_expr with (pt := pt) in Hf; [|eassumption].
-       	    apply typeof_expr_exprD' in Hf. destruct Hf. forward.
-       	    destruct vars; reflexivity.
+       	    pose proof Hf.
+       	    apply typeof_expr_exprD' in Hf. destruct Hf. 
+       	    rewrite <- add_quants_typeof_expr in H0; [|eassumption].
+       	    unfold add_quants'. forward; inv_all; subst.
+       	    rewrite H1 in H3. inv_all; subst. reflexivity.
        	  * unfold valid_env in Henv. simpl in *.
        	    pose proof Hf.
-       	    rewrite add_quants_typeof_expr with (pt := pt) in Hf; [|eassumption].
-       	    apply typeof_expr_exprD' in Hf. destruct Hf. forward.
-       	    apply typeof_expr_exprD'_impl in H. destruct H.
-       	    specialize (Henv _ H).
-       	    destruct o. destruct p. unfold PQR_aux, TD, Teval. forward. inv_all; subst.
-       	    destruct vars; intros; reflexivity.
-       	    unfold PQR_aux, TD, Teval; forward. destruct vars; reflexivity.
+       	    apply typeof_expr_exprD' in Hf. destruct Hf. 
+       	    specialize (Henv t nil _ ILOps Hgs H0).
+       	    unfold add_quants'. forward; inv_all; subst.
+       	    rewrite add_quants_typeof_expr with (pt := pt) in H; [|eassumption].
+       	    apply typeof_expr_exprD' in H; destruct H.
+       	    
+       	    destruct o.
+       	    - destruct p. 
+       	      unfold PQR_aux, TD, Teval. forward; inv_all; subst; simpl. 
+       	      forward; inv_all; subst. reflexivity.
+       	    - unfold PQR_aux, TD, Teval. forward. inv_all; subst; simpl. 
+       	      forward; inv_all; subst; reflexivity.
        	+ destruct typs; [inversion Hrs|].
-       	  destruct modes; [admit|].
-       	  inversion Hrs; clear Hrs; subst. destruct H2.
-       	  destruct o; simpl in *. 
-       	  * destruct p, a; simpl in *.
-       	    unfold PQR in H0. specialize (H0 v p).
-       	    forward. 
-       	    apply (PQR_aux_rewrite (e2 := apps (add_quants pt (fold_right tyArr t typs) (xs ++ l) (App (lift 0 (length l) f) (lift (length l) (length xs) e0))) (map fst rs))); [assumption | assumption | |]. 
-            intros.
-            apply (apps_rewrite (e1 := add_quants pt (fold_right tyArr t typs) (xs ++ l) (App (lift 0 (length l) f) (lift (length l) (length xs) e0)))); [assumption|].
-            intros.
-		    assert (gs (fold_right tyArr t typs) = Some _) by admit.
-		    assert (typs = typs0) by admit; subst. simpl in *.
-            pose proof (exprD'_add_quants_app_Some H5 H3).
-            destruct H5 as [de3 [Hde3 Heq]].
-            red_exprD; forward; inv_all; subst; intros.
-		    destruct H6 as [? [? ?]].
-		    replace l with (l ++ nil) in H5 by (apply app_nil_r).
-            assert (gs ((fold_right tyArr t typs0)) = Some _) by admit. simpl in H6.
-		    pose proof (exprD'_add_quants_app_Some H7 H5).
-		    destruct H8 as [? [? ?]]. rewrite app_nil_r in H8. simpl in H8.
-		    red_exprD; forward; inv_all; subst.
-		    pose proof (typeof_expr_lift RSym_sym tus nil (rev l) (rev xs ++ tvs) f); simpl in H8. 
-		    rewrite rev_length in H8. rewrite H8 in H10. rewrite H10 in Hf. inv_all; revert H9; subst; intros. 
-		    rewrite add_quants_typeof_expr with (pt := pt) in H10.
-		    forward; inv_all; subst.
-		    pose proof (exprD'_lift RSym_sym tus nil (rev l) (rev xs ++ tvs) f (tyArr t0 (fold_right tyArr t typs0))).
-		    simpl in H10. rewrite rev_length in H10. forward.
-            assert (gs ((fold_right tyArr t (t0::typs0))) = Some _) by admit. simpl in H17.
-		    pose proof (@exprD'_add_quants_rev_Some (tyArr t0 (fold_right tyArr t typs0)) _ pt H17 tus xs tvs _ _ H15).
-		    destruct H18 as [? [? ?]].
-		    forward. inv_all; subst.
-		    pose proof (exprD'_lift RSym_sym tus (rev l) (rev xs) tvs e0 t0).
-		    do 2 rewrite rev_length in H11. forward; inv_all; subst.
-		    unfold PQR_aux, TD, Teval in H1.
-		    forward; inv_all; subst.
-		    forward; inv_all; subst.
-		    assert (exists ILOps', gs t0 = Some ILOps') by admit. destruct H12.
-		    forward; inv_all; subst.
-		    rewrite typ_cast_typ_refl.
-		    specialize (H12 t0 nil eq_refl). destruct H12. specialize (H12 x1 nil). destruct H12.
-		    forward; inv_all; subst.
-		    exists (fun us vs => (x0 us vs) (t7 us vs)). split. reflexivity.
-		    intros.
-		    unfold valid_env in Henv.
-		    specialize (Henv _ H15 us vs).
-		    apply valid_arg_some_inv in Henv. destruct Henv as [? [? ?]].
-		    rewrite H6. setoid_rewrite H9. 
-		    specialize (H16 us HList.Hnil). simpl in H16.
-		    assert (var_entail vars (ILogic_Ops_fold_fun (t:=t) ILOps typs0) 
-  (pt_quant pt (ILogic_Ops_fold_fun (t:=t) ILOps typs0)
+       	  destruct ms; simpl in *.
+       	  * unfold add_quants'. rewrite Hf.
+       	    admit. (* Reflexivity, but also proof of type is required *)
+       	  * destruct o; simpl in *. {
+       	      destruct p, a; simpl in *.
+       	      unfold add_quants'. rewrite Hf.
+       	      inversion Hrs; subst. clear Hrs. simpl in *. destruct H2 as [? ?].
+       	      unfold PQR in H0. specialize (H0 v p). destruct H0 as [_ H0].
+       	      forward; inv_all; subst; simpl in *.       	    
+       	      unfold PQR_aux, TD, Teval in H2. forward.
+       	      remember (gs t0). destruct o; [|admit (* Reflexivity again *)].
+       	      symmetry in Heqo.
+       	      apply (PQR_aux_rewrite2 (e2 := apps (add_quants pt (fold_right tyArr t typs) (xs ++ l) (App (lift 0 (length l) f) (lift (length l) (length xs) e0))) (map fst rs))); [assumption | assumption | |]. 
+              intros.
+              apply (apps_rewrite2 (e1 := add_quants pt (fold_right tyArr t typs) (xs ++ l) (App (lift 0 (length l) f) (lift (length l) (length xs) e0)))); [assumption|].
+              intros.
+              red_exprD; forward; inv_all; subst.
+	  	      assert (gs (fold_right tyArr t typs) = Some _) by admit.
+		      assert (typs0 = typs) by admit; subst. simpl in *.
+              rewrite add_quants_typeof_expr with (pt := pt) in Hf.
+              forward; inv_all; subst.
+              pose proof (exprD'_add_quants_app_Some H7 H6).
+              destruct H8 as [de3 [Hde3 Heq]].
+              red_exprD; forward; inv_all; subst; intros.
+              simpl in *. 
+              replace l with (l ++ nil) in Hde3 by (apply app_nil_r).
+		      pose proof (exprD'_add_quants_app_Some H7 Hde3).
+		      destruct H8 as [? [? ?]]. rewrite app_nil_r in H8. simpl in H8.
+		      red_exprD; forward; inv_all; subst.
+		      pose proof (exprD'_lift RSym_sym tus nil (rev l) (rev xs ++ tvs) f (tyArr t0 (fold_right tyArr t typs))). 
+		      simpl in H8. rewrite rev_length in H8.
+  		      pose proof (exprD'_lift RSym_sym tus (rev l) (rev xs) tvs e0 t5).
+  		      do 2 rewrite rev_length in H14.
+  		      forward; inv_all; subst.		      
+		      assert (t0 = t5); [|subst]. {
+		        eapply ExprD3.EXPR_DENOTE_core.exprD'_typeof in H0.		        
+		        eapply ExprD3.EXPR_DENOTE_core.exprD'_typeof in H15.		        
+		        rewrite <- add_quants_typeof_expr in H0; [|eassumption].
+		        rewrite H0 in H15. inv_all; subst. reflexivity.
+		      }
+		      forward; inv_all; subst.
+	  	      assert (gs (tyArr t5 (fold_right tyArr t typs)) = Some _) by admit.
+		      pose proof (@exprD'_add_quants_rev_Some _ _ pt H12 tus xs tvs _ _ H14).
+		      destruct H18 as [? [? ?]].
+		      forward; inv_all; subst.
+		      replace l with (l ++ nil) in H0 by (apply app_nil_r).
+		      pose proof (exprD'_add_quants_app_Some Heqo H0).
+		      destruct H20 as [? [? ?]]. simpl in H20.
+		      rewrite H20 in H15; inv_all; subst.
+		      eexists; split; [reflexivity|].
+		      intros.
+		      rewrite Heq. setoid_rewrite H10.
+		      Check exprD'_add_quants_app_Some.
+		      pose proof (exprD'_add_quants_app_Some Heqo H0).
+		      transitivity ((pt_quant pt (ILogic_Ops_fold_fun (t:=t) ILOps typs)
      (fun v0 : hlist (typD ts nil) (rev xs) =>
-      pt_quant pt (ILogic_Ops_fold_fun (t:=t) ILOps typs0)
+      pt_quant pt (ILogic_Ops_fold_fun (t:=t) ILOps typs)
         (fun v1 : hlist (typD ts nil) (rev l) =>
-         t5 us (hlist_app v1 (hlist_app v0 vs))
-           (t6 us (hlist_app v1 (hlist_app v0 vs)))))) (x0 us vs (t7 us vs)) =
-var_entail vars (ILogic_Ops_fold_fun (t:=t) ILOps typs0)
-  (pt_quant pt (ILogic_Ops_fold_fun (t:=t) ILOps typs0)
-     (fun v0 : hlist (typD ts nil) (rev xs) =>
-      pt_quant pt (ILogic_Ops_fold_fun (t:=t) ILOps typs0)
-        (fun v1 : hlist (typD ts nil) (rev l) =>
-         t3 us (hlist_app v0 vs) (t4 us (hlist_app v1 vs)))))
-  (x0 us vs (t7 us vs))).
-           f_equal. f_equal.
-           Require Import FunctionalExtensionality.
-            apply functional_extensionality; intros.
-            apply f_equal.
-            apply functional_extensionality.
-            intros.
-            rewrite H16, H21; reflexivity. 
-            Lemma blarf (P Q : Prop) (HPQ : P = Q) (H : Q) : P. rewrite HPQ. assumption. Qed.
-
-            eapply blarf.
-            eassumption.
-            clear H28.
-             
-            Lemma pt_quant_sym {A B C : Type} {ILOps : ILogicOps C} {IL : ILogic C} vars pt (e : A -> B -> C) :
-               (var_entail vars _) (pt_quant pt _ (fun x => pt_quant pt _ (fun y => e x y))) (pt_quant pt _ (fun x => pt_quant pt _ (fun y => e y x))). 
-            Proof.
-              destruct vars; (destruct pt; simpl; [
-                do 2 (apply lforallR; intros); do 2 (eapply lforallL); reflexivity |
-                do 2 (apply lexistsL; intros); do 2 (eapply lexistsR); reflexivity
-              ]).
-            Qed.
-            transitivity ((pt_quant pt (ILogic_Ops_fold_fun (t:=t) ILOps typs0)
-     						(fun v0 : hlist (typD ts nil) (rev xs) =>
-    					     t3 us (hlist_app v0 vs) (t7 us vs)))).
+         t4 us ((hlist_app v0 vs))
+           (t6 us (hlist_app v1 vs)))))).
+              match goal with 
+                | |- var_entail vars _ ?a ?b => replace a with b; [reflexivity|]
+              end. 
+              f_equal.
+              Require Import FunctionalExtensionality.
+              apply functional_extensionality; intros.
+              f_equal. apply functional_extensionality. intros.
+              specialize (H17 us Hnil x1 (hlist_app x0 vs)).
+              etransitivity.
+              Lemma blarb (A B : Type) (f g : A -> B) (a : A) (H : f = g) : f a = g a.
+              Proof.
+                rewrite H. reflexivity.
+              Qed.
 
          Lemma pt_quant_elim vars {A B : Type} {ILOps : ILogicOps A} {IL : ILogic A} pt (e1 e2 : B -> A) (H : forall x, (var_entail vars _) (e1 x) (e2 x)) :
          	(var_entail vars _) (pt_quant pt _ e1) (pt_quant pt _ e2).
@@ -1064,26 +1033,115 @@ var_entail vars (ILogic_Ops_fold_fun (t:=t) ILOps typs0)
            apply lexistsL; intro x; apply lexistsR with x; apply H]).
          Qed.
 
-         apply pt_quant_elim. intros.
-         transitivity (t3 us (hlist_app x3 vs) (t2 us vs)).
-         replace l with (l ++ nil) in H22 by (apply app_nil_r).
-         pose proof (exprD'_add_quants_app_Some H1 H22).
-         destruct H28 as [? [? ?]].
-         pose proof (@exprD'_add_quants_rev_Some t0 _ p H1 tus l tvs _ _ H28).
-         destruct H30 as [? [? ?]]. simpl in *.
-         assert (Some t4 = Some x4) by intuition congruence.
-         inv_all; subst.
-         specialize (H29 us vs).
-         etransitivity; [eapply H25|].
-         eapply H27.
-         rewrite H29.
-         apply pt_quant_elim; intros.
-         reflexivity.
-         eapply H27.
-         destruct v; simpl in *; apply H24.
-         clear -H19.
-         specialize (H19 us vs); destruct vars; [destruct H19 as [_ H19] | destruct H19 as [H19 _]]; simpl in *; specialize (H19 (t7 us vs)).
- 
+              eapply blarb. symmetry. apply H17.
+              f_equal. symmetry. apply H16.
+              setoid_rewrite H21 in H3.
+              transitivity ((pt_quant pt _ (fun x => t4 us (hlist_app x vs))) (t3 us vs)); [|destruct vars; apply H19].
+              assert ((pt_quant pt _ (fun x => t4 us (hlist_app x vs))) (t3 us vs) = (pt_quant pt _ (fun x => t4 us (hlist_app x vs) (t3 us vs)))).
+              destruct pt; simpl; reflexivity.
+              rewrite H22.
+              eapply pt_quant_elim. intros.
+              
+              specialize (Henv t (t5::typs) _ _ Hgs H14 us (hlist_app x0 vs)).
+              apply valid_arg_some_inv in Henv.
+              destruct Henv as [? [? ?]]. clear H22.
+              transitivity (t4 us (hlist_app x0 vs) (pt_quant p i (fun v => t6 us (hlist_app v vs)))); [|eapply H24; [assumption | apply H3]].
+              eapply H25; eassumption. apply _. admit.
+              apply IHrs; [rewrite rev_app_distr, <- app_assoc | rewrite rev_app_distr, <- app_assoc | assumption].
+              + admit.
+              + simpl. 
+                replace (rev l) with (nil ++ (rev l)) by reflexivity.
+                replace 0 with (length (@nil typ)) by reflexivity.
+                rewrite <- app_assoc. 
+                replace (length l) with (length (rev l)) by (apply rev_length).
+                rewrite typeof_expr_lift. simpl. forward.
+                replace (length xs) with (length (rev xs)) by (apply rev_length).
+                rewrite typeof_expr_lift. 
+                replace l with (l ++ nil) in H0 by (apply app_nil_r).
+                pose proof (exprD'_add_quants_app_Some Heqo H0).
+                destruct H6 as [de3 [Hde3 Heq]]. simpl in Hde3. 
+                eapply ExprD3.EXPR_DENOTE_core.exprD'_typeof in Hde3.
+                forward; inv_all; subst. simpl. SearchAbout typ_eqb.
+                
+                Lemma typ_eqb_refl (t : typ) : typ_eqb t t = true.
+                Proof.
+                  induction t; simpl; try reflexivity.
+                  rewrite IHt1, IHt2. reflexivity.
+                  rewrite rel_dec_eq_true. reflexivity. apply _. reflexivity.
+                  admit. (* This command should work: rewrite EqNat.beq_nat_refl. *)
+                Qed.
+
+                rewrite typ_eqb_refl. reflexivity.
+                }
+                
+                admit.
+            Qed.
+
+  Lemma Happ
+  : forall tus tvs l (l_res : T) rs t ts,
+      typeof_expr tus tvs (apps l (map fst rs)) = Some t ->
+      let ft := fold_right tyArr t ts in
+      PQR ft l (l_res tus tvs) tus tvs ->
+      Forall2 (fun t x =>
+                    typeof_expr tus tvs (fst x) = Some t
+                 /\ PQR t (fst x) (snd x tus tvs) tus tvs)
+              ts rs ->
+      PQR t (apps l (map fst rs)) (pq_app l l_res rs tus tvs) tus tvs.
+   Proof.
+     intros.
+     intros vars pt.
+     split; intros. 
+     + specialize (H0 vars pt). destruct H0 as [H0 _].       
+       induction rs; simpl.
+       * unfold pq_app. simpl. forward. 
+       * simpl in *.
+         unfold pq_app. admit. (* TODO *)
+     + assert (exists ILOps, (gs t) = Some ILOps) by admit. destruct H2.
+       specialize (H0 vars pt).
+       assert (typeof_expr tus tvs l = Some ft). {
+         clear H0. generalize dependent l; generalize dependent ts0.
+     	 induction rs; simpl in *; intros; inversion H1; simpl.
+     	 + apply H.
+     	 + specialize (IHrs _ H6 _ H).
+     	   destruct H5 as [H5 _].
+     	   simpl in *; forward; inv_all; subst; simpl in *.
+     	   f_equal. unfold type_of_apply in IHrs.
+     	   destruct t0; try congruence.
+     	   forward.
+       }
+       destruct H0 as [H0 H5].
+       unfold pq_app.
+       destruct (l_res tus tvs vars pt); destruct p.
+       assert (exists ILOps, gs ft = Some ILOps) by admit.
+       destruct H4.
+       assert (valid_env tus (rev l0 ++ tvs) pt vars e m) as Hvalid. 
+       eapply (@PQR_valid _ _ ft); eassumption. 
+
+       unfold PQR_aux, TD, Teval in H5.
+       forward; inv_all; subst.
+       simpl in *.
+       assert (x0 = ILogic_Ops_fold_fun (t := t) x ts0) by admit. subst.
+       assert (Forall2 (fun t e => typeof_expr tus tvs e = Some t) ts0 (map fst rs)). {
+         clear -H1. generalize dependent rs.
+         induction ts0; simpl; intros.
+         + inversion H1; subst; simpl. constructor.
+         + inversion H1; subst; simpl in *. destruct H2 as [H2 _]. constructor. assumption.
+           apply IHts0. assumption.
+       }
+
+       destruct (apps_rewrite H5 H6 H8 H7) as [dea1 [dea2 [Hdea1 [Hdea2 Heq]]]].
+       eapply @PQR_aux_rewrite with (e2 := apps (add_quants pt ft l0 e) (map fst rs)).
+       assumption. apply _.
+       eassumption. eassumption. eassumption.
+       apply Happ_aux.
+       apply _.
+       admit.
+       admit.
+       assumption.
+	   assumption.
+	 Qed.
+
+
 
 End PullExistsLeft.
 
