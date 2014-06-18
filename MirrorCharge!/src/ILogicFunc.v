@@ -1,4 +1,6 @@
-Require Import Coq.Bool.Bool ZArith.
+Require Import Coq.Bool.Bool.
+Require Import Coq.ZArith.ZArith.
+Require Import Coq.Lists.List.
 Require Import ILogic ILEmbed.
 Require Import MapPositive.
 Require Import ExtLib.Core.RelDec.
@@ -6,8 +8,6 @@ Require Import ExtLib.Data.Positive.
 Require Import ExtLib.Tactics.
 Require Import MirrorCore.SymI.
 Require Import MirrorCore.Ext.Types.
-Require Import MirrorCore.Ext.ExprCore.
-Require Import MirrorCore.Ext.ExprD.
 
 Set Implicit Arguments.
 Set Strict Implicit.
