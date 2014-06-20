@@ -1,45 +1,64 @@
 (** This file implements an interface to [expr] that
  ** makes star, emp, and pure assertions apparent.
  **)
-Require Import ExtLib.Data.Positive.
+(* Require Import ExtLib.Data.Positive. *)
+Require Import ExtLib.Data.Fun.
+Require Import ExtLib.Data.List.
+Require Import ExtLib.Data.Option.
+Require Import ExtLib.Structures.Traversable.
 Require Import ExtLib.Tactics.
 Require Import BILogic Pure.
 Require Import MirrorCore.EnvI.
 Require Import MirrorCore.SymI.
+Require Import MirrorCore.TypesI.
+Require Import MirrorCore.ExprI.
+Require Import MirrorCore.Lambda.Expr.
+Require Import MirrorCore.Lambda.AppN.
+Require Import MirrorCore.Lambda.TypedFoldApp.
+(*
 Require Import MirrorCore.Ext.Expr.
 Require Import MirrorCore.Ext.AppFull.
+*)
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
+(** NOTE: This could work on arbitrary expr's **)
 Section seplog_fold.
-  Variable ts : types.
+  Variable typ : Type.
+  Variable RType_typ : RType typ.
+  Variable Typ2_Fun : Typ2 _ Fun.
   Variable sym : Type.
-  Variable RSym_sym : RSym (typD ts) sym.
+  Variable RSym_sym : RSym sym.
+
+  Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
+
+  Let Expr_expr := @Expr_expr typ sym _ _ _.
+  Local Existing Instance Expr_expr.
 
   Variable T : Type.
   Variable SL : typ.
 
   Record SepLogArgs : Type :=
-  { do_other : expr sym -> list (expr sym * T) -> T
-  ; do_pure : expr sym -> T
+  { do_other : expr typ sym -> list (expr typ sym * T) -> T
+  ; do_pure : expr typ sym -> T
   ; do_emp : T
   ; do_star : T -> T -> T
   }.
 
   Record SepLogSpec : Type :=
-  { is_pure : expr sym -> bool
-  ; is_emp : sym -> bool
-  ; is_star : sym -> bool
+  { is_pure : expr typ sym -> bool
+  ; is_emp : expr typ sym -> bool
+  ; is_star : expr typ sym -> bool
   }.
 
   Variable sla : SepLogArgs.
   Variable sls : SepLogSpec.
 
   Record SepLogSpecOk (sls : SepLogSpec)
-         (OPS : ILogic.ILogicOps (typD ts nil SL))
-         (BI : BILOperators (typD ts nil SL)) : Type :=
-  { _PureOp : @PureOp (typD ts nil SL)
+         (OPS : ILogic.ILogicOps (typD nil SL))
+         (BI : BILOperators (typD nil SL)) : Type :=
+  { _PureOp : @PureOp (typD nil SL)
   ; _Pure : @Pure _ OPS BI _PureOp
   ; His_pure : forall e,
                  sls.(is_pure) e = true ->
@@ -49,45 +68,66 @@ Section seplog_fold.
   ; His_emp : forall e,
                 sls.(is_emp) e = true ->
                 forall us vs,
-                  exprD us vs (Inj e) SL = Some empSP
+                  exprD us vs e SL = Some empSP
   ; His_star : forall e,
                  sls.(is_star) e = true ->
                  forall us vs,
-                   exprD us vs (Inj e) (tyArr SL (tyArr SL SL)) = Some sepSP
+                   exprD us vs e (tyArr SL (tyArr SL SL)) =
+                   Some match eq_sym (typ2_cast nil SL (tyArr SL SL)) in _ = t
+                              return t
+                        with
+                          | eq_refl =>
+                            match eq_sym (typ2_cast nil SL SL) in _ = t
+                                  return _ -> t
+                            with
+                              | eq_refl => sepSP
+                            end
+                        end
   }.
 
-  Record SepLogArgsOk (R_t : expr sym -> T -> tenv typ -> tenv typ -> Prop) :=
+  Record SepLogArgsOk (R_t : expr typ sym -> T -> tenv typ -> tenv typ -> Prop) :=
   { otherOk
-    : forall e es tus tvs,
-        typeof_apps _ tus tvs e (List.map fst es) = Some SL ->
+    : forall ts e es tus tvs,
+        @typeof_apps typ sym _ _ _ ts tus tvs e (List.map fst es) = Some SL ->
         (forall x y,
            In (x,y) es ->
-           typeof_expr tus tvs x = Some SL ->
+           typeof_expr ts tus tvs x = Some SL ->
            R_t x y tus tvs) ->
         R_t (apps e (List.map fst es)) (sla.(do_other) e es) tus tvs
   ; pureOk
-    : forall e tus tvs,
-        typeof_expr tus tvs e = Some SL ->
+    : forall ts e tus tvs,
+        typeof_expr ts tus tvs e = Some SL ->
         sls.(is_pure) e = true ->
         R_t e (sla.(do_pure) e) tus tvs
   ; empOk
     : forall e tus tvs,
         typeof_sym e = Some SL ->
-        sls.(is_emp) e = true ->
+        sls.(is_emp) (Inj e) = true ->
         R_t (Inj e) sla.(do_emp) tus tvs
   ; starOk
-    : forall e l r l_res r_res tus tvs,
+    : forall ts e l r l_res r_res tus tvs,
         typeof_sym e = Some (tyArr SL (tyArr SL SL)) ->
-        typeof_expr tus tvs l = Some SL ->
-        typeof_expr tus tvs r = Some SL ->
-        sls.(is_star) e = true ->
+        typeof_expr ts tus tvs l = Some SL ->
+        typeof_expr ts tus tvs r = Some SL ->
+        sls.(is_star) (Inj e) = true ->
         R_t l l_res tus tvs ->
         R_t r r_res tus tvs ->
         R_t (apps (Inj e) (l :: r :: nil)) (sla.(do_star) l_res r_res) tus tvs
   }.
 
-  Definition AppFullFoldArgs_SepLogArgs (sla : SepLogArgs)
-  : AppFullFoldArgs sym T :=
+  Require Import ExtLib.Structures.Applicative.
+  Instance Applicative_Lazy : Applicative Lazy :=
+  { ap := fun _ _ f x z =>
+            match f z , x z with
+              | Some f , Some x => Some (f x)
+              | _ , _ => None
+            end
+  ; pure := fun _ x => fun _ => Some x }.
+
+  (** NOTE: This does not need to be typed! **)
+  Definition AppFullFoldArgs_SepLogArgs
+  : AppFullFoldArgs typ sym T.
+  refine
     match sla , sls with
       | {| do_other := do_other
          ; do_pure := do_pure
@@ -96,52 +136,61 @@ Section seplog_fold.
       , {| is_pure := is_pure
          ; is_star := is_star
          ; is_emp := is_emp |} =>
-        {| do_var := fun v _ _ => do_other (Var v) nil
-         ; do_uvar := fun u _ _ => do_other (UVar u) nil
-         ; do_inj := fun i _ _ =>
-                       if is_emp i then
-                         do_emp
-                       else
-                         do_other (Inj i) nil
-         ; do_abs := fun t e _ _ _ => do_other (Abs t e) nil
-         ; do_app := fun f _ args tus tvs =>
-                       match f with
-                         | Inj i =>
-                           if is_star i then
-                             match args with
-                               | (_,l) :: (_,r) :: nil =>
-                                 do_star (l tus tvs) (r tus tvs)
-                               | _ => do_emp
-                             end
-                           else
-                             do_other f (List.map (fun x => (fst x, snd x tus tvs)) args)
-                         | _ =>
-                           do_other f (List.map (fun x => (fst x, snd x tus tvs)) args)
-                       end
-        |}
+        @Build_AppFullFoldArgs
+          typ sym T
+          (fun v _ _ =>
+             Some (do_other (Var v) nil))
+          (fun u _ _ =>
+             Some (do_other (UVar u) nil))
+          (fun i _ _ =>
+             if is_emp (Inj i) then
+               Some do_emp
+             else
+               Some (do_other (Inj i) nil))
+          (fun tus tvs t f fres args z =>
+             if is_star f then
+               match args with
+                 | (_,_,l) :: (_,_,r) :: nil =>
+                   match l z , r z with
+                     | Some l , Some r =>
+                       Some (do_star l r)
+                     | _ , _ => None
+                   end
+                 | _ => Some do_emp
+               end
+             else
+               ap (pure (do_other f))
+                  (mapT (fun tev => let '(t,e,v) := tev in
+                                    match v tt with
+                                      | None => None
+                                      | Some v => Some (e,v)
+                                    end) args))
+          (fun tus tvs t _ e eres _ =>
+             Some (do_other (Abs t e) nil))
     end.
+  Defined.
 
+(* TODO(gmalecha): Port the proof!
   Section sound.
-    Hypothesis BILOps : BILOperators (typD ts nil SL).
+    Hypothesis BILOps : BILOperators (typD nil SL).
     Context R_t `{slaok : SepLogArgsOk R_t}.
 
     Lemma atomic_ok
-    : forall (tus tvs : tenv typ) e (t : typ),
-        typeof_expr tus tvs e = Some t ->
+    : forall ts (tus tvs : tenv typ) e (t : typ),
+        typeof_expr ts tus tvs e = Some t ->
         t = SL ->
         R_t e (sla.(do_other) e nil) tus tvs.
     Proof.
       destruct slaok. simpl; intros. subst.
       change e with (apps e nil) at 1.
-      eapply (otherOk0 e nil tus tvs); simpl.
+      eapply (otherOk0 ts e nil tus tvs); simpl.
       { unfold typeof_apps. simpl. rewrite H. reflexivity. }
       { intuition. }
     Qed.
 
-
     Hypothesis is_starOk
     : forall i,
-        sls.(is_star) i = true ->
+        sls.(is_star) (Inj i) = true ->
         typeof_sym i = Some (tyArr SL (tyArr SL SL)).
 
     Lemma lem_other
@@ -254,6 +303,8 @@ Section seplog_fold.
       eapply (app_fold_args_sound AppFullFoldArgsOk_SepLogsOk) in H; eauto.
     Qed.
   End sound.
+*)
+
 
 (*
   Variable OPS : ILogic.ILogicOps (typD ts nil SL).

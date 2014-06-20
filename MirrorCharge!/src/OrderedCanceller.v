@@ -1,14 +1,17 @@
 (** This is a simple cancellation procedure based on
  ** an ordering of the elements on the right hand side.
  **)
+Require Import ExtLib.Data.Fun.
 Require Import ExtLib.Tactics.
 Require Import MirrorCore.TypesI.
 Require Import MirrorCore.SymI.
 Require Import MirrorCore.SubstI.
 Require Import MirrorCore.EnvI.
+Require Import MirrorCore.ExprI.
 Require Import MirrorCore.ExprSem.
-Require Import MirrorCore.Ext.Expr.
-Require Import MirrorCore.Ext.AppFull.
+Require Import MirrorCore.Lambda.Expr.
+Require Import MirrorCore.Lambda.AppN.
+(* Require Import MirrorCore.Lambda.AppFull. *)
 Require Import ILogic BILogic Pure.
 Require Import BILNormalize.
 Require Import Iterated.
@@ -18,18 +21,23 @@ Set Implicit Arguments.
 Set Strict Implicit.
 
 Section ordered_cancel.
-  Variable ts : types.
+  Variable typ : Type.
+  Variable RType_typ : RType typ.
+  Variable Typ2_Fun : Typ2 _ Fun.
   Variable func : Type.
-  Variable RSym_func : RSym (typD ts) func.
+  Variable RSym_func : RSym func.
+
+  Let Expr_expr : ExprI.Expr _ (expr typ func) := Expr_expr.
+  Local Existing Instance Expr_expr.
 
   Inductive Conjuncts : Type :=
-  | Pure (_ : expr func) (c : Conjuncts)
-  | Impure (f : expr func) (xs : list (expr func)) (c : Conjuncts)
+  | Pure (_ : expr typ func) (c : Conjuncts)
+  | Impure (f : expr typ func) (xs : list (expr typ func)) (c : Conjuncts)
   | Emp
   | Tru.
 
   Variable subst : Type.
-  Variable Subst_subst : Subst subst (expr func).
+  Variable Subst_subst : Subst subst (expr typ func).
   Hypothesis SubstOk_subst : SubstOk _ Subst_subst.
 
   Fixpoint findWithRest {T U} (f : T -> option U) (ls acc : list T) {struct ls}
@@ -58,12 +66,12 @@ Section ordered_cancel.
     { eapply IHls in H0. intuition. }
   Qed.
 
-  Variable doUnifySepLog : subst -> expr func -> expr func -> option subst.
-  Variable eprovePure : subst -> expr func -> option subst.
+  Variable doUnifySepLog : subst -> expr typ func -> expr typ func -> option subst.
+  Variable eprovePure : subst -> expr typ func -> option subst.
 
-  Fixpoint cancel (rhs : Conjuncts) (lhs : conjunctives func)
-           (rem : conjunctives func) (s : subst) {struct rhs}
-  : conjunctives func * conjunctives func * subst :=
+  Fixpoint cancel (rhs : Conjuncts) (lhs : conjunctives typ func)
+           (rem : conjunctives typ func) (s : subst) {struct rhs}
+  : conjunctives typ func * conjunctives typ func * subst :=
     match rhs with
       | Emp => (lhs, rem, s)
       | Tru => (lhs, {| spatial := rem.(spatial)
@@ -99,13 +107,13 @@ Section ordered_cancel.
     end.
 
   Variable tySL : typ.
-  Variable ILogicOps_SL : ILogicOps (typD ts nil tySL).
-  Variable BILOperators_SL : BILOperators (typD ts nil tySL).
+  Variable ILogicOps_SL : ILogicOps (typD nil tySL).
+  Variable BILOperators_SL : BILOperators (typD nil tySL).
   Hypothesis ILogic_SL : @ILogic _ ILogicOps_SL.
   Hypothesis BILogic_SL : @BILogic _ ILogicOps_SL BILOperators_SL.
 
   Variables tus tvs : tenv typ.
-
+(****
   (** TODO: this can be generalized to handle entailment with a remainder **)
   Definition unifySepLog_spec :=
     forall s e e' s',
@@ -183,7 +191,7 @@ Section ordered_cancel.
       end.
   End well_formed_Conjuncts.
 
-  Fixpoint Conjuncts_to_expr (ls : Conjuncts) : expr func :=
+  Fixpoint Conjuncts_to_expr (ls : Conjuncts) : expr typ func :=
     match ls with
       | Emp => SSL.(e_emp)
       | Tru => SSL.(e_true)
@@ -193,8 +201,8 @@ Section ordered_cancel.
         SSL.(e_star) (apps f xs) (Conjuncts_to_expr ls)
     end.
 
-  Definition sentails : env (typD ts) -> env (typD ts) -> expr func -> expr func -> Prop :=
-    @Sem_equiv typ (typD ts) (expr func) _ tySL lentails.
+  Definition sentails : env (typD ts) -> env (typD ts) -> expr typ func -> expr typ func -> Prop :=
+    @Sem_equiv typ (typD ts) (expr typ func) _ tySL lentails.
 
   Lemma exprD'_iterated_base_cons_Some
   : forall tus tvs a b x,
@@ -427,7 +435,7 @@ Section ordered_cancel.
       red in doUnifySepLogOk.
       simpl in H.
       consider (findWithRest
-          (fun x : expr func * list (expr func) =>
+          (fun x : expr typ func * list (expr typ func) =>
            doUnifySepLog s (apps f xs) (apps (fst x) (snd x)))
           (spatial lhs) nil); intros.
       { destruct p. destruct p.
@@ -577,7 +585,7 @@ Section ordered_cancel.
                (map (e_and SSL (e_emp SSL)) (pure rem))).
       generalize dependent (iterated_base (e_emp SSL) (e_star SSL)
                 (map
-                   (fun x2 : expr func * list (expr func) =>
+                   (fun x2 : expr typ func * list (expr typ func) =>
                     apps (fst x2) (snd x2)) (spatial rem))).
       intros.
       repeat go_crazy SSL SSLO.
@@ -715,53 +723,44 @@ Section ordered_cancel.
       specialize (orderOk rhs tus tvs).
       forward. }
   Qed.
-
+*****)
 End ordered_cancel.
 
 (** The simplest ordering heuristic just uses the order that they occur in the
  ** map without looking at unification variables.
  **)
 Section simple_ordering.
-  Variable ts : types.
+  Variable typ : Type.
+  Variable RType_typ : RType typ.
+  Variable Typ2_Fun : Typ2 _ Fun.
   Variable func : Type.
-  Variable RSym_func : RSym (typD ts) func.
+  Variable RSym_func : RSym func.
 
   Variable tySL : typ.
-  Variable ILogicOps_SL : ILogicOps (typD ts nil tySL).
-  Variable BILOperators_SL : BILOperators (typD ts nil tySL).
+  Variable ILogicOps_SL : ILogicOps (typD nil tySL).
+  Variable BILOperators_SL : BILOperators (typD nil tySL).
   Hypothesis ILogic_SL : @ILogic _ ILogicOps_SL.
   Hypothesis BILogic_SL : @BILogic _ ILogicOps_SL BILOperators_SL.
 
-  Definition simple_order (c : conjunctives func) : Conjuncts func :=
+  Definition simple_order (c : conjunctives typ func) : Conjuncts typ func :=
     List.fold_right (fun x acc => Impure (fst x) (snd x) acc)
                     (List.fold_right (fun x acc => Pure x acc)
-                                     (if c.(star_true) then Tru _ else Emp _)
+                                     (if c.(star_true) then Tru _ _ else Emp _ _)
                                      c.(pure))
                     c.(spatial).
 
-  Variable SSL : SynSepLog func.
-  Variable SSLO : SynSepLogOk _ _ _ _ SSL.
+  Variable SSL : SynSepLog typ func.
+  Variable SSLO : SynSepLogOk _ _ _ _ _ SSL.
 
-  Variable PureOp_SL : @Pure.PureOp (typD ts nil tySL).
+  Variable PureOp_SL : @Pure.PureOp (typD nil tySL).
   Variable Pure_SL : Pure.Pure PureOp_SL.
   Hypothesis Pure_ltrue : Pure.pure ltrue.
-  Hypothesis Pure_land : forall a b, Pure.pure a -> Pure.pure b -> Pure.pure (a //\\ b).
+  Hypothesis Pure_land : forall a b,
+                           Pure.pure a -> Pure.pure b -> Pure.pure (a //\\ b).
 
-
-  Theorem simple_orderOk : @order_spec ts func _ tySL ILogicOps_SL SSL _ simple_order.
-(*  : forall c us tvs,
-      match exprD' us tvs (conjunctives_to_expr_star SSL c) tySL
-          , exprD' us tvs (Conjuncts_to_expr SSL (simple_order c)) tySL
-      with
-        | Some l , Some r =>
-          forall vs,
-            well_formed _ _ _ c us (join_env vs) ->
-            ((l vs -|- r vs) /\
-             well_formed_Conjuncts _ tySL _ us (join_env vs) (simple_order c))
-        | None , None => True
-        | _ , _ => False
-      end.
-*)
+(*
+  Theorem simple_orderOk
+  : @order_spec ts func _ tySL ILogicOps_SL SSL _ simple_order.
   Proof.
     red.
     intros; destruct c; simpl.
@@ -787,7 +786,7 @@ Section simple_ordering.
 (*      repeat go_crazy SSL SSLO. *)
       admit. }
   Qed.
-
+*)
 End simple_ordering.
 (** TODO: There may be a cleaner way to do this...
  **)

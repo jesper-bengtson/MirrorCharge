@@ -5,7 +5,7 @@ Require Import MirrorCore.EnvI.
 Require Import MirrorCore.Subst.RawSubst2.
 Require Import MirrorCore.Ext.Expr.
 Require Import MirrorCore.Ext.ExprUnifySyntactic.
-Require Import MirrorCore.Subst.FMapSubst.
+Require Import MirrorCore.Subst.FMapSubst3.
 (* Charge *)
 Require Import ILogic BILogic.
 (* MirrorCharge *)

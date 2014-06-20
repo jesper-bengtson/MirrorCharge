@@ -7,94 +7,100 @@ Require Import ExtLib.Core.RelDec.
 Require Import ExtLib.Data.Positive.
 Require Import ExtLib.Tactics.
 Require Import MirrorCore.SymI.
+Require Import MirrorCore.TypesI.
+(*
 Require Import MirrorCore.Ext.Types.
+*)
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Inductive ilfunc :=
-| ilf_entails (logic : typ)
-| ilf_true (logic : typ)
-| ilf_false (logic : typ)
-| ilf_and (logic : typ)
-| ilf_or (logic : typ)
-| ilf_impl (logic : typ)
-| ilf_exists (arg logic : typ)
-| ilf_forall (arg logic : typ)
-(** It may be a little nicer to remove embed **)
-| ilf_embed (from to : typ)
-| fref (fi : positive).
+Section typed.
+  Variable typ : Type.
+  Variable RType_typ : RType typ.
+  Variable RelDec_typ_eq : RelDec (@eq typ).
 
-Global Instance RelDec_ilfunc : RelDec (@eq ilfunc) :=
-{ rel_dec := fun a b =>
-	       match a, b with
-		 | ilf_entails t, ilf_entails t'
-		 | ilf_true t, ilf_true t'
-		 | ilf_false t, ilf_false t'
-		 | ilf_and t, ilf_and t'
-		 | ilf_or t, ilf_or t'
-		 | ilf_impl t, ilf_impl t' => t ?[eq] t'
-		 | ilf_forall a t, ilf_forall a' t'
-		 | ilf_exists a t, ilf_exists a' t'
-		 | ilf_embed a t, ilf_embed a' t' => a ?[eq] a' && t ?[eq] t'
-		 | fref r, fref r' => r ?[eq] r'
-		 | _, _ => false
-	       end
-}.
+  Inductive ilfunc :=
+  | ilf_entails (logic : typ)
+  | ilf_true (logic : typ)
+  | ilf_false (logic : typ)
+  | ilf_and (logic : typ)
+  | ilf_or (logic : typ)
+  | ilf_impl (logic : typ)
+  | ilf_exists (arg logic : typ)
+  | ilf_forall (arg logic : typ)
+  (** It may be a little nicer to remove embed **)
+  | ilf_embed (from to : typ).
+(* | fref (fi : positive) *)
 
-Global Instance RelDec_Correct_ilfunc : RelDec_Correct RelDec_ilfunc.
-Proof.
-  constructor.
-  destruct x; destruct y; simpl; intuition; try congruence;
-  repeat match goal with
-           | _ : context [ ?X ?[ eq ] ?Y ] |- _ =>
-             consider (X ?[ eq ] Y); intros; subst
-           | |- context [ ?X ?[ eq ] ?Y ] =>
-             consider (X ?[ eq ] Y); intros; subst
-           | H : _ |- _ =>
-             first [ solve [ inversion H ]
-                   | inversion H; [ clear H; subst ] ]
-         end; intuition.
-Qed.
+  Global Instance RelDec_ilfunc : RelDec (@eq ilfunc) :=
+  { rel_dec := fun a b =>
+	         match a, b with
+		   | ilf_entails t, ilf_entails t'
+		   | ilf_true t, ilf_true t'
+		   | ilf_false t, ilf_false t'
+		   | ilf_and t, ilf_and t'
+		   | ilf_or t, ilf_or t'
+		   | ilf_impl t, ilf_impl t' => t ?[eq] t'
+		   | ilf_forall a t, ilf_forall a' t'
+		   | ilf_exists a t, ilf_exists a' t'
+		   | ilf_embed a t, ilf_embed a' t' => a ?[eq] a' && t ?[eq] t'
+(*		   | fref r, fref r' => r ?[eq] r' *)
+		   | _, _ => false
+	         end
+  }.
 
-(** TODO: Build an ordered map over types **)
-(** the canonical implementation doesn't work!
-Inductive tree : (typ -> Type) -> Type :=
-| Node : forall F, option (F tyProp) ->
-         tree (fun t => tree (fun u => F (tyArr t u))) ->
-         tree F
-| Empty : forall F, tree F.
-**)
+  Global Instance RelDec_Correct_ilfunc : RelDec_Correct RelDec_ilfunc.
+  Proof.
+    constructor.
+(*
+    destruct x; destruct y; simpl; intuition; try congruence;
+    repeat match goal with
+             | _ : context [ ?X ?[ eq ] ?Y ] |- _ =>
+               consider (X ?[ eq ] Y); intros; subst
+             | |- context [ ?X ?[ eq ] ?Y ] =>
+               consider (X ?[ eq ] Y); intros; subst
+             | H : _ |- _ =>
+               first [ solve [ inversion H ]
+                     | inversion H; [ clear H; subst ] ]
+           end; intuition.
+*)
+  Admitted.
 
-Section RFunc.
-  Variable ts : types.
+  (** TODO: Build an ordered map over types **)
+  (** the canonical implementation doesn't work!
+  Inductive tree : (typ -> Type) -> Type :=
+  | Node : forall F, option (F tyProp) ->
+           tree (fun t => tree (fun u => F (tyArr t u))) ->
+           tree F
+  | Empty : forall F, tree F.
+  **)
 
   Definition logic_ops := forall (t : typ),
-    option (ILogicOps (typD ts nil t)).
+    option (forall ts, ILogicOps (typD ts t)).
   Definition embed_ops := forall (t u : typ),
-    option (EmbedOp (typD ts nil t) (typD ts nil u)).
+    option (forall ts, EmbedOp (typD ts t) (typD ts u)).
   Definition logic_opsOk (l : logic_ops) : Prop :=
     forall g, match l g return Prop with
-                | Some T => @ILogic _ T
+                | Some T => forall ts, @ILogic _ (T ts)
                 | None => True
               end.
   Definition embed_opsOk (ls : logic_ops) (es : embed_ops) : Prop :=
     forall t t',
       match ls t , ls t' , es t t' return Prop with
-        | Some a , Some b , Some T => @Embed _ _ _ _ T
+        | Some a , Some b , Some T => forall ts, @Embed _ _ _ _ (T ts)
         | _ , _ , _ => True
       end.
 
-  Record function := F
-  { ftype : typ
-  ; fdenote : typD ts nil ftype
-  }.
-
-  Definition fun_map := PositiveMap.t function.
-
-  Variable fs : fun_map.
   Variable gs : logic_ops.
   Variable es : embed_ops.
+
+  Require Import ExtLib.Data.Fun.
+  Variable Typ2_tyArr : Typ2 _ Fun.
+  Variable Typ0_tyProp : Typ0 _ Prop.
+
+  Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
+  Let tyProp : typ := @typ0 _ _ _ _.
 
   Definition typeof_func (f : ilfunc) : option typ :=
     match f with
@@ -127,143 +133,170 @@ Section RFunc.
           | None => None
           | Some _ => Some (tyArr a b)
         end
-      | fref i =>
-        match PositiveMap.find i fs with
-  	  | Some f => Some (ftype f)
-  	  | None => None
-  	end
     end.
 
-  Definition funcD (f : ilfunc) :
+  Definition typ2_cast_bin ls (a b c : typ)
+  : (typD ls a -> typD ls b -> typD ls c) -> typD ls (tyArr a (tyArr b c)) :=
+    fun f =>
+      match eq_sym (typ2_cast ls a (tyArr b c)) in _ = t
+            return t with
+        | eq_refl => match eq_sym (typ2_cast ls b c) in _ = t
+                           return _ -> t with
+                       | eq_refl => f
+                     end
+        end.
+
+  Definition typ2_cast_quant ls (a b c : typ)
+  : ((typD ls a -> typD ls b) -> typD ls c) -> typD ls (tyArr (tyArr a b) c) :=
+    fun f =>
+      match eq_sym (typ2_cast ls (tyArr a b) c) in _ = t
+            return t with
+        | eq_refl => match eq_sym (typ2_cast ls a b) in _ = t
+                           return t -> _ with
+                       | eq_refl => f
+                     end
+      end.
+
+  Definition funcD (ts : list Type) (f : ilfunc) :
     match typeof_func f with
-      | Some t => typD ts nil t
+      | Some t => typD ts t
       | None => unit
     end.
-    refine (match f as f
-                  return match typeof_func f with
-			   | Some t => typD ts nil t
-			   | None => unit
-			 end
-	    with
-	      | ilf_true t => match gs t as x
-                                    return (match match x with
-						    | Some _ => Some t
-						    | None => None
-						  end with
-					      | Some t0 => typD ts nil t0
-					      | None => unit
-					    end) with
-				| Some t => @ltrue _ t
-				| None => tt
-                              end
-	      | ilf_false t => match gs t as x
-                                     return (match match x with
-						     | Some _ => Some t
-						     | None => None
-						   end with
-					       | Some t0 => typD ts nil t0
-					       | None => unit
-					     end) with
-				 | Some t => @lfalse _ t
-				 | None => tt
-                               end
-	      | ilf_entails t => match gs t as x
-                                       return (match match x with
-						       | Some _ => Some (tyArr t (tyArr t tyProp))
-						       | None => None
-						     end with
-					         | Some t0 => typD ts nil t0
-					         | None => unit
-					       end) with
-			           | Some t => @lentails _ t
-			           | None => tt
-                             end
-	      | ilf_and t => match gs t as x
-                                   return (match match x with
-						   | Some _ => Some (tyArr t (tyArr t t))
-						   | None => None
-						 end with
-					     | Some t0 => typD ts nil t0
-					     | None => unit
-					   end) with
-			       | Some t => @land _ t
-			       | None => tt
-                             end
-
-	      | ilf_impl t => match gs t as x
-                                    return (match match x with
-						    | Some _ => Some (tyArr t (tyArr t t))
-						    | None => None
-						  end with
-					      | Some t0 => typD ts nil t0
-					      | None => unit
-					    end) with
-				| Some t => @limpl _ t
-				| None => tt
-                              end
-	      | ilf_or t => match gs t as x
-                                  return (match match x with
-						  | Some _ => Some (tyArr t (tyArr t t))
-						  | None => None
-						end with
-					    | Some t0 => typD ts nil t0
-					    | None => unit
-					  end) with
-			      | Some t => @lor _ t
-			      | None => tt
-                            end
-	      | fref fi =>
-                match PositiveMap.find fi fs as x
-                      return match
-                        match x with
-                          | None => None
-                          | Some f0 => Some f0.(ftype)
-                        end
-                      with
-                        | None => unit
-                        | Some t => typD ts nil t
-                      end
-                with
-                  | None => tt
-                  | Some f => f.(fdenote)
+  refine (
+    match f as f
+          return match typeof_func f with
+		   | Some t => typD ts t
+		   | None => unit
+		 end
+    with
+      | ilf_true t =>
+        match gs t as x
+              return (match match x with
+			      | Some _ => Some t
+			      | None => None
+			    end with
+			| Some t0 => typD ts t0
+			| None => unit
+		      end) with
+	  | Some t => @ltrue _ (t ts)
+	  | None => tt
+        end
+      | ilf_false t =>
+        match gs t as x
+              return (match match x with
+			      | Some _ => Some t
+			      | None => None
+			    end with
+			| Some t0 => typD ts t0
+			| None => unit
+		      end) with
+	  | Some t => @lfalse _ (t ts)
+	  | None => tt
+        end
+      | ilf_entails t =>
+        match gs t as x
+              return (match match x with
+			      | Some _ => Some (tyArr t (tyArr t tyProp))
+			      | None => None
+			    end with
+			| Some t0 => typD ts t0
+			| None => unit
+		      end) with
+	  | Some C =>
+            match eq_sym (typ2_cast ts t (tyArr t tyProp)) in _ = t
+                  return t with
+              | eq_refl =>
+                match eq_sym (typ2_cast ts t tyProp) in _ = t
+                      return _ -> t with
+                  | eq_refl =>
+                    match eq_sym (typ0_cast ts) in _ = t
+                          return _ -> _ -> t
+                    with
+                      | eq_refl => @lentails _ _
+                    end
                 end
-              | ilf_exists a t => match gs t as x return (match match x with
-						                  | Some _ => Some (tyArr (tyArr a t) t)
-						                  | None => None
-						                end with
-							    | Some t0 => typD ts nil t0
-							    | None => unit
-							  end) with
-				    | Some t0 => @lexists _ t0 (typD ts nil a)
-				    | None => tt
-                                  end
-              | ilf_forall a t => match gs t as x return (match match x with
-						                  | Some _ => Some (tyArr (tyArr a t) t)
-						                  | None => None
-						                end with
-							    | Some t0 => typD ts nil t0
-							    | None => unit
-							  end) with
-				    | Some t0 => @lforall _ t0 (typD ts nil a)
-				    | None => tt
-                                  end
-              | ilf_embed t u =>
-                match es t u as x
-                      return match match x with
-				     | Some _ => Some (tyArr t u)
-				     | None => None
-				   end with
-			       | Some t0 => typD ts nil t0
-			       | None => unit
-			     end
-                with
-		  | Some t0 => @embed _ _ t0
-		  | None => tt
-                end
-            end).
+            end
+	  | None => tt
+        end
+      | ilf_and t =>
+        match gs t as x
+              return (match match x with
+			      | Some _ => Some (tyArr t (tyArr t t))
+			      | None => None
+			    end with
+			| Some t0 => typD ts t0
+			| None => unit
+		      end) with
+	  | Some t => typ2_cast_bin ts _ _ _ (@land _ _)
+	  | None => tt
+        end
+      | ilf_impl t =>
+        match gs t as x
+              return (match match x with
+			      | Some _ => Some (tyArr t (tyArr t t))
+			      | None => None
+			    end with
+			| Some t0 => typD ts t0
+			| None => unit
+		      end) with
+	  | Some t => typ2_cast_bin ts _ _ _ (@limpl _ _)
+	  | None => tt
+        end
+      | ilf_or t =>
+        match gs t as x
+              return (match match x with
+			      | Some _ => Some (tyArr t (tyArr t t))
+			      | None => None
+			    end with
+			| Some t0 => typD ts t0
+			| None => unit
+		      end) with
+	  | Some t => typ2_cast_bin ts _ _ _ (@lor _ _)
+	  | None => tt
+        end
+      | ilf_exists a t =>
+        match gs t as x return (match match x with
+					| Some _ => Some (tyArr (tyArr a t) t)
+					| None => None
+				      end with
+				  | Some t0 => typD ts t0
+				  | None => unit
+				end) with
+	  | Some t0 => typ2_cast_quant _ _ _ _ (@lexists _ _ _)
+	  | None => tt
+        end
+      | ilf_forall a t =>
+        match gs t as x return (match match x with
+					| Some _ => Some (tyArr (tyArr a t) t)
+					| None => None
+				      end with
+				  | Some t0 => typD ts t0
+				  | None => unit
+				end) with
+	  | Some t0 => typ2_cast_quant _ _ _ _ (@lforall _ _ _)
+	  | None => tt
+        end
+      | ilf_embed t u =>
+        match es t u as x
+              return match match x with
+			     | Some _ => Some (tyArr t u)
+			     | None => None
+			   end with
+		       | Some t0 => typD ts t0
+		       | None => unit
+		     end
+        with
+	  | Some t0 =>
+            match eq_sym (typ2_cast ts t u) in _ = t return t
+            with
+              | eq_refl => @embed _ _ _
+            end
+	  | None => tt
+        end
+    end).
   Defined.
 
-  Global Instance RSym_ilfunc : RSym (@typD ts) ilfunc :=
+  Global Instance RSym_ilfunc : RSym ilfunc :=
   { typeof_sym := typeof_func
   ; sym_eqb := fun a b => Some (rel_dec a b)
   ; symD := funcD
@@ -276,8 +309,9 @@ Section RFunc.
     consider (a ?[ eq ] b); auto.
   Qed.
 
-End RFunc.
+End typed.
 
+(*
 Section RFunc_ctor.
   Variable ts : types.
 
@@ -367,6 +401,7 @@ Section RFunc_ctor.
    ; symD := @funcD ts fm to eo
    |}.
 End RFunc_ctor.
+*)
 
 (*
 Section enhanced_resolution.

@@ -1,31 +1,36 @@
-Require Import ILogicFunc.
+Require Import ExtLib.Tactics.
 Require Import MirrorCore.SymI.
 Require Import MirrorCore.EnvI.
-Require Import MirrorCore.Ext.Expr.
-Require Import MirrorCore.Ext.AppFull.
+Require Import MirrorCore.TypesI.
+Require Import MirrorCore.Lambda.Expr.
+Require Import MirrorCore.Lambda.AppN.
+Require Import MirrorCharge.ILogicFunc.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
 Section fold.
-  Variable ts : types.
+  Variable typ : Type.
+  Variable RType_typ : RType typ.
+(*
   Variable fs : fun_map ts.
   Variable gs : logic_ops ts.
   Variable es : embed_ops ts.
-
+*)
   Variable T' : Type.
   Let T : Type := tenv typ -> tenv typ -> T'.
+  Let expr := expr typ (ilfunc typ).
 
   Variable do_var : var -> T.
   Variable do_uvar : uvar -> T.
-  Variable do_inj : ilfunc -> T.
-  Variable do_abs : typ -> expr ilfunc -> T -> T.
-  Variable do_app : expr ilfunc -> T ->
-                    list (expr ilfunc * T) -> T.
-  Variable do_ex : typ -> typ -> expr ilfunc -> T -> T.
-  Variable do_all : typ -> typ -> expr ilfunc -> T -> T.
+  Variable do_inj : ilfunc typ -> T.
+  Variable do_abs : typ -> expr -> T -> T.
+  Variable do_app : expr -> T ->
+                    list (expr * T) -> T.
+  Variable do_ex : typ -> typ -> expr -> T -> T.
+  Variable do_all : typ -> typ -> expr -> T -> T.
 
-  Fixpoint app_fold (e : expr ilfunc) : T :=
+  Fixpoint app_fold (e : expr) : T :=
     match e with
       | Var v => do_var v
       | UVar u => do_uvar u
@@ -37,7 +42,7 @@ Section fold.
       | App (Inj (ilf_forall t t')) (Abs _ e) =>
         do_all t t' e (app_fold e)
       | App l r =>
-        (fix gather e (ls : list (expr ilfunc * T)) :=
+        (fix gather e (ls : list (expr * T)) :=
            match e with
              | App a b =>
                gather a ((b, app_fold b) :: ls)
@@ -45,32 +50,38 @@ Section fold.
            end) l ((r,app_fold r) :: nil)
     end.
 
-  Local Instance RSym_ilfunc' : RSym (typD ts) ilfunc :=
+(*
+  Local Instance RSym_ilfunc' : RSym (ilfunc typ) :=
     RSym_ilfunc fs gs es.
+*)
 
-  Variable R_t : typ -> expr ilfunc -> T' -> tenv typ -> tenv typ -> Prop.
+  Variable R_t : typ -> expr -> T' -> tenv typ -> tenv typ -> Prop.
+
+  Check @typeof_expr.
+  Axiom Typ2_Fun : Typ2 _ Fun.
+  Axiom RSym_func : RSym (ilfunc typ).
 
   Hypothesis Hvar
-  : forall tus tvs v t,
-      typeof_expr tus tvs (Var v) = Some t ->
+  : forall ts tus tvs v t,
+      typeof_expr ts tus tvs (Var v) = Some t ->
       R_t t (Var v) (do_var v tus tvs) tus tvs.
   Hypothesis Huvar
-  : forall tus tvs v t,
-      typeof_expr tus tvs (UVar v) = Some t ->
+  : forall ts tus tvs v t,
+      typeof_expr ts tus tvs (UVar v) = Some t ->
       R_t t (UVar v) (do_uvar v tus tvs) tus tvs.
   Hypothesis Hinj
-  : forall tus tvs v t,
-      typeof_expr tus tvs (Inj v) = Some t ->
+  : forall ts tus tvs v t,
+      typeof_expr ts tus tvs (Inj v) = Some t ->
       R_t t (Inj v) (do_inj v tus tvs) tus tvs.
   Hypothesis Habs
-  : forall tus tvs t t' e e_res,
-      typeof_expr tus tvs (Abs t e) = Some (tyArr t t') ->
+  : forall ts tus tvs t t' e e_res,
+      typeof_expr ts tus tvs (Abs t e) = Some (typ2 t t') ->
       R_t t' e (e_res tus (t :: tvs)) tus (t :: tvs) ->
-      R_t (tyArr t t') (Abs t e) (do_abs t e e_res tus tvs) tus tvs.
+      R_t (typ2 t t') (Abs t e) (do_abs t e e_res tus tvs) tus tvs.
   Hypothesis Happ
   : forall tus tvs l l_res rs t ts,
       typeof_expr tus tvs (apps l (map fst rs)) = Some t ->
-      let ft := fold_right tyArr t ts in
+      let ft := fold_right typ2 t ts in
       R_t ft l (l_res tus tvs) tus tvs ->
       Forall2 (fun t x =>
                     typeof_expr tus tvs (fst x) = Some t
@@ -92,7 +103,6 @@ Section fold.
           (App (Inj (ilf_forall t t_logic)) (Abs t e))
           (do_all t t_logic e e_res tus tvs) tus tvs.
 
-  Require Import ExtLib.Tactics.
 
   Lemma app_fold_sound_do_app
   : forall e,

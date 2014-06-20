@@ -16,9 +16,12 @@ Require Import ExtLib.Tactics.
 Require Import BILogic ILogic Pure.
 Require Import MirrorCore.EnvI.
 Require Import MirrorCore.SymI.
+Require Import MirrorCore.ExprI.
+Require Import MirrorCore.TypesI.
 Require Import MirrorCore.ExprSem.
-Require Import MirrorCore.Ext.Expr.
-Require Import MirrorCore.Ext.AppFull.
+Require Import MirrorCore.Lambda.Expr.
+Require Import MirrorCore.Lambda.AppN.
+Require Import MirrorCore.Lambda.TypedFoldApp.
 Require Import Iterated.
 Require Import ILogicFunc SepLogFold.
 Require Import SynSepLog.
@@ -68,14 +71,19 @@ Section lemmas.
 End lemmas.
 
 Section conjunctives.
-  Variable ts : types.
+  Variable typ : Type.
+  Variable RType_typ : RType typ.
+  Variable Typ2_Fun : Typ2 _ Fun.
   Variable sym : Type.
-  Variable RSym_sym : RSym (typD ts) sym.
+  Variable RSym_sym : RSym sym.
+
+  Let Expr_expr : Expr _ (expr typ sym) := Expr_expr.
+  Local Existing Instance Expr_expr.
 
   Record conjunctives : Type :=
-  { spatial : list (expr sym * list (expr sym))
+  { spatial : list (expr typ sym * list (expr typ sym))
   ; star_true : bool
-  ; pure : list (expr sym)
+  ; pure : list (expr typ sym)
   }.
 
   Definition mkEmpty : conjunctives :=
@@ -103,7 +111,7 @@ Section conjunctives.
    |}.
 
 
-  Definition SepLogArgs_normalize : SepLogArgs sym conjunctives :=
+  Definition SepLogArgs_normalize : SepLogArgs typ sym conjunctives :=
   {| do_emp := mkEmpty
    ; do_star := mkStar
    ; do_other := fun f xs => mkSpatial f (List.map fst xs)
@@ -113,33 +121,33 @@ Section conjunctives.
   Variable SL : typ.
 
   Section conjunctivesD.
-    Variable ILO : ILogicOps (typD ts nil SL).
-    Variable BILO : BILOperators (typD ts nil SL).
+    Variable ILO : ILogicOps (typD nil SL).
+    Variable BILO : BILOperators (typD nil SL).
     Variable IL : @ILogic _ ILO.
     Variable BIL : @BILogic _ ILO BILO.
 
     Definition well_formed (PO : PureOp)
-               (c : conjunctives) (us vs : env (typD ts)) : Prop :=
+               (c : conjunctives) (us vs : env nil) : Prop :=
       List.Forall (fun e =>
-                     exists val, exprD us vs e SL = Some val
+                     exists val, exprD us vs e SL  = Some val
                               /\ @Pure.pure _ PO val) c.(pure).
 
-    Variable SSL : SynSepLog sym.
-    Variable SSLO : @SynSepLogOk ts sym _ SL _ _ SSL.
+    Variable SSL : SynSepLog typ sym.
+    Variable SSLO : @SynSepLogOk typ _ _ sym _ SL _ _ SSL.
 
-    Definition conjunctives_to_expr (c : conjunctives) : expr sym :=
+    Definition conjunctives_to_expr (c : conjunctives) : expr typ sym :=
       let spa := iterated_base SSL.(e_emp) SSL.(e_star) (map (fun x => apps (fst x) (snd x)) c.(spatial)) in
       let pur := iterated_base SSL.(e_true) SSL.(e_and) c.(pure) in
       SSL.(e_and) pur (SSL.(e_star) spa (if c.(star_true) then SSL.(e_true) else SSL.(e_emp))).
 
-    Definition conjunctives_to_expr_star (c : conjunctives) : expr sym :=
+    Definition conjunctives_to_expr_star (c : conjunctives) : expr typ sym :=
       let spa := iterated_base SSL.(e_emp) SSL.(e_star) (map (fun x => apps (fst x) (snd x)) c.(spatial)) in
       let pur := iterated_base SSL.(e_emp) SSL.(e_star) (map (SSL.(e_and) SSL.(e_emp)) c.(pure)) in
       SSL.(e_star) pur (SSL.(e_star) spa (if c.(star_true) then SSL.(e_true) else SSL.(e_emp))).
 
     Section with_pure.
 
-    Variable PureOp_it : @PureOp (typD ts nil SL).
+    Variable PureOp_it : @PureOp (typD nil SL).
     Variable Pure_it : @Pure _ _ _ PureOp_it.
     Hypothesis pure_ltrue : Pure.pure ltrue.
     Hypothesis pure_land : forall p q, Pure.pure p -> Pure.pure q -> Pure.pure (land p q).
@@ -148,10 +156,11 @@ Section conjunctives.
     : forall us vs ps x1,
         exprD us vs (iterated_base (e_true SSL) (e_and SSL) ps) SL = Some x1 ->
         List.Forall
-          (fun e : expr sym =>
-             exists val : typD ts nil SL,
+          (fun e : expr typ sym =>
+             exists val : typD nil SL,
                exprD us vs e SL = Some val /\ Pure.pure val) ps -> Pure.pure x1.
     Proof.
+(*
       intros.
       generalize dependent x1.
       induction H0; simpl.
@@ -181,7 +190,10 @@ Section conjunctives.
         eapply pure_proper. rewrite H5 in H3. apply H3.
         eapply pure_land; eauto. }
     Qed.
+*)
+    Admitted.
 
+(*
     Lemma iterated_base_true_and_star_emp'
     : forall tus tvs ps,
         match
@@ -192,7 +204,7 @@ Section conjunctives.
             forall Q us vs,
               List.Forall
                 (fun e : expr sym =>
-                   exists val : typD ts nil SL,
+                   exists val : typD nil SL,
                         exprD (join_env us) (join_env vs) e SL = Some val
                      /\ Pure.pure val)
                 ps ->
@@ -333,7 +345,7 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
         { destruct (exprD_e_empOk SSLO us vs) as [ ? [ ? ? ] ].
           congruence. } }
     Qed.
-
+*)
 
 (*
     Lemma iterated_base_true_and_star_emp
@@ -491,17 +503,18 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
     Theorem conjunctives_to_expr_conjunctives_to_expr_star_iff
     : forall tvs tus c,
         match
-            exprD' tus tvs (conjunctives_to_expr c) SL
-          , exprD' tus tvs (conjunctives_to_expr_star c) SL
+            exprD' nil tus tvs SL (conjunctives_to_expr c)
+          , exprD' nil tus tvs SL (conjunctives_to_expr_star c)
         with
           | Some cE , Some cE' =>
-            forall us (vs : hlist (typD ts nil) tvs),
+            forall us (vs : hlist (typD nil) tvs),
             well_formed _ c (join_env us) (join_env vs) ->
             cE us vs -|- cE' us vs
           | None , None => True
           | _ , _ => False
         end.
     Proof.
+(*
       intros.
       unfold conjunctives_to_expr, conjunctives_to_expr_star.
       generalize (e_star SSL
@@ -591,6 +604,7 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
               destruct (SSLO.(e_empOk) us tvs) as [ ? [ ? ? ] ].
               congruence. } } } }
 *)
+*)
     Admitted.
 
 (*
@@ -609,8 +623,9 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
       end.
 *)
 
+(*
     Definition R_conjunctives
-               (e : expr sym) (c : conjunctives) (tus tvs : tenv typ) : Prop :=
+               (e : expr typ sym) (c : conjunctives) (tus tvs : tenv typ) : Prop :=
       forall val,
         exprD' (ts := ts) tus tvs e SL = Some val ->
         exists val',
@@ -793,9 +808,9 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
         repeat go_crazy; congruence. }
     Qed.
 *) Admitted.
-
+*)
     End with_pure.
-
+(*
     Variable SLS : SepLogSpec sym.
     Variable slsok : SepLogSpecOk RSym_sym SL SLS ILO BILO.
 
@@ -887,22 +902,23 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
         symmetry. rewrite H11. rewrite H10. auto. }
     Qed.
 *)
-
+*)
   End conjunctivesD.
 
-  Definition normalize (sls : SepLogSpec sym) :=
-    app_fold_args (AppFullFoldArgs_SepLogArgs sls SepLogArgs_normalize).
+  Definition normalize (sls : SepLogSpec typ sym) :=
+    lazy_typed_mfold _ _ (AppFullFoldArgs_SepLogArgs SepLogArgs_normalize sls).
 
+(*
   Theorem normalizeOk
-          (ILO : ILogicOps (typD ts nil SL))
-          (BILO : BILOperators (typD ts nil SL))
+          (ILO : ILogicOps (typD nil SL))
+          (BILO : BILOperators (typD nil SL))
           (IL : @ILogic _ ILO)
           (BIL : @BILogic _ ILO BILO)
-          (sls : SepLogSpec sym) (slsOk : SepLogSpecOk _ _ sls _ _)
-          (ssl : SynSepLog sym) (sslo : SynSepLogOk _ _ _ _ ssl)
-  : forall (e : expr sym) tus tvs,
-      match exprD' (ts := ts) tus tvs e SL
-          , exprD' tus tvs (conjunctives_to_expr ssl (normalize sls e tus tvs)) SL
+          (sls : SepLogSpec _ sym) (slsOk : SepLogSpecOk _ _ _ sls _ _)
+          (ssl : SynSepLog _ sym) (sslo : SynSepLogOk _ _ _ _ _ ssl)
+  : forall (e : expr typ sym) tus tvs,
+      match exprD' nil tus tvs SL e
+          , exprD' nil tus tvs SL (conjunctives_to_expr ssl (normalize sls nil tus tvs e))
       with
         | Some l , Some r =>
           forall us vs,
@@ -913,9 +929,10 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
       end.
   Proof.
   Admitted.
-
+*)
 End conjunctives.
 
+(*
 Module demo.
   Definition is_emp (i : ilfunc) : bool :=
     match i with
@@ -942,3 +959,4 @@ Module demo.
   Eval compute in  test (inj_star inj_emp inj_emp).
   Eval compute in  test (inj_star (Var 0) (inj_star inj_emp (inj_and (Var 1) (Var 3)))).
 End demo.
+*)
