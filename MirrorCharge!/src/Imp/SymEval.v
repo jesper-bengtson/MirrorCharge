@@ -174,6 +174,12 @@ Section tactic.
                  (fun _ => Seq) ::
        @SymEnv.F typ _ (tyArr tyVariable (tyArr tyExpr tyCmd))
                  (fun _ => Assign) ::
+       @SymEnv.F typ _ (tyArr tyVariable (tyArr tyExpr tyCmd))
+                 (fun _ => Read) ::
+       @SymEnv.F typ _ (tyArr tyHProp (tyArr tyHProp tyHProp))
+                 (fun _ => BILogic.sepSP) ::
+       @SymEnv.F typ _ (tyArr tyNat (tyArr tyNat tyHProp))
+                 (fun _ => PtsTo) ::
        nil).
 
   Definition lops : logic_ops _ :=
@@ -212,11 +218,24 @@ Section tactic.
     SymSum.RSym_sum (SymSum.RSym_sum (SymEnv.RSym_func fs) _) _.
   Local Existing Instance RS.
 
+  Let Expr_expr : ExprI.Expr _ (expr typ func) := Expr_expr _ _.
+  Local Existing Instance Expr_expr.
+
+  Definition test_lemma :=
+    @lemmaD typ RType_typ (expr typ func) Expr_expr (expr typ func)
+            (fun tus tvs e => exprD' nil tus tvs tyProp e)
+            tyProp
+            (fun x => x) nil nil.
+
+
   Definition fTriple : expr typ func := Inj (inl (inl 1%positive)).
   Definition fSeq : expr typ func := Inj (inl (inl 2%positive)).
   Definition fAssign : expr typ func := Inj (inl (inl 3%positive)).
+  Definition fRead : expr typ func := Inj (inl (inl 4%positive)).
   Definition fVar (v : var) : expr typ func := Inj (inl (inr (pVar v))).
   Definition fConst (c : nat) : expr typ func := Inj (inl (inr (pNat c))).
+  Definition fStar : expr typ func := Inj (inl (inl 5%positive)).
+  Definition fPtsTo : expr typ func := Inj (inl (inl 6%positive)).
   Definition flocals_get : expr typ func := Inj (inl (inr pLocals_get)).
   Definition flocals_upd : expr typ func := Inj (inl (inr pLocals_upd)).
   Definition feval_iexpr : expr typ func := Inj (inl (inr pEval_expri)).
@@ -228,6 +247,8 @@ Section tactic.
     App (App fSeq a) b.
   Definition mkAssign (a b : expr typ func) : expr typ func :=
     App (App fAssign a) b.
+  Definition mkRead (a b : expr typ func) : expr typ func :=
+    App (App fRead a) b.
 
   (** NOTE: Manual lemma reification for the time being **)
   Definition seq_lemma : lemma typ (expr typ func) (expr typ func) :=
@@ -252,20 +273,23 @@ Section tactic.
                                 tus tvs n s e1 e2 t)
                   (@instantiate typ func) SS SU.
 
-  Definition seq_case : stac typ (expr typ func) subst :=
-    FIRST (   eapply_other seq_assoc_lemma (@IDTAC _ _ _)
-           :: eapply_other seq_lemma (@IDTAC _ _ _)
-           :: nil).
-
   Definition lex (l t : typ) (e : expr typ func) : expr typ func :=
     App (Inj (inr (ilf_exists t l))) (Abs t e).
 
+  Definition lstar (l : typ) (e e' : expr typ func) : expr typ func :=
+    App (App fStar e) e'.
   Definition land (l : typ) (e e' : expr typ func) : expr typ func :=
     App (App (Inj (inr (ilf_and l))) e) e'.
+  Definition ltrue (l : typ) : expr typ func :=
+    Inj (inr (ilf_true l)).
+  Definition lentails (l : typ) (e e' : expr typ func) : expr typ func :=
+    App (App (Inj (inr (ilf_entails l))) e) e'.
   Definition lor (l : typ) (e e' : expr typ func) : expr typ func :=
     App (App (Inj (inr (ilf_or l))) e) e'.
   Definition lembed (t f : typ) (e : expr typ func) : expr typ func :=
     App (Inj (inr (ilf_embed f t))) e.
+  Definition lPtsTo (a b : expr typ func) : expr typ func :=
+    App (App fPtsTo a) b.
 
   (** Assignment **)
   Definition assign_lemma : lemma typ (expr typ func) (expr typ func) :=
@@ -284,31 +308,38 @@ Section tactic.
                                 (App (Var 2) (App (App (App flocals_upd (Var 3)) (Var 0)) (Var 1))))))
    |}.
 
-  Let Expr_expr : ExprI.Expr _ (expr typ func) := Expr_expr _ _.
-  Local Existing Instance Expr_expr.
-
-  Definition test_lemma :=
-    @lemmaD typ RType_typ (expr typ func) Expr_expr (expr typ func)
-            (fun tus tvs e => exprD' nil tus tvs tyProp e)
-            tyProp
-            (fun x => x) nil nil.
-
-(*
-  Eval compute
-    in test_lemma seq_lemma.
-*)
-
-  Definition assign_case : stac typ (expr typ func) subst :=
-    FIRST (   eapply_other assign_lemma (@IDTAC _ _ _)
-           :: nil).
+  Definition read_lemma : lemma typ (expr typ func) (expr typ func) :=
+  {| vars := tyLProp :: tyVariable :: tyExpr ::
+             tyArr tyLocals tyNat :: nil
+   ; premises :=
+       lentails tyLProp
+                (Var 0)
+                (Abs tyLocals
+                     (lstar tyHProp
+                            (App (App fPtsTo (App (App feval_iexpr (Var 3)) (Var 0))) (App (Var 4) (Var 0)))
+                            (ltrue tyHProp)))
+        :: nil
+   ; concl :=
+       mkTriple (Var 0)
+                (mkRead (Var 1) (Var 2))
+                (Abs tyLocals
+                     (lex tyHProp tyNat
+                          (land tyHProp
+                                (lembed tyHProp tyProp
+                                        (App (App (fEq tyNat)
+                                                  (App (App flocals_get (Var 3)) (Var 1)))
+                                             (App (Var 5) (App (App (App flocals_upd (Var 3)) (Var 0)) (Var 1)))))
+                                (App (Var 2) (App (App (App flocals_upd (Var 3)) (Var 0)) (Var 1))))))
+   |}.
 
   Definition all_cases : stac typ (expr typ func) subst :=
-    REC 2 (fun rec =>
+    REC 3 (fun rec =>
              let rec := rec in
-             REPEAT 2
+             REPEAT 5
                     (FIRST (   eapply_other seq_assoc_lemma rec
                             :: eapply_other seq_lemma rec
                             :: eapply_other assign_lemma rec
+                            :: eapply_other read_lemma rec
                             :: nil)))
         (@FAIL _ _ _).
 
@@ -319,10 +350,10 @@ Section tactic.
                  (mkSeq (mkSeq (Var 1) (Var 2)) (Var 3))
                  (Var 4)
     in
-    @seq_case goal (SubstI3.empty (expr :=expr typ func))
+    @all_cases goal (SubstI3.empty (expr :=expr typ func))
               nil vars.
 
-  Definition XXX := eapply_other.
+  Time Eval vm_compute in test.
 
   Definition test' :=
     let uvars := tyLProp :: nil in
@@ -336,5 +367,46 @@ Section tactic.
                uvars vars.
 
   Time Eval vm_compute in test'.
+
+  Local Notation "a @ b" := (@App typ _ a b) (at level 30).
+  Local Notation "\ t -> e" := (@Abs typ _ t e) (at level 40).
+
+  Definition test_read :=
+    let uvars := tyLProp :: nil in
+    let vars := tyVariable :: tyExpr :: nil in
+    let goal :=
+        mkTriple (Abs tyLocals (lPtsTo (App (App flocals_get (Var 1)) (Var 0)) (fConst 1)))
+                 (mkRead (Var 0) (Var 1))
+                 (UVar 0)
+    in
+    let tac :=
+        eapply_other read_lemma (@IDTAC _ _ _)
+    in
+    @tac goal (SubstI3.empty (expr :=expr typ func))
+               uvars vars.
+
+  Time Eval cbv beta iota zeta delta - [ IDTAC ] in test_read.
+
+
+  (** The next task is to automate the entailment
+   ** I'm going to have a goal that looks like this:
+   **   P |- Q
+   ** There are two approaches:
+   ** 1) Expose lambdas and go under the state.
+   **    This has the benefit that [star] looks like [star], there isn't
+   **    a bunch of lifting going on.
+   ** 2) Reason about the lifted logics explicitly.
+   **    This has the drawback that everything is lifted, so, e.g. instead
+   **    of seeing
+   **        (star P Q)
+   **    you will see
+   **        (ap (ap (pure star) P) Q)
+   ** If we do the former, then we need a way to put things back into a good
+   ** representation.
+   ** More of a problem is the fact that our unification variables will
+   ** need to mention the heap explicitly, i.e. we'll be working in two
+   ** unification contexts which substitutions can not handle at the moment.
+   ** ^--- This suggests that I *must* do the later.
+   **)
 
 End tactic.

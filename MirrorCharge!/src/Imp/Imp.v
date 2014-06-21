@@ -79,12 +79,13 @@ Axiom Read_rule
            (Read x e)
            (fun l =>
               Exists v' : value,
-                    embed (locals_get x l = v l)
+                    embed (locals_get x l = v (locals_upd x v' l))
               //\\  P (locals_upd x v' l)).
 
 (** Write **)
 Parameter Write : iexpr -> iexpr -> icmd.
 
+(** TODO(gmalecha): This rule might be wrong **)
 Axiom Write_rule
 : forall (P : lprop) Q p v,
     (P |-- Exists v', ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr p)) (pure v') ** Q) ->
