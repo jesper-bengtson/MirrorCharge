@@ -90,6 +90,7 @@ Definition assign_lemma : lemma typ (expr typ func) (expr typ func) :=
                          (lupdate tyHProp (App (App flocals_upd (Var 2)) (Var 0)) (Var 1))))
  |}.
 
+(** Read **)
 Definition read_lemma : lemma typ (expr typ func) (expr typ func) :=
 {| vars := tyLProp :: tyVariable :: tyExpr ::
                    tyArr tyLocals tyNat :: nil
@@ -113,6 +114,29 @@ Definition read_lemma : lemma typ (expr typ func) (expr typ func) :=
                                    (lupdate tyNat (App (App flocals_upd (Var 2)) (Var 0)) (Var 4))))
                          (lupdate tyHProp (App (App flocals_upd (Var 2)) (Var 0)) (Var 1))))
  |}.
+
+(** Write **)
+Definition write_lemma : lemma typ (expr typ func) (expr typ func) :=
+{| vars := tyLProp :: tyLProp :: tyExpr :: tyExpr :: nil
+ ; premises :=
+     lentails tyLProp
+              (Var 0)
+              (lex tyLProp tyNat
+                   (lstar tyLProp
+                          (lap tyNat tyHProp (lap tyNat (tyArr tyNat tyHProp)
+                                                  (lpure (tyArr tyNat (tyArr tyNat tyHProp)) fPtsTo)
+                                                  (feval_iexpr @ Var 3))
+                               (lpure tyNat (Var 0)))
+                          (Var 2)))
+     :: nil
+ ; concl :=
+     mkTriple (Var 0)
+              (mkWrite (Var 2) (Var 3))
+              (lstar tyLProp
+                     (lap tyNat tyHProp (lap tyNat (tyArr tyNat tyHProp) (lpure (tyArr tyNat (tyArr tyNat tyHProp)) fPtsTo) (feval_iexpr @ Var 2)) (feval_iexpr @ Var 3))
+                     (Var 1))
+ |}.
+
 
 Definition simplify (e : expr typ func) (args : list (expr typ func))
 : expr typ func :=
@@ -218,14 +242,15 @@ Definition all_cases : stac typ (expr typ func) subst :=
       SIMPLIFY (fun _ _ => beta_all simplify nil nil)
                (stac_cancel (@IDTAC _ _ _))
   in
-  REC 3 (fun rec =>
-           let rec := rec in
-           REPEAT 5
-                  (FIRST (   eapply_other seq_assoc_lemma rec
-                          :: eapply_other seq_lemma rec
-                          :: eapply_other assign_lemma rec
-                          :: eapply_other read_lemma solve_entailment
-                          :: nil)))
+  REC 10 (fun rec =>
+            let rec := rec in
+            REPEAT 5
+                   (FIRST (   eapply_other seq_assoc_lemma rec
+                           :: eapply_other seq_lemma rec
+                           :: eapply_other assign_lemma rec
+                           :: eapply_other read_lemma solve_entailment
+                           :: eapply_other write_lemma solve_entailment
+                           :: nil)))
       (@FAIL _ _ _).
 
 Definition test :=
@@ -263,10 +288,51 @@ Definition test_read :=
                (mkRead (fVar "x") (Inj (inl (inr eVar)) @ (fVar "p")))%string
                (UVar 0)
   in
-  let tac :=
-      all_cases
-  in
+  let tac := all_cases in
   @tac goal (SubstI3.empty (expr :=expr typ func))
        uvars vars.
 
-Time Eval cbv beta iota zeta delta - [ IDTAC ] in test_read.
+Time Eval vm_compute in test_read.
+
+Definition lifted_ptsto (a b : expr typ func) : expr typ func :=
+  lap tyNat tyHProp (lap tyNat (tyArr tyNat tyHProp)
+                         (lpure (tyArr tyNat (tyArr tyNat tyHProp)) fPtsTo)
+                         a) b.
+
+Definition test_swap :=
+  let uvars := nil in
+  let vars := tyArr tyLocals tyNat :: tyArr tyLocals tyNat :: nil in
+  let goal :=
+      (mkTriple
+         (lstar tyLProp
+                (lifted_ptsto (flocals_get @ fVar "p1") (Var 0))
+                (lifted_ptsto (flocals_get @ fVar "p2") (Var 1)))
+         (mkSeq (mkRead (fVar "t1") (Inj (inl (inr eVar)) @ (fVar "p1")))
+         (mkSeq (mkRead (fVar "t2") (Inj (inl (inr eVar)) @ (fVar "p2")))
+         (mkSeq (mkWrite (Inj (inl (inr eVar)) @ fVar "t2") (Inj (inl (inr eVar)) @ (fVar "t1")))
+                (mkWrite (Inj (inl (inr eVar)) @ fVar "t1") (Inj (inl (inr eVar)) @ (fVar "t2"))))))
+         (lstar tyLProp
+                (lifted_ptsto (flocals_get @ fVar "p1") (Var 1))
+                (lifted_ptsto (flocals_get @ fVar "p2") (Var 0))))%string
+  in
+  let tac :=
+      let solve_entailment :=
+          SIMPLIFY (fun _ _ => beta_all simplify nil nil)
+                   (stac_cancel (@IDTAC _ _ _))
+      in
+      REC 1 (fun rec =>
+                let rec := rec in
+                REPEAT 5
+                       (FIRST (   eapply_other seq_assoc_lemma rec
+                               :: eapply_other seq_lemma rec
+                               :: eapply_other assign_lemma rec
+                               :: eapply_other read_lemma solve_entailment
+                               :: eapply_other write_lemma solve_entailment
+                               :: nil)))
+          (@FAIL _ _ _)
+  in
+  @tac goal (SubstI3.empty (expr :=expr typ func)) uvars vars.
+
+(** TODO(gmalecha): Debug this!
+Eval cbv beta iota zeta delta - [ REC REPEAT FIRST FAIL SIMPLIFY stac_cancel beta_all simplify ] in test_swap.
+*)

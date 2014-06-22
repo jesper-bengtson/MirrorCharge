@@ -96,7 +96,7 @@ Parameter Write : iexpr -> iexpr -> icmd.
 
 (** TODO(gmalecha): This rule might be wrong **)
 Axiom Write_rule
-: forall (P : lprop) Q p v,
+: forall (P Q : lprop) p v,
     (P |-- Exists v', ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr p)) (pure v') ** Q) ->
     triple P
            (Write p v)

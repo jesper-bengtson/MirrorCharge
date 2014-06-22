@@ -228,6 +228,8 @@ Definition fs : @SymEnv.functions typ _ :=
                (fun _ => Assign) ::
      @SymEnv.F typ _ (tyArr tyVariable (tyArr tyExpr tyCmd))
                (fun _ => Read) ::
+     @SymEnv.F typ _ (tyArr tyExpr (tyArr tyExpr tyCmd))
+               (fun _ => Write) ::
      @SymEnv.F typ _ tyCmd
                (fun _ => Skip) ::
      @SymEnv.F typ _ (tyArr tyNat (tyArr tyNat tyHProp))
@@ -275,8 +277,9 @@ Definition fTriple : expr typ func := Inj (inl (inl 1%positive)).
 Definition fSeq : expr typ func := Inj (inl (inl 2%positive)).
 Definition fAssign : expr typ func := Inj (inl (inl 3%positive)).
 Definition fRead : expr typ func := Inj (inl (inl 4%positive)).
-Definition fSkip : expr typ func := Inj (inl (inl 5%positive)).
-Definition fPtsTo : expr typ func := Inj (inl (inl 6%positive)).
+Definition fWrite : expr typ func := Inj (inl (inl 5%positive)).
+Definition fSkip : expr typ func := Inj (inl (inl 6%positive)).
+Definition fPtsTo : expr typ func := Inj (inl (inl 7%positive)).
 
 Definition fVar (v : var) : expr typ func := Inj (inl (inr (pVar v))).
 Definition fConst (c : nat) : expr typ func := Inj (inl (inr (pNat c))).
@@ -298,6 +301,8 @@ Definition mkAssign (a b : expr typ func) : expr typ func :=
   App (App fAssign a) b.
 Definition mkRead (a b : expr typ func) : expr typ func :=
   App (App fRead a) b.
+Definition mkWrite (a b : expr typ func) : expr typ func :=
+  App (App fWrite a) b.
 Definition mkSkip : expr typ func := fSkip.
 
 Definition lex (l t : typ) (e : expr typ func) : expr typ func :=
