@@ -11,7 +11,8 @@ Definition var := string.
 Definition value := nat.
 
 Parameter iexpr : Type.
-Parameter Const : value -> iexpr.
+Parameter iConst : value -> iexpr.
+Parameter iVar : var -> iexpr.
 
 Parameter icmd : Type.
 
