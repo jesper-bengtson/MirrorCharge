@@ -43,6 +43,14 @@ Parameter eval_iexpr : iexpr -> locals -> value.
 
 Parameter triple : lprop -> icmd -> lprop -> Prop.
 
+(** Skip **)
+Parameter Skip : icmd.
+
+Axiom Skip_rule
+: forall P Q,
+    P |-- Q ->
+    triple P Skip Q.
+
 (** Sequence **)
 Parameter Seq : icmd -> icmd -> icmd.
 
