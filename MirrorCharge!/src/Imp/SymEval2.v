@@ -1,3 +1,4 @@
+Require Import Coq.Strings.String.
 Require Import Coq.PArith.BinPos.
 Require Import ExtLib.Core.RelDec.
 Require Import ExtLib.Data.String.
@@ -13,8 +14,14 @@ Require Import MirrorCore.Subst.FMapSubst3.
 Require Import MirrorCore.Lambda.ExprLift.
 Require Import MirrorCore.Lambda.ExprSubst.
 Require Import MirrorCore.Lambda.ExprUnify_simul.
-Require Import MirrorCharge.Imp.Imp.
+Require Import MirrorCore.Lambda.Red.
+Require Import MirrorCore.Lambda.AppN.
 Require Import MirrorCharge.ILogicFunc.
+Require Import MirrorCharge.OrderedCanceller.
+Require Import MirrorCharge.BILNormalize.
+Require Import MirrorCharge.SynSepLog.
+Require Import MirrorCharge.SepLogFold.
+Require Import MirrorCharge.Imp.Imp.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -113,6 +120,7 @@ Inductive imp_func :=
 | pAp (_ _ : typ)
 | pPure (_ : typ)
 | pUpdate (_ : typ)
+| pEmp (_ : typ)
 | pStar (_ : typ).
 
 (** TODO: This also needs to include logic stuff! **)
@@ -139,7 +147,12 @@ Definition typeof_sym_imp (f : imp_func) : option typ :=
     | pStar (tyArr tyLocals tyHProp) =>
       let t := (tyArr tyLocals tyHProp) in
       Some (tyArr t (tyArr t t))
-    | pStar t => None
+    | pStar _ => None
+    | pEmp tyHProp =>
+      let t := tyHProp in Some t
+    | pEmp (tyArr tyLocals tyHProp) =>
+      let t := (tyArr tyLocals tyHProp) in Some t
+    | pEmp _ => None
   end.
 
 Definition imp_func_eq (a b : imp_func) : option bool :=
@@ -156,6 +169,7 @@ Definition imp_func_eq (a b : imp_func) : option bool :=
     | pPure t , pPure t' => Some (t ?[ eq ] t')
     | pUpdate t , pUpdate t' => Some (t ?[ eq ] t')
     | pStar t , pStar t' => Some (t ?[ eq ] t')
+    | pEmp t , pEmp t' => Some (t ?[ eq ] t')
     | _ , _ => Some false
   end.
 
@@ -187,6 +201,11 @@ Instance RSym_imp_func : SymI.RSym imp_func :=
               | pStar (tyArr tyLocals tyHProp) =>
                 @BILogic.sepSP _ BILOps
               | pStar _ => tt
+              | pEmp tyHProp => BILogic.empSP
+              | pEmp (tyArr tyLocals tyHProp) =>
+                @BILogic.empSP _ BILOps
+              | pEmp _ => tt
+
             end
 ; sym_eqb := imp_func_eq
 }.
@@ -284,6 +303,7 @@ Section tactic.
   Definition feval_iexpr : expr typ func := Inj (inl (inr pEval_expri)).
   Definition fEq (t : typ) : expr typ func := Inj (inl (inr (pEq t))).
   Definition fStar (t : typ) : expr typ func := Inj (inl (inr (pStar t))).
+  Definition fEmp (t : typ) : expr typ func := Inj (inl (inr (pEmp t))).
 
   Definition mkTriple (P c Q : expr typ func) : expr typ func :=
     App (App (App fTriple P) c) Q.
@@ -322,6 +342,7 @@ Section tactic.
 
   Definition lstar (l : typ) (e e' : expr typ func) : expr typ func :=
     App (App (fStar l)  e) e'.
+  Definition lemp (l : typ) : expr typ func := fEmp l.
   Definition land (l : typ) (e e' : expr typ func) : expr typ func :=
     App (App (Inj (inr (ilf_and l))) e) e'.
   Definition ltrue (l : typ) : expr typ func :=
@@ -421,7 +442,121 @@ Section tactic.
                uvars vars.
 
   Time Eval vm_compute in test'.
-  Require Import String.
+
+
+
+  Definition simplify (e : expr typ func) (args : list (expr typ func))
+  : expr typ func :=
+    match e with
+      | Inj (inl (inr pEval_expri)) =>
+        match args with
+          | App (Inj (inl (inr eVar))) X :: xs =>
+            apps (App flocals_get X) xs
+          | _ => apps e args
+        end
+      | _ => apps e args
+    end.
+
+  Definition stac_simplify (f : list typ -> list typ -> expr typ func -> expr typ func) (thn : stac typ (expr typ func) subst) : stac typ (expr typ func) subst :=
+    fun e s tus tvs =>
+      thn (f tus tvs e) s tus tvs.
+
+  Notation "'Ap' '[' x , y ']'" := (Inj (inl (inr (pAp x y)))) (at level 0).
+  Notation "'Pure' '[' x ']'" := (Inj (inl (inr (pPure x)))) (at level 0).
+  Notation "x '|-' y" :=
+    (App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) x) y) (at level 10).
+
+  Definition IS_STAR := fun (e : expr typ func) =>
+                  match e with
+                    | Inj (inl (inr (pStar _))) => true
+                    | _ => false
+                  end.
+
+  Definition IS_PURE := fun (e : expr typ func) =>
+                  match e with
+                    | Inj (inr (ilf_true _))
+                    | Inj (inr (ilf_false _)) => true
+                    | _ => false
+                  end.
+
+  (** NOTE: this is for [locals -> HProp] **)
+  Definition sls : SepLogSpec typ func :=
+  {| is_pure := IS_PURE
+   ; is_emp := fun e => false
+   ; is_star := IS_STAR
+   |}.
+
+  Let doUnifySepLog (tus tvs : EnvI.tenv typ) (s : subst) (e1 e2 : expr typ func)
+  : option subst :=
+    @exprUnify subst typ func _ _ _ _ _ 10 nil tus tvs 0 s e1 e2 tyLProp.
+
+  Let ssl : SynSepLog typ func :=
+  {| e_star := lstar tyLProp
+   ; e_emp := lemp tyLProp
+   ; e_and := land tyLProp
+   ; e_true := ltrue tyLProp
+   |}.
+
+  Definition eproveTrue (s : subst) (e : expr typ func) : option subst :=
+    match e with
+      | Inj (inr (ilf_true _)) => Some s
+      | _ => None
+    end.
+
+  Definition is_solved (e1 e2 : conjunctives typ func) : bool :=
+    match e1 , e2 with
+      | {| spatial := nil ; star_true := t ; pure := _ |}
+      , {| spatial := nil ; star_true := t' ; pure := nil |} =>
+        if t' then
+          (** ... |- true **)
+          true
+        else
+          (** ... |- emp **)
+          if t then false else true
+      | _ , _ => false
+    end.
+
+  Definition the_canceller tus tvs (lhs rhs : expr typ func)
+             (s : subst)
+  : (expr typ func * expr typ func * subst) + subst:=
+    match @normalize typ _ _ func _ sls nil tus tvs tyLProp lhs
+        , @normalize typ _ _ func _ sls nil tus tvs tyLProp rhs
+    with
+      | Some lhs_norm , Some rhs_norm =>
+        match lhs_norm tt , rhs_norm tt with
+          | Some lhs_norm , Some rhs_norm =>
+            let '(lhs',rhs',s') :=
+                OrderedCanceller.ordered_cancel
+                  (doUnifySepLog tus tvs) eproveTrue
+                  (simple_order (func:=func)) lhs_norm rhs_norm s
+            in
+            (** TODO(gmalecha): Check to see if it is solved! **)
+            if is_solved lhs' rhs' then
+              inr s'
+            else
+              inl (conjunctives_to_expr ssl lhs',
+                   conjunctives_to_expr ssl rhs',
+                   s')
+          | _ , _ => inl (lhs, rhs, s)
+        end
+      | _ , _ => inl (lhs, rhs, s)
+    end.
+
+  Definition stac_cancel (thn : stac typ (expr typ func) subst)
+  : stac typ (expr typ func) subst :=
+    fun e s tus tvs =>
+      match e with
+        | App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) L) R =>
+          match the_canceller tus tvs L R s with
+            | inl (l,r,s') =>
+              let e' :=
+                  App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) l) r
+              in
+              thn e' s tus tvs
+            | inr s' => @Solve _ _ _ s'
+          end
+        | _ => thn e s tus tvs
+      end.
 
   Definition test_read :=
     let uvars := tyLProp :: nil in
@@ -434,37 +569,11 @@ Section tactic.
                  (UVar 0)
     in
     let tac :=
-        eapply_other read_lemma (@IDTAC _ _ _)
+        eapply_other read_lemma (stac_simplify (fun _ _ => beta_all simplify nil nil) (stac_cancel (@IDTAC _ _ _)))
     in
     @tac goal (SubstI3.empty (expr :=expr typ func))
                uvars vars.
 
-  Notation "'Ap' '[' x , y ']'" := (Inj (inl (inr (pAp x y)))) (at level 0).
-  Notation "'Pure' '[' x ']'" := (Inj (inl (inr (pPure x)))) (at level 0).
-  Notation "x '|-' y" :=
-    (App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) x) y) (at level 10).
-
   Time Eval cbv beta iota zeta delta - [ IDTAC ] in test_read.
-
-  (** The next task is to automate the entailment
-   ** I'm going to have a goal that looks like this:
-   **   P |- Q
-   ** There are two approaches:
-   ** 1) Expose lambdas and go under the state.
-   **    This has the benefit that [star] looks like [star], there isn't
-   **    a bunch of lifting going on.
-   ** 2) Reason about the lifted logics explicitly.
-   **    This has the drawback that everything is lifted, so, e.g. instead
-   **    of seeing
-   **        (star P Q)
-   **    you will see
-   **        (ap (ap (pure star) P) Q)
-   ** If we do the former, then we need a way to put things back into a good
-   ** representation.
-   ** More of a problem is the fact that our unification variables will
-   ** need to mention the heap explicitly, i.e. we'll be working in two
-   ** unification contexts which substitutions can not handle at the moment.
-   ** ^--- This suggests that I *must* do the later.
-   **)
 
 End tactic.

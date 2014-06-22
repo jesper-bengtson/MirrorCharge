@@ -139,14 +139,29 @@ Section seplog_fold.
         @Build_AppFullFoldArgs
           typ sym T
           (fun v _ _ =>
-             Some (do_other (Var v) nil))
+             if is_pure (Var v) then
+               Some (do_pure (Var v))
+             else
+               if is_emp (Var v) then
+                 Some do_emp
+               else
+                 Some (do_other (Var v) nil))
           (fun u _ _ =>
-             Some (do_other (UVar u) nil))
+             if is_pure (UVar u) then
+               Some (do_pure (UVar u))
+             else
+               if is_emp (UVar u) then
+                 Some do_emp
+               else
+                 Some (do_other (UVar u) nil))
           (fun i _ _ =>
              if is_emp (Inj i) then
                Some do_emp
              else
-               Some (do_other (Inj i) nil))
+               if is_pure (Inj i) then
+                 Some (do_pure (Inj i))
+               else
+                 Some (do_other (Inj i) nil))
           (fun tus tvs t f fres args z =>
              if is_star f then
                match args with
@@ -159,14 +174,24 @@ Section seplog_fold.
                  | _ => Some do_emp
                end
              else
-               ap (pure (do_other f))
-                  (mapT (fun tev => let '(t,e,v) := tev in
-                                    match v tt with
-                                      | None => None
-                                      | Some v => Some (e,v)
-                                    end) args))
+               let original := apps f (map (fun x => snd (fst x)) args) in
+               if is_pure original then
+                 Some (do_pure original)
+               else
+                 ap (pure (do_other f))
+                    (mapT (fun tev => let '(t,e,v) := tev in
+                                      match v tt with
+                                        | None => None
+                                        | Some v => Some (e,v)
+                                      end) args))
           (fun tus tvs t _ e eres _ =>
-             Some (do_other (Abs t e) nil))
+             if is_pure (Abs t e) then
+               Some (do_pure (Abs t e))
+             else
+               if is_emp (Abs t e) then
+                 Some do_emp
+               else
+                 Some (do_other (Abs t e) nil))
     end.
   Defined.
 

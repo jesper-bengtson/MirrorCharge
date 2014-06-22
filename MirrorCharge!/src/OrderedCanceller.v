@@ -611,8 +611,9 @@ Section ordered_cancel.
           rewrite empSPL. auto. } }
       { repeat (go_crazy SSL SSLO; try congruence). } }
   Qed.
-
-  Variable order : conjunctives func -> Conjuncts.
+*)
+  Variable order : conjunctives typ func -> Conjuncts.
+(*
   Definition order_spec :=
     forall c tus tvs,
       match exprD' tus tvs (conjunctives_to_expr_star SSL c) tySL
@@ -627,13 +628,13 @@ Section ordered_cancel.
         | _ , _ => False
       end.
   Hypothesis orderOk : order_spec.
-
-  Definition ordered_cancel (lhs rhs : conjunctives func) (s : subst)
-  : conjunctives func * conjunctives func * subst :=
+*)
+  Definition ordered_cancel (lhs rhs : conjunctives typ func) (s : subst)
+  : conjunctives typ func * conjunctives typ func * subst :=
     let ordered := order rhs in
     let empty := {| spatial := nil ; pure := nil ; star_true := false |} in
     cancel ordered lhs empty s.
-
+(*
   Theorem ordered_cancelOk
   : forall lhs rhs s lhs' rhs' s',
       ordered_cancel lhs rhs s = (lhs', rhs', s') ->
