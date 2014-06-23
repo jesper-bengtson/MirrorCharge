@@ -39,6 +39,9 @@ Local Notation "'Ap' '[' x , y ']'" := (Inj (inl (inr (pAp x y)))) (at level 0).
 Local Notation "'Pure' '[' x ']'" := (Inj (inl (inr (pPure x)))) (at level 0).
 Local Notation "x '|-' y" :=
   (App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) x) y) (at level 10).
+Local Notation "'{{'  P  '}}'  c  '{{'  Q  '}}'" :=
+  (Inj (inl (inl 1%positive)) @ P @ c @ Q) (at level 20).
+Local Notation "c1 ;; c2" := (Inj (inl (inl 2%positive)) @ c1 @ c2) (at level 30).
 
 Let eapply_other :=
   @eapply_other typ (expr typ func) subst tyProp vars_to_uvars
@@ -56,11 +59,18 @@ Definition skip_lemma : lemma typ (expr typ func) (expr typ func) :=
  ; concl := mkTriple (Var 0) mkSkip (Var 1)
  |}.
 
+Definition skip_lemma2 : lemma typ (expr typ func) (expr typ func) :=
+{| vars := tyLProp :: nil
+ ; premises := nil
+ ; concl := mkTriple (Var 0) mkSkip (Var 0)
+ |}.
+
+
 (** Sequence **)
 Definition seq_lemma : lemma typ (expr typ func) (expr typ func) :=
 {| vars := tyLProp :: tyLProp :: tyLProp :: tyCmd :: tyCmd :: nil
  ; premises := mkTriple (Var 0) (Var 3) (Var 1) ::
-                        mkTriple (Var 1) (Var 4) (Var 2) :: nil
+               mkTriple (Var 1) (Var 4) (Var 2) :: nil
  ; concl := mkTriple (Var 0) (mkSeq (Var 3) (Var 4)) (Var 2)
  |}.
 
@@ -137,6 +147,73 @@ Definition write_lemma : lemma typ (expr typ func) (expr typ func) :=
                      (Var 1))
  |}.
 
+Fixpoint expr_eq (a b : expr typ func) : option bool :=
+  match a , b with
+    | Var a , Var b => if a ?[ eq ] b then Some true else None
+    | UVar a , UVar b => if a ?[ eq ] b then Some true else None
+    | Inj a , Inj b => SymI.sym_eqb a b
+    | App a b , App c d =>
+      match expr_eq a c with
+        | Some true => expr_eq b d
+        | _ => None
+      end
+    | Abs t a , Abs t' b => expr_eq a b
+    | _ , _ => None
+  end.
+
+Section interp_get.
+  Variable v : expr typ func.
+
+  Definition compare_expr (e1 e2 : expr typ func) : option bool :=
+    expr_eq e1 e2.
+
+  Fixpoint interp_get (updf : expr typ func)
+  : expr typ func :=
+    match updf with
+      | App (App (Inj (inl (inr pLocals_upd))) v') val =>
+        match compare_expr v v' with
+          | Some true =>
+            lpure tyNat val
+          | Some false =>
+            App flocals_get v
+          | None =>
+            App (App (Inj (inl (inr (pUpdate tyNat)))) updf) (App flocals_get v)
+        end
+      | _ =>
+        App (App (Inj (inl (inr (pUpdate tyNat)))) updf) (App flocals_get v)
+    end.
+End interp_get.
+
+Print flocals_get.
+
+Section pushUpdates.
+  Variable f : expr typ func.
+
+  Fixpoint pushUpdates (e : expr typ func) (t : typ)
+  : expr typ func :=
+    match e with
+      | App (App (Inj (inl (inr (pStar t)))) L) R =>
+        lstar t (pushUpdates L t) (pushUpdates R t)
+      | Inj (inr (ilf_true t)) => Inj (inr (ilf_true t))
+      | Inj (inr (ilf_false t)) => Inj (inr (ilf_false t))
+      | App (App (Inj (inr (ilf_and t))) L) R =>
+        App (App (Inj (inr (ilf_and t))) (pushUpdates L t)) (pushUpdates R t)
+      | App (App (Inj (inr (ilf_or t))) L) R =>
+        App (App (Inj (inr (ilf_or t))) (pushUpdates L t)) (pushUpdates R t)
+      | App (App (Inj (inr (ilf_impl t))) L) R =>
+        App (App (Inj (inr (ilf_impl t))) (pushUpdates L t)) (pushUpdates R t)
+        (** TODO(gmalecha): forall, exists **)
+      | App (Pure [t]) e =>
+        App (Pure [t]) e
+      | App (App (Ap [t1,t2]) e1) e2 =>
+        App (App (Ap [t1,t2]) (pushUpdates e1 (tyArr t1 t2))) (pushUpdates e2 t1)
+      | App (Inj (inl (inr pLocals_get))) v =>
+        interp_get v f
+      | _ => App (App (Inj (inl (inr (pUpdate t)))) f) e
+    end.
+End pushUpdates.
+
+Definition apps' := apps.
 
 Definition simplify (e : expr typ func) (args : list (expr typ func))
 : expr typ func :=
@@ -147,7 +224,13 @@ Definition simplify (e : expr typ func) (args : list (expr typ func))
           apps (App flocals_get X) xs
         | _ => apps e args
       end
-    | _ => apps e args
+    | Inj (inl (inr (pUpdate t))) =>
+      match args with
+        | f :: e :: nil =>
+          pushUpdates f e t
+        | _ => apps e args
+      end
+    | _ => apps' e args
   end.
 
 (** NOTE: this is for [locals -> HProp] **)
@@ -171,9 +254,23 @@ Let doUnifySepLog (tus tvs : EnvI.tenv typ) (s : subst) (e1 e2 : expr typ func)
   @exprUnify subst typ func _ _ _ _ _ 10 nil tus tvs 0 s e1 e2 tyLProp.
 
 Let ssl : SynSepLog typ func :=
-{| e_star := lstar tyLProp
+{| e_star := fun l r =>
+               match l with
+                 | Inj (inl (inr (pEmp _))) => r
+                 | _ => match r with
+                          | Inj (inl (inr (pEmp _))) => l
+                          | _ => lstar tyLProp l r
+                        end
+               end
  ; e_emp := lemp tyLProp
- ; e_and := land tyLProp
+ ; e_and := fun l r =>
+              match l with
+                | Inj (inr (ilf_true _)) => r
+                | _ => match r with
+                         | Inj (inr (ilf_true _)) => l
+                         | _ => land tyLProp l r
+                       end
+              end
  ; e_true := ltrue tyLProp
  |}.
 
@@ -185,14 +282,17 @@ Definition eproveTrue (s : subst) (e : expr typ func) : option subst :=
 
 Definition is_solved (e1 e2 : conjunctives typ func) : bool :=
   match e1 , e2 with
-    | {| spatial := nil ; star_true := t ; pure := _ |}
-      , {| spatial := nil ; star_true := t' ; pure := nil |} =>
+    | {| spatial := e1s ; star_true := t ; pure := _ |}
+    , {| spatial := nil ; star_true := t' ; pure := nil |} =>
       if t' then
         (** ... |- true **)
         true
       else
         (** ... |- emp **)
-        if t then false else true
+        if t then false else match e1s with
+                               | nil => true
+                               | _ => false
+                             end
     | _ , _ => false
   end.
 
@@ -250,6 +350,7 @@ Definition all_cases : stac typ (expr typ func) subst :=
                            :: eapply_other assign_lemma rec
                            :: eapply_other read_lemma solve_entailment
                            :: eapply_other write_lemma solve_entailment
+                           :: eapply_other skip_lemma solve_entailment
                            :: nil)))
       (@FAIL _ _ _).
 
