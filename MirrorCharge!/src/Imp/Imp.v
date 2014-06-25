@@ -43,6 +43,17 @@ Parameter eval_iexpr : iexpr -> locals -> value.
 
 Parameter triple : lprop -> icmd -> lprop -> Prop.
 
+(** Quantifier Rules **)
+Axiom triple_exL
+: forall P c Q,
+    (forall x : value, triple (P x) c Q) ->
+    triple (Exists x : value, P x) c Q.
+
+Axiom triple_pureL
+: forall (P : Prop) c Q R,
+    (P -> triple Q c R) ->
+    triple (land (embed (embed P)) Q) c R.
+
 (** Skip **)
 Parameter Skip : icmd.
 

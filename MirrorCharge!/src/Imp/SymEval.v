@@ -384,9 +384,9 @@ Section tactic.
     in
     @tac goal (SubstI3.empty (expr :=expr typ func))
                uvars vars.
-
+(*
   Time Eval cbv beta iota zeta delta - [ IDTAC ] in test_read.
-
+*)
 
   (** The next task is to automate the entailment
    ** I'm going to have a goal that looks like this:

@@ -23,6 +23,9 @@ Require Import MirrorCharge.SynSepLog.
 Require Import MirrorCharge.SepLogFold.
 Require Import MirrorCharge.Imp.Imp.
 Require Import MirrorCharge.Imp.Syntax.
+Require Import MirrorCharge.Imp.STacSimplify.
+Require Import MirrorCharge.Imp.STacCancel.
+Require Import MirrorCharge.Imp.STacCancelEx.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -147,196 +150,6 @@ Definition write_lemma : lemma typ (expr typ func) (expr typ func) :=
                      (Var 1))
  |}.
 
-Fixpoint expr_eq (a b : expr typ func) : option bool :=
-  match a , b with
-    | Var a , Var b => if a ?[ eq ] b then Some true else None
-    | UVar a , UVar b => if a ?[ eq ] b then Some true else None
-    | Inj a , Inj b => SymI.sym_eqb a b
-    | App a b , App c d =>
-      match expr_eq a c with
-        | Some true => expr_eq b d
-        | _ => None
-      end
-    | Abs t a , Abs t' b => expr_eq a b
-    | _ , _ => None
-  end.
-
-Section interp_get.
-  Variable v : expr typ func.
-
-  Definition compare_expr (e1 e2 : expr typ func) : option bool :=
-    expr_eq e1 e2.
-
-  Fixpoint interp_get (updf : expr typ func)
-  : expr typ func :=
-    match updf with
-      | App (App (Inj (inl (inr pLocals_upd))) v') val =>
-        match compare_expr v v' with
-          | Some true =>
-            lpure tyNat val
-          | Some false =>
-            App flocals_get v
-          | None =>
-            App (App (Inj (inl (inr (pUpdate tyNat)))) updf) (App flocals_get v)
-        end
-      | _ =>
-        App (App (Inj (inl (inr (pUpdate tyNat)))) updf) (App flocals_get v)
-    end.
-End interp_get.
-
-Print flocals_get.
-
-Section pushUpdates.
-  Variable f : expr typ func.
-
-  Fixpoint pushUpdates (e : expr typ func) (t : typ)
-  : expr typ func :=
-    match e with
-      | App (App (Inj (inl (inr (pStar t)))) L) R =>
-        lstar t (pushUpdates L t) (pushUpdates R t)
-      | Inj (inr (ilf_true t)) => Inj (inr (ilf_true t))
-      | Inj (inr (ilf_false t)) => Inj (inr (ilf_false t))
-      | App (App (Inj (inr (ilf_and t))) L) R =>
-        App (App (Inj (inr (ilf_and t))) (pushUpdates L t)) (pushUpdates R t)
-      | App (App (Inj (inr (ilf_or t))) L) R =>
-        App (App (Inj (inr (ilf_or t))) (pushUpdates L t)) (pushUpdates R t)
-      | App (App (Inj (inr (ilf_impl t))) L) R =>
-        App (App (Inj (inr (ilf_impl t))) (pushUpdates L t)) (pushUpdates R t)
-        (** TODO(gmalecha): forall, exists **)
-      | App (Pure [t]) e =>
-        App (Pure [t]) e
-      | App (App (Ap [t1,t2]) e1) e2 =>
-        App (App (Ap [t1,t2]) (pushUpdates e1 (tyArr t1 t2))) (pushUpdates e2 t1)
-      | App (Inj (inl (inr pLocals_get))) v =>
-        interp_get v f
-      | _ => App (App (Inj (inl (inr (pUpdate t)))) f) e
-    end.
-End pushUpdates.
-
-Definition apps' := apps.
-
-Definition simplify (e : expr typ func) (args : list (expr typ func))
-: expr typ func :=
-  match e with
-    | Inj (inl (inr pEval_expri)) =>
-      match args with
-        | App (Inj (inl (inr eVar))) X :: xs =>
-          apps (App flocals_get X) xs
-        | _ => apps e args
-      end
-    | Inj (inl (inr (pUpdate t))) =>
-      match args with
-        | f :: e :: nil =>
-          pushUpdates f e t
-        | _ => apps e args
-      end
-    | _ => apps' e args
-  end.
-
-(** NOTE: this is for [locals -> HProp] **)
-Definition sls : SepLogSpec typ func :=
-{| is_pure := fun (e : expr typ func) =>
-                match e with
-                  | Inj (inr (ilf_true _))
-                  | Inj (inr (ilf_false _)) => true
-                  | _ => false
-                end
- ; is_emp := fun e => false
- ; is_star := fun (e : expr typ func) =>
-                match e with
-                  | Inj (inl (inr (pStar _))) => true
-                  | _ => false
-                end
- |}.
-
-Let doUnifySepLog (tus tvs : EnvI.tenv typ) (s : subst) (e1 e2 : expr typ func)
-: option subst :=
-  @exprUnify subst typ func _ _ _ _ _ 10 nil tus tvs 0 s e1 e2 tyLProp.
-
-Let ssl : SynSepLog typ func :=
-{| e_star := fun l r =>
-               match l with
-                 | Inj (inl (inr (pEmp _))) => r
-                 | _ => match r with
-                          | Inj (inl (inr (pEmp _))) => l
-                          | _ => lstar tyLProp l r
-                        end
-               end
- ; e_emp := lemp tyLProp
- ; e_and := fun l r =>
-              match l with
-                | Inj (inr (ilf_true _)) => r
-                | _ => match r with
-                         | Inj (inr (ilf_true _)) => l
-                         | _ => land tyLProp l r
-                       end
-              end
- ; e_true := ltrue tyLProp
- |}.
-
-Definition eproveTrue (s : subst) (e : expr typ func) : option subst :=
-  match e with
-    | Inj (inr (ilf_true _)) => Some s
-    | _ => None
-  end.
-
-Definition is_solved (e1 e2 : conjunctives typ func) : bool :=
-  match e1 , e2 with
-    | {| spatial := e1s ; star_true := t ; pure := _ |}
-    , {| spatial := nil ; star_true := t' ; pure := nil |} =>
-      if t' then
-        (** ... |- true **)
-        true
-      else
-        (** ... |- emp **)
-        if t then false else match e1s with
-                               | nil => true
-                               | _ => false
-                             end
-    | _ , _ => false
-  end.
-
-Definition the_canceller tus tvs (lhs rhs : expr typ func)
-           (s : subst)
-: (expr typ func * expr typ func * subst) + subst:=
-  match @normalize typ _ _ func _ sls nil tus tvs tyLProp lhs
-        , @normalize typ _ _ func _ sls nil tus tvs tyLProp rhs
-  with
-    | Some lhs_norm , Some rhs_norm =>
-      match lhs_norm tt , rhs_norm tt with
-        | Some lhs_norm , Some rhs_norm =>
-          let '(lhs',rhs',s') :=
-              OrderedCanceller.ordered_cancel
-                (doUnifySepLog tus tvs) eproveTrue
-                (simple_order (func:=func)) lhs_norm rhs_norm s
-          in
-          if is_solved lhs' rhs' then
-            inr s'
-          else
-            inl (conjunctives_to_expr ssl lhs',
-                 conjunctives_to_expr ssl rhs',
-                 s')
-        | _ , _ => inl (lhs, rhs, s)
-      end
-    | _ , _ => inl (lhs, rhs, s)
-  end.
-
-Definition stac_cancel (thn : stac typ (expr typ func) subst)
-: stac typ (expr typ func) subst :=
-  fun e s tus tvs =>
-    match e with
-      | App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) L) R =>
-        match the_canceller tus tvs L R s with
-          | inl (l,r,s') =>
-            let e' :=
-                App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) l) r
-            in
-            thn e' s tus tvs
-          | inr s' => @Solve _ _ _ s'
-        end
-      | _ => thn e s tus tvs
-    end.
-
 Definition all_cases : stac typ (expr typ func) subst :=
   let solve_entailment :=
       SIMPLIFY (fun _ _ => beta_all simplify nil nil)
@@ -399,6 +212,45 @@ Definition lifted_ptsto (a b : expr typ func) : expr typ func :=
   lap tyNat tyHProp (lap tyNat (tyArr tyNat tyHProp)
                          (lpure (tyArr tyNat (tyArr tyNat tyHProp)) fPtsTo)
                          a) b.
+
+Definition test_swap' :=
+  let uvars := tyLProp :: nil in
+  let vars := tyNat :: tyNat :: nil in
+  let goal :=
+      (mkTriple
+         (lstar tyLProp
+                (lifted_ptsto (flocals_get @ fVar "p1") (lpure tyNat (Var 0)))
+                (lifted_ptsto (flocals_get @ fVar "p2") (lpure tyNat (Var 1))))
+         (mkSeq (mkRead (fVar "t1") (Inj (inl (inr eVar)) @ (fVar "p1")))
+                (mkRead (fVar "t2") (Inj (inl (inr eVar)) @ (fVar "p2")))) (*
+         (mkSeq (mkRead (fVar "t1") (Inj (inl (inr eVar)) @ (fVar "p1")))
+         (mkRead (fVar "t2") (Inj (inl (inr eVar)) @ (fVar "p2")))) *) (*
+         (mkSeq (mkWrite (Inj (inl (inr eVar)) @ fVar "t2") (Inj (inl (inr eVar)) @ (fVar "t1")))
+                (mkWrite (Inj (inl (inr eVar)) @ fVar "t1") (Inj (inl (inr eVar)) @ (fVar "t2")))))) *)
+         (UVar 0) (*lstar tyLProp
+                (lifted_ptsto (flocals_get @ fVar "p1") (Var 1))
+                (lifted_ptsto (flocals_get @ fVar "p2") (Var 0)))*) )%string
+  in
+  let tac :=
+      let SIMPL := SIMPLIFY (fun _ _ => beta_all simplify nil nil) in
+      let solve_entailment := SIMPL (stac_cancel (@IDTAC _ _ _)) in
+      REC 2 (fun rec =>
+               let rec := SIMPL rec in
+                REPEAT 3
+                       (FIRST ((*   eapply_other seq_assoc_lemma rec
+                               :: *) eapply_other seq_lemma rec
+(*                               :: eapply_other assign_lemma rec *)
+                               :: eapply_other read_lemma solve_entailment
+(*                               :: eapply_other write_lemma solve_entailment *)
+                               :: eapply_other skip_lemma2 solve_entailment
+                               :: eapply_other skip_lemma solve_entailment
+                               :: nil)))
+          (@FAIL _ _ _)
+  in
+  @tac goal (SubstI3.empty (expr :=expr typ func)) uvars vars.
+
+Eval vm_compute in test_swap'.
+Eval cbv beta iota zeta delta - [ SubstI3.pull ]in test_swap'.
 
 Definition test_swap :=
   let uvars := nil in
