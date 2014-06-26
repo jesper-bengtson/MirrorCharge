@@ -33,6 +33,7 @@ Section ordered_cancel.
   Inductive Conjuncts : Type :=
   | Pure (_ : expr typ func) (c : Conjuncts)
   | Impure (f : expr typ func) (xs : list (expr typ func)) (c : Conjuncts)
+  | Frame (_ : expr typ func) (xs : list (expr typ func)) (c : Conjuncts)
   | Emp
   | Tru.
 
@@ -69,15 +70,51 @@ Section ordered_cancel.
   Variable doUnifySepLog : subst -> expr typ func -> expr typ func -> option subst.
   Variable eprovePure : subst -> expr typ func -> option subst.
 
+  Variable SSL : SynSepLog typ func.
+
   Fixpoint cancel (rhs : Conjuncts) (lhs : conjunctives typ func)
            (rem : conjunctives typ func) (s : subst) {struct rhs}
   : conjunctives typ func * conjunctives typ func * subst :=
     match rhs with
       | Emp => (lhs, rem, s)
-      | Tru => (lhs, {| spatial := rem.(spatial)
+      | Tru => ({| spatial := lhs.(spatial)
+                 ; pure := lhs.(pure)
+                 ; star_true := false
+                 |}, {| spatial := rem.(spatial)
                       ; pure := rem.(pure)
                       ; star_true := true
                       |}, s)
+      | Frame hd xs rhs =>
+        match rem.(spatial) with
+          | nil =>
+            (** try to get everything! **)
+            let lhs_all := conjunctives_to_expr SSL lhs in
+            match doUnifySepLog s lhs_all (apps hd xs) with
+              | None =>
+                cancel rhs lhs
+                       {| spatial := rem.(spatial) ++ (hd,xs) :: nil
+                        ; pure := rem.(pure)
+                        ; star_true := rem.(star_true)
+                        |} s
+              | Some s' =>
+                cancel rhs
+                       {| spatial := nil
+                        ; pure := lhs.(pure)
+                        ; star_true := false
+                        |}
+                       {| spatial := nil
+                        ; pure := rem.(pure)
+                        ; star_true := rem.(star_true)
+                        |} s'
+            end
+          | _ =>
+            (** If there are spatial conjuncts left, we should keep this **)
+            cancel rhs lhs
+                   {| spatial := rem.(spatial) ++ (hd,xs) :: nil
+                    ; pure := rem.(pure)
+                    ; star_true := rem.(star_true)
+                    |} s
+        end
       | Pure p cs =>
         match eprovePure s p with
           | None =>
@@ -112,7 +149,13 @@ Section ordered_cancel.
   Hypothesis ILogic_SL : @ILogic _ ILogicOps_SL.
   Hypothesis BILogic_SL : @BILogic _ ILogicOps_SL BILOperators_SL.
 
+(*  Hypothesis eprovePureOk : eprovePure_spec.
+
+  Variable SSLO : SynSepLogOk _ _ _ _ SSL.
+
+
   Variables tus tvs : tenv typ.
+*)
 (****
   (** TODO: this can be generalized to handle entailment with a remainder **)
   Definition unifySepLog_spec :=
@@ -146,11 +189,6 @@ Section ordered_cancel.
                /\ substD (join_env us) (join_env vs) s
         | None => True
       end.
-
-  Hypothesis eprovePureOk : eprovePure_spec.
-
-  Variable SSL : SynSepLog func.
-  Variable SSLO : SynSepLogOk _ _ _ _ SSL.
 
 (*
   Fixpoint ConjunctsD (ls : Conjuncts) : option (typD ts nil tySL) :=
@@ -744,7 +782,11 @@ Section simple_ordering.
   Hypothesis BILogic_SL : @BILogic _ ILogicOps_SL BILOperators_SL.
 
   Definition simple_order (c : conjunctives typ func) : Conjuncts typ func :=
-    List.fold_right (fun x acc => Impure (fst x) (snd x) acc)
+    List.fold_right (fun x =>
+                       match fst x with
+                         | UVar _ => Frame (fst x) (snd x)
+                         | _ => Impure (fst x) (snd x)
+                       end)
                     (List.fold_right (fun x acc => Pure x acc)
                                      (if c.(star_true) then Tru _ _ else Emp _ _)
                                      c.(pure))
@@ -791,3 +833,4 @@ Section simple_ordering.
 End simple_ordering.
 (** TODO: There may be a cleaner way to do this...
  **)
+

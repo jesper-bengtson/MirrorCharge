@@ -20,8 +20,6 @@ Local Existing Instance RSym_ilfunc.
 Local Existing Instance RS.
 Local Existing Instance Expr_expr.
 
-Print pPure.
-
 (** NOTE: this is for [locals -> HProp] **)
 Definition sls : SepLogFoldEx.SepLogSpec typ func :=
 {| SepLogFoldEx.is_pure := fun (e : expr typ func) =>
@@ -161,7 +159,6 @@ Fixpoint vars_to_uvars (skip count over : nat) (e : expr typ func)
     | Abs t e => Abs t (vars_to_uvars skip count over e)
   end.
 
-
 Definition the_canceller tus tvs (lhs rhs : expr typ func)
            (s : subst)
 : (expr typ func * expr typ func * subst) + subst:=
@@ -185,6 +182,7 @@ Definition the_canceller tus tvs (lhs rhs : expr typ func)
             (doUnifySepLog (tus ++ rhs_norm.(exs))
                            (lhs_norm.(exs) ++ tvs))
             eproveTrue
+            ssl
             (simple_order (func:=func))
             {| BILNormalize.spatial := lhs_norm.(spatial)
              ; BILNormalize.pure := lhs_norm.(pure)
