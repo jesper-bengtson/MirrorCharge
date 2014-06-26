@@ -77,7 +77,10 @@ Section pushUpdates.
         App (App (Inj (inr (ilf_or t))) (pushUpdates L t)) (pushUpdates R t)
       | App (App (Inj (inr (ilf_impl t))) L) R =>
         App (App (Inj (inr (ilf_impl t))) (pushUpdates L t)) (pushUpdates R t)
-        (** TODO(gmalecha): forall, exists **)
+      | App (Inj (inr (ilf_exists X t))) (Abs t' e) =>
+        App (Inj (inr (ilf_exists X t))) (Abs t' (pushUpdates e t))
+      | App (Inj (inr (ilf_forall X t))) (Abs t' e) =>
+        App (Inj (inr (ilf_forall X t))) (Abs t' (pushUpdates e t))
       | App (Pure [t]) e =>
         App (Pure [t]) e
       | App (App (Ap [t1,t2]) e1) e2 =>

@@ -20,12 +20,15 @@ Local Existing Instance RSym_ilfunc.
 Local Existing Instance RS.
 Local Existing Instance Expr_expr.
 
+Print pPure.
+
 (** NOTE: this is for [locals -> HProp] **)
 Definition sls : SepLogFoldEx.SepLogSpec typ func :=
 {| SepLogFoldEx.is_pure := fun (e : expr typ func) =>
                 match e with
                   | Inj (inr (ilf_true _))
                   | Inj (inr (ilf_false _)) => true
+                  | App (App (Inj (inl (inr (pAp _ _)))) (App (Inj (inl (inr (pPure _)))) (Inj (inr (ilf_embed tyProp _))))) _ => true
                   | _ => false
                 end
  ; SepLogFoldEx.is_emp := fun e => false
@@ -140,6 +143,25 @@ Definition is_solved (e1 e2 : BILNormalize.conjunctives typ func) : bool :=
     | _ , _ => false
   end.
 
+Require Import ExtLib.Core.RelDec.
+
+Fixpoint vars_to_uvars (skip count over : nat) (e : expr typ func)
+: expr typ func :=
+  match e with
+    | Var v =>
+      if v ?[ lt ] skip then Var v
+      else if (v - skip) ?[ lt ] count then
+             UVar (v - skip + over)
+           else
+             Var (v - count)
+    | UVar u => UVar u
+    | Inj i => Inj i
+    | App l r => App (vars_to_uvars skip count over l)
+                     (vars_to_uvars skip count over r)
+    | Abs t e => Abs t (vars_to_uvars skip count over e)
+  end.
+
+
 Definition the_canceller tus tvs (lhs rhs : expr typ func)
            (s : subst)
 : (expr typ func * expr typ func * subst) + subst:=
@@ -148,21 +170,35 @@ Definition the_canceller tus tvs (lhs rhs : expr typ func)
   with
     | Some lhs_norm , Some rhs_norm =>
       (** TODO: I need to build a new substitution **)
-      let s' := @over subst subst s (@SubstI3.empty _ _ _) (length tus) (length lhs_norm.(exs)) in
+      let s' :=
+          @over subst subst s (@SubstI3.empty _ _ _)
+                (length tus) (length lhs_norm.(exs))
+      in
+      let rhs_ucount := length rhs_norm.(exs) in
+      let lhs_count := length lhs_norm.(exs) in
+      let lifter e :=
+          lift 0 lhs_count (vars_to_uvars 0 rhs_ucount (length tus) e)
+      in
       let '(lhs',rhs',s') :=
           @OrderedCanceller.ordered_cancel
             typ func (CascadeSubst subst subst)
-            (doUnifySepLog tus tvs) eproveTrue
+            (doUnifySepLog (tus ++ rhs_norm.(exs))
+                           (lhs_norm.(exs) ++ tvs))
+            eproveTrue
             (simple_order (func:=func))
             {| BILNormalize.spatial := lhs_norm.(spatial)
              ; BILNormalize.pure := lhs_norm.(pure)
              ; BILNormalize.star_true := lhs_norm.(star_true) |}
-            {| BILNormalize.spatial := rhs_norm.(spatial)
-             ; BILNormalize.pure := rhs_norm.(pure)
+            {| BILNormalize.spatial :=
+                 map (fun e_es =>
+                        let '(e,es) := e_es in
+                        (lifter e, map lifter es)) rhs_norm.(spatial)
+             ; BILNormalize.pure :=
+                 map lifter rhs_norm.(pure)
              ; BILNormalize.star_true := rhs_norm.(star_true) |}
             s'
       in
-      match SubstI3.pull (length tus) (length lhs_norm.(exs)) s' with
+      match SubstI3.pull (length tus) (length rhs_norm.(exs)) s' with
         | None => inl (lhs, rhs, s)
         | Some s' =>
           if is_solved lhs' rhs' then

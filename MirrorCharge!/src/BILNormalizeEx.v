@@ -145,7 +145,7 @@ Section conjunctives.
                                let '(e,es) := e_es in
                                (lift 0 ll e,
                                 map (lift 0 ll) es)) r.(spatial)
-           ; star_true := orb l.(star_true) r.(star_true)
+           ; star_true := r.(star_true)
            ; pure := l.(pure) ++ map (lift 0 ll) r.(pure)
           |}
       | _ => match r.(spatial) with
@@ -153,17 +153,14 @@ Section conjunctives.
                  Some
                    {| exs := l.(exs) ++ r.(exs)
                     ; spatial := l.(spatial)
-                    ; star_true := orb l.(star_true) r.(star_true)
+                    ; star_true := l.(star_true)
                     ; pure := l.(pure) ++ map (lift 0 ll) r.(pure)
                    |}
-
                | _ => None
              end
     end.
 
   Variable as_ex : expr typ sym -> option typ.
-
-  Print SepLogArgs.
 
   Definition SepLogArgs_normalize : SepLogArgs typ sym (option conjunctives) :=
   {| do_emp := mkEmpty
