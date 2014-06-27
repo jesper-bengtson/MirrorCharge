@@ -1,21 +1,13 @@
-Require Import Coq.Strings.String.
-Require Import Coq.PArith.BinPos.
 Require Import ExtLib.Core.RelDec.
 Require Import ExtLib.Data.String.
-Require Import ExtLib.Data.Nat.
 Require Import MirrorCore.Lemma.
 Require Import MirrorCore.TypesI.
 Require Import MirrorCore.Lambda.Expr.
-Require Import MirrorCore.STac.STac.
-Require Import MirrorCore.provers.DefaultProver.
 Require MirrorCore.syms.SymEnv.
 Require MirrorCore.syms.SymSum.
 Require Import MirrorCore.Subst.FMapSubst3.
-Require Import MirrorCore.Lambda.ExprLift.
 Require Import MirrorCore.Lambda.ExprSubst.
 Require Import MirrorCore.Lambda.ExprUnify_simul.
-Require Import MirrorCore.Lambda.Red.
-Require Import MirrorCore.Lambda.AppN.
 Require Import MirrorCharge.ILogicFunc.
 Require Import MirrorCharge.Imp.Imp.
 

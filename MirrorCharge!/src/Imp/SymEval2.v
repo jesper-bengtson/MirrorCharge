@@ -54,6 +54,20 @@ Let eapply_other :=
 
 
 (** NOTE: Manual lemma reification for the time being **)
+(** Pull Ex **)
+Definition pull_nat_lemma : lemma typ (expr typ func) (expr typ func) :=
+{| vars := tyArr tyNat tyLProp :: tyLProp :: tyCmd :: nil
+ ; premises := App (Inj (inr (ilf_forall tyNat tyProp))) (Abs tyNat (mkTriple (App (Var 1) (Var 0)) (Var 3) (Var 2))) :: nil
+ ; concl := mkTriple (App (Inj (inr (ilf_exists tyNat tyLProp))) (Var 0)) (Var 2) (Var 1)
+ |}.
+
+Definition to_skip : lemma typ (expr typ func) (expr typ func) :=
+{| vars := tyLProp :: tyCmd :: tyLProp :: tyLProp :: nil
+ ; premises := mkTriple (Var 0) (Var 1) (Var 3) ::
+               lentails tyLProp (Var 2) (Var 3) :: nil
+ ; concl := mkTriple (Var 0) (Var 1) (Var 2)
+ |}.
+
 (** Skip **)
 Definition skip_lemma : lemma typ (expr typ func) (expr typ func) :=
 {| vars := tyLProp :: tyLProp :: nil
@@ -66,7 +80,6 @@ Definition skip_lemma2 : lemma typ (expr typ func) (expr typ func) :=
  ; premises := nil
  ; concl := mkTriple (Var 0) mkSkip (Var 0)
  |}.
-
 
 (** Sequence **)
 Definition seq_lemma : lemma typ (expr typ func) (expr typ func) :=
@@ -154,7 +167,7 @@ Definition solve_entailment :=
                (stac_cancel (@IDTAC _ _ _)).
 
 Definition all_cases : stac typ (expr typ func) subst :=
-  REC 1 (fun rec =>
+  REC 2 (fun rec =>
             let rec := rec in
             REPEAT 5
                    (FIRST (   eapply_other seq_assoc_lemma rec
@@ -163,6 +176,7 @@ Definition all_cases : stac typ (expr typ func) subst :=
                            :: eapply_other read_lemma solve_entailment
                            :: eapply_other write_lemma solve_entailment
                            :: eapply_other skip_lemma solve_entailment
+                           :: eapply_other to_skip rec
                            :: nil)))
       (@FAIL _ _ _).
 
@@ -201,7 +215,7 @@ Definition test_read :=
                (mkRead (fVar "x") (Inj (inl (inr eVar)) @ (fVar "p")))%string
                (UVar 0)
   in
-  let tac := eapply_other read_lemma solve_entailment (* all_cases *) in
+  let tac := all_cases in
   @tac goal (SubstI3.empty (expr :=expr typ func))
        uvars vars.
 
@@ -230,7 +244,7 @@ Definition test_read2 :=
 Eval cbv beta iota zeta delta in test_read2.
 
 Definition test_swap :=
-  let uvars := tyLProp :: nil in
+  let uvars := nil in
   let vars := tyNat :: tyNat :: nil in
   let goal :=
       (mkTriple
@@ -241,14 +255,14 @@ Definition test_swap :=
          (mkSeq (mkRead (fVar "t2") (Inj (inl (inr eVar)) @ (fVar "p2")))
          (mkSeq (mkWrite (Inj (inl (inr eVar)) @ fVar "p2") (Inj (inl (inr eVar)) @ (fVar "t1")))
                 (mkWrite (Inj (inl (inr eVar)) @ fVar "p1") (Inj (inl (inr eVar)) @ (fVar "t2"))))))
-         (UVar 0) (*lstar tyLProp
-                (lifted_ptsto (flocals_get @ fVar "p1") (Var 1))
-                (lifted_ptsto (flocals_get @ fVar "p2") (Var 0)))*) )%string
+         (lstar tyLProp
+                (lifted_ptsto (flocals_get @ fVar "p1") (lpure tyNat (Var 1)))
+                (lifted_ptsto (flocals_get @ fVar "p2") (lpure tyNat (Var 0)))))%string
   in
   let tac := all_cases in
   @tac goal (SubstI3.empty (expr :=expr typ func)) uvars vars.
 
-Eval cbv beta iota zeta delta in test_swap.
+Eval vm_compute in test_swap.
 (** This is not the strongest post condition because we forgot the pure facts.
  ** This is likely a problem with the cancellation algorithm.
  **)
