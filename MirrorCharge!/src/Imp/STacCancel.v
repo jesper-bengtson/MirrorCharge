@@ -104,6 +104,7 @@ Definition the_canceller tus tvs (lhs rhs : expr typ func)
           let '(lhs',rhs',s') :=
               OrderedCanceller.ordered_cancel
                 (doUnifySepLog tus tvs) eproveTrue
+                ssl
                 (simple_order (func:=func)) lhs_norm rhs_norm s
           in
           if is_solved lhs' rhs' then
