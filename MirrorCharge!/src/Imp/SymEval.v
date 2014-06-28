@@ -350,8 +350,7 @@ Section tactic.
                  (mkSeq (mkSeq (Var 1) (Var 2)) (Var 3))
                  (Var 4)
     in
-    @all_cases goal (SubstI3.empty (expr :=expr typ func))
-              nil vars.
+    @all_cases nil vars (SubstI3.empty (expr :=expr typ func)) goal.
 
   Time Eval vm_compute in test.
 
@@ -363,8 +362,7 @@ Section tactic.
                  (mkSeq (mkAssign (Var 1) (Var 5)) (Var 2))
                  (UVar 0)
     in
-    @all_cases goal (SubstI3.empty (expr :=expr typ func))
-               uvars vars.
+    @all_cases uvars vars (SubstI3.empty (expr :=expr typ func)) goal.
 
   Time Eval vm_compute in test'.
 
@@ -382,8 +380,7 @@ Section tactic.
     let tac :=
         eapply_other read_lemma (@IDTAC _ _ _)
     in
-    @tac goal (SubstI3.empty (expr :=expr typ func))
-               uvars vars.
+    @tac uvars vars (SubstI3.empty (expr :=expr typ func)) goal.
 (*
   Time Eval cbv beta iota zeta delta - [ IDTAC ] in test_read.
 *)

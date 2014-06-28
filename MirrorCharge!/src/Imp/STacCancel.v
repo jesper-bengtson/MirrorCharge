@@ -118,9 +118,8 @@ Definition the_canceller tus tvs (lhs rhs : expr typ func)
     | _ , _ => inl (lhs, rhs, s)
   end.
 
-Definition stac_cancel (thn : stac typ (expr typ func) subst)
-: stac typ (expr typ func) subst :=
-  fun e s tus tvs =>
+Definition stac_cancel : stac typ (expr typ func) subst :=
+  fun tus tvs s e =>
     match e with
       | App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) L) R =>
         match the_canceller tus tvs L R s with
@@ -128,8 +127,8 @@ Definition stac_cancel (thn : stac typ (expr typ func) subst)
             let e' :=
                 App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) l) r
             in
-            thn e' s tus tvs
-          | inr s' => @Solve _ _ _ s'
+            More tus tvs s e'
+          | inr s' => @Solved _ _ _ s'
         end
-      | _ => thn e s tus tvs
+      | _ => More tus tvs s e
     end.

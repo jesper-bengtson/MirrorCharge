@@ -163,8 +163,8 @@ Definition write_lemma : lemma typ (expr typ func) (expr typ func) :=
  |}.
 
 Definition solve_entailment :=
-      SIMPLIFY (fun _ _ => beta_all simplify nil nil)
-               (stac_cancel (@IDTAC _ _ _)).
+  THEN (SIMPLIFY (fun _ _ _ => beta_all simplify nil nil))
+       stac_cancel.
 
 Definition all_cases : stac typ (expr typ func) subst :=
   REC 2 (fun rec =>
@@ -187,8 +187,7 @@ Definition test :=
                (mkSeq (mkSeq (Var 1) (Var 2)) (Var 3))
                (Var 4)
   in
-  @all_cases goal (SubstI3.empty (expr :=expr typ func))
-             nil vars.
+  @all_cases nil vars (SubstI3.empty (expr :=expr typ func)) goal.
 
 Time Eval vm_compute in test.
 
@@ -200,8 +199,7 @@ Definition test' :=
                (mkSeq (mkAssign (Var 1) (Var 5)) (Var 2))
                (UVar 0)
   in
-  @all_cases goal (SubstI3.empty (expr :=expr typ func))
-             uvars vars.
+  @all_cases uvars vars (SubstI3.empty (expr :=expr typ func)) goal.
 
 Time Eval vm_compute in test'.
 
@@ -216,8 +214,7 @@ Definition test_read :=
                (UVar 0)
   in
   let tac := all_cases in
-  @tac goal (SubstI3.empty (expr :=expr typ func))
-       uvars vars.
+  @tac uvars vars (SubstI3.empty (expr :=expr typ func)) goal.
 
 Time Eval vm_compute  in test_read.
 
@@ -239,7 +236,7 @@ Definition test_read2 :=
          (UVar 0))%string
   in
   let tac := all_cases in
-  @tac goal (SubstI3.empty (expr :=expr typ func)) uvars vars.
+  @tac uvars vars (SubstI3.empty (expr :=expr typ func)) goal.
 
 Eval cbv beta iota zeta delta in test_read2.
 
@@ -260,7 +257,7 @@ Definition test_swap :=
                 (lifted_ptsto (flocals_get @ fVar "p2") (lpure tyNat (Var 0)))))%string
   in
   let tac := all_cases in
-  @tac goal (SubstI3.empty (expr :=expr typ func)) uvars vars.
+  @tac uvars vars (SubstI3.empty (expr :=expr typ func)) goal.
 
 Eval vm_compute in test_swap.
 (** This is not the strongest post condition because we forgot the pure facts.

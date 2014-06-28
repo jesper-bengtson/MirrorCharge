@@ -3,13 +3,14 @@ Require Import MirrorCore.STac.STac.
 Require MirrorCore.syms.SymEnv.
 Require MirrorCore.syms.SymSum.
 Require Import MirrorCore.Lambda.ExprUnify_simul.
+Require Import MirrorCore.Lambda.ExprLift.
+Require Import MirrorCore.Subst.CascadeSubst.
 Require Import MirrorCharge.ILogicFunc.
 Require Import MirrorCharge.OrderedCanceller.
 Require Import MirrorCharge.BILNormalizeEx.
 Require Import MirrorCharge.SynSepLog.
 Require Import MirrorCharge.SepLogFold.
 Require Import MirrorCharge.Imp.Syntax.
-Require Import MirrorCore.Subst.CascadeSubst.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -46,8 +47,6 @@ Definition sls : SepLogFoldEx.SepLogSpec typ func :=
                   | _ => None
                 end
  |}.
-
-Require Import MirrorCore.Lambda.ExprLift.
 
 Section inst_2.
   Variable lookup : uvar -> nat -> option (expr typ func).
@@ -210,9 +209,8 @@ Definition the_canceller tus tvs (lhs rhs : expr typ func)
     | _ , _ => inl (lhs, rhs, s)
   end.
 
-Definition stac_cancel (thn : stac typ (expr typ func) subst)
-: stac typ (expr typ func) subst :=
-  fun e s tus tvs =>
+Definition stac_cancel : stac typ (expr typ func) subst :=
+  fun tus tvs s e =>
     match e with
       | App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) L) R =>
         match the_canceller tus tvs L R s with
@@ -220,8 +218,8 @@ Definition stac_cancel (thn : stac typ (expr typ func) subst)
             let e' :=
                 App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) l) r
             in
-            thn e' s tus tvs
-          | inr s' => @Solve _ _ _ s'
+            More tus tvs s e'
+          | inr s' => @Solved _ _ _ s'
         end
-      | _ => thn e s tus tvs
+      | _ => More tus tvs s e
     end.
