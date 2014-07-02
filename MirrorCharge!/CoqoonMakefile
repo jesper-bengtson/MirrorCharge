@@ -14,47 +14,69 @@ bin/%.vo: src/%.v
 override COQFLAGS += -R src ""
 override COQFLAGS += -R bin ""
 override COQFLAGS += $(DK_ITU_SDG_KOPITIAM_LP_COQ_8_4_FLAGS)
-override COQFLAGS += -R $(EXTERNAL_PATH) ""
-override COQFLAGS += -R $(MIRRORCORE_PATH) MirrorCore
-override COQFLAGS += -R $(EXTLIB_PATH) ExtLib
 override COQFLAGS += $(CHARGE_FLAGS)
+override COQFLAGS += -R $(EXTLIB_PATH) ExtLib
+override COQFLAGS += -R $(MIRRORCORE_PATH) MirrorCore
+override COQFLAGS += $(JAVA_FLAGS)
 OBJECTS = \
-	bin/BILNormalize.vo \
-	bin/CancellerTac.vo \
-	bin/ILFFold.vo \
-	bin/ILPullQuant.vo \
-	bin/ILPullQuantStar.vo \
-	bin/ILogicFunc.vo \
-	bin/Iterated.vo \
-	bin/MonadicCanceller.vo \
-	bin/OrderedCanceller.vo \
-	bin/QuantCancel.vo \
-	bin/Reify.vo \
-	bin/SepLogFold.vo \
-	bin/SepLogFoldWithAnd.vo \
-	bin/SepTests.vo \
-	bin/SynSepLog.vo \
-	bin/Tauto.vo \
-	bin/TautoTests.vo
+	bin/MirrorCharge/BILNormalize.vo \
+	bin/MirrorCharge/BILNormalizeEx.vo \
+	bin/MirrorCharge/CancellerTac.vo \
+	bin/MirrorCharge/ILFFold.vo \
+	bin/MirrorCharge/ILPullQuant.vo \
+	bin/MirrorCharge/ILPullQuantStar.vo \
+	bin/MirrorCharge/ILogicFunc.vo \
+	bin/MirrorCharge/Imp/Imp.vo \
+	bin/MirrorCharge/Imp/STacCancel.vo \
+	bin/MirrorCharge/Imp/STacCancelEx.vo \
+	bin/MirrorCharge/Imp/STacSimplify.vo \
+	bin/MirrorCharge/Imp/SymEval.vo \
+	bin/MirrorCharge/Imp/SymEval2.vo \
+	bin/MirrorCharge/Imp/Syntax.vo \
+	bin/MirrorCharge/Iterated.vo \
+	bin/MirrorCharge/Java/Syntax.vo \
+	bin/MirrorCharge/MonadicCanceller.vo \
+	bin/MirrorCharge/OrderedCanceller.vo \
+	bin/MirrorCharge/QuantCancel.vo \
+	bin/MirrorCharge/Reify.vo \
+	bin/MirrorCharge/SepLogFold.vo \
+	bin/MirrorCharge/SepLogFoldEx.vo \
+	bin/MirrorCharge/SepLogFoldWithAnd.vo \
+	bin/MirrorCharge/SepTests.vo \
+	bin/MirrorCharge/SymEval.vo \
+	bin/MirrorCharge/SynSepLog.vo \
+	bin/MirrorCharge/Tauto.vo \
+	bin/MirrorCharge/TautoTests.vo
 
 all: $(OBJECTS)
 clean:
 	rm -f $(OBJECTS)
 
-bin/BILNormalize.vo: src/BILNormalize.v bin/Iterated.vo bin/ILogicFunc.vo bin/SepLogFold.vo bin/SynSepLog.vo
-bin/CancellerTac.vo: src/CancellerTac.v bin/BILNormalize.vo bin/OrderedCanceller.vo bin/SynSepLog.vo bin/SepLogFold.vo bin/ILogicFunc.vo
-bin/ILFFold.vo: src/ILFFold.v bin/ILogicFunc.vo
-bin/ILPullQuant.vo: src/ILPullQuant.v bin/ILogicFunc.vo
-bin/ILPullQuantStar.vo: src/ILPullQuantStar.v bin/ILogicFunc.vo bin/ILFFold.vo bin/SepLogFold.vo
-bin/ILogicFunc.vo: src/ILogicFunc.v
-bin/Iterated.vo: src/Iterated.v
-bin/MonadicCanceller.vo: src/MonadicCanceller.v bin/BILNormalize.vo
-bin/OrderedCanceller.vo: src/OrderedCanceller.v bin/BILNormalize.vo bin/Iterated.vo bin/SynSepLog.vo
-bin/QuantCancel.vo: src/QuantCancel.v bin/ILogicFunc.vo bin/ILFFold.vo bin/SepLogFold.vo bin/ILPullQuantStar.vo bin/CancellerTac.vo bin/SynSepLog.vo
-bin/Reify.vo: src/Reify.v bin/ILogicFunc.vo
-bin/SepLogFold.vo: src/SepLogFold.v
-bin/SepLogFoldWithAnd.vo: src/SepLogFoldWithAnd.v
-bin/SepTests.vo: src/SepTests.v bin/ILogicFunc.vo bin/OrderedCanceller.vo bin/CancellerTac.vo bin/Reify.vo
-bin/SynSepLog.vo: src/SynSepLog.v bin/SepLogFold.vo
-bin/Tauto.vo: src/Tauto.v bin/ILogicFunc.vo
-bin/TautoTests.vo: src/TautoTests.v bin/ILogicFunc.vo bin/Tauto.vo bin/Reify.vo
+bin/MirrorCharge/BILNormalize.vo: src/MirrorCharge/BILNormalize.v bin/MirrorCharge/Iterated.vo bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/SynSepLog.vo
+bin/MirrorCharge/BILNormalizeEx.vo: src/MirrorCharge/BILNormalizeEx.v bin/MirrorCharge/Iterated.vo bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/SepLogFoldEx.vo bin/MirrorCharge/SynSepLog.vo
+bin/MirrorCharge/CancellerTac.vo: src/MirrorCharge/CancellerTac.v
+bin/MirrorCharge/ILFFold.vo: src/MirrorCharge/ILFFold.v bin/MirrorCharge/ILogicFunc.vo
+bin/MirrorCharge/ILPullQuant.vo: src/MirrorCharge/ILPullQuant.v bin/MirrorCharge/ILogicFunc.vo
+bin/MirrorCharge/ILPullQuantStar.vo: src/MirrorCharge/ILPullQuantStar.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/ILFFold.vo bin/MirrorCharge/SepLogFold.vo
+bin/MirrorCharge/ILogicFunc.vo: src/MirrorCharge/ILogicFunc.v
+bin/MirrorCharge/Imp/Imp.vo: src/MirrorCharge/Imp/Imp.v
+bin/MirrorCharge/Imp/STacCancel.vo: src/MirrorCharge/Imp/STacCancel.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Imp/Syntax.vo
+bin/MirrorCharge/Imp/STacCancelEx.vo: src/MirrorCharge/Imp/STacCancelEx.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalizeEx.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Imp/Syntax.vo
+bin/MirrorCharge/Imp/STacSimplify.vo: src/MirrorCharge/Imp/STacSimplify.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/Imp/Syntax.vo
+bin/MirrorCharge/Imp/SymEval.vo: src/MirrorCharge/Imp/SymEval.v bin/MirrorCharge/Imp/Imp.vo bin/MirrorCharge/ILogicFunc.vo
+bin/MirrorCharge/Imp/SymEval2.vo: src/MirrorCharge/Imp/SymEval2.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Imp/Imp.vo bin/MirrorCharge/Imp/Syntax.vo bin/MirrorCharge/Imp/STacSimplify.vo bin/MirrorCharge/Imp/STacCancelEx.vo
+bin/MirrorCharge/Imp/Syntax.vo: src/MirrorCharge/Imp/Syntax.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/Imp/Imp.vo
+bin/MirrorCharge/Iterated.vo: src/MirrorCharge/Iterated.v
+bin/MirrorCharge/Java/Syntax.vo: src/MirrorCharge/Java/Syntax.v bin/MirrorCharge/ILogicFunc.vo
+bin/MirrorCharge/MonadicCanceller.vo: src/MirrorCharge/MonadicCanceller.v bin/MirrorCharge/BILNormalize.vo
+bin/MirrorCharge/OrderedCanceller.vo: src/MirrorCharge/OrderedCanceller.v bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/Iterated.vo bin/MirrorCharge/SynSepLog.vo
+bin/MirrorCharge/QuantCancel.vo: src/MirrorCharge/QuantCancel.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/ILFFold.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/ILPullQuantStar.vo bin/MirrorCharge/CancellerTac.vo bin/MirrorCharge/SynSepLog.vo
+bin/MirrorCharge/Reify.vo: src/MirrorCharge/Reify.v bin/MirrorCharge/ILogicFunc.vo
+bin/MirrorCharge/SepLogFold.vo: src/MirrorCharge/SepLogFold.v
+bin/MirrorCharge/SepLogFoldEx.vo: src/MirrorCharge/SepLogFoldEx.v
+bin/MirrorCharge/SepLogFoldWithAnd.vo: src/MirrorCharge/SepLogFoldWithAnd.v
+bin/MirrorCharge/SepTests.vo: src/MirrorCharge/SepTests.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/CancellerTac.vo bin/MirrorCharge/Reify.vo
+bin/MirrorCharge/SymEval.vo: src/MirrorCharge/SymEval.v
+bin/MirrorCharge/SynSepLog.vo: src/MirrorCharge/SynSepLog.v bin/MirrorCharge/SepLogFold.vo
+bin/MirrorCharge/Tauto.vo: src/MirrorCharge/Tauto.v bin/MirrorCharge/ILogicFunc.vo
+bin/MirrorCharge/TautoTests.vo: src/MirrorCharge/TautoTests.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/Tauto.vo bin/MirrorCharge/Reify.vo

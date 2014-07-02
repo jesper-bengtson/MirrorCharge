@@ -1,3 +1,6 @@
+(* Commented out until Ext works again *)
+(* 
+ 
 Require Import ExtLib.Core.RelDec.
 Require Import ExtLib.Tactics.
 Require Import MirrorCore.SymI.
@@ -636,3 +639,5 @@ Proof.
   Grab Existential Variables.
   eapply CSLok.
 Qed.
+
+*)
