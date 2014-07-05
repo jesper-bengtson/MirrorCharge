@@ -143,6 +143,8 @@ Definition fs : @SymEnv.functions typ _ :=
   SymEnv.from_list
     (@SymEnv.F typ _ (tyArr tyVar (tyArr (tyList tyVar)  tyProp))
                (fun _ => (@In var)) ::
+     @SymEnv.F typ _ (tyArr (tyList tyVar) tyProp)
+               (fun _ => (@NoDup var)) ::
      nil).
      
 Definition lops : logic_ops _ :=
@@ -186,6 +188,7 @@ Local Existing Instance Expr_expr.
 
 Definition fVar (v : var) : expr typ func := Inj (inl (inr (pVar v))).
 Definition fIn : expr typ func := Inj (inl (inl 1%positive)).
+Definition fNoDup : expr typ func := Inj (inl (inl 2%positive)).
 Definition fAp (t u : typ) : expr typ func := Inj (inl (inr (pAp t u))).
 Definition fNil t : expr typ func := Inj (inl (inr (pNil t))).
 Definition fCons t : expr typ func := Inj (inl (inr (pCons t))).
@@ -194,9 +197,14 @@ Definition leq (t : typ) : expr typ func := Inj (inl (inr (pEq t))).
 Definition lap (t u : typ) (a b : expr typ func) : expr typ func :=
   App (App (fAp t u) a) b.
 Definition mkCons (t : typ) (x xs : expr typ func) :=
-  lap (tyList t) (tyList t) (lap t (tyArr (tyList t) (tyList t)) (fCons t) x) xs.
+  App (App (fCons t) x) xs.
+(*  lap (tyList t) (tyList t) (lap t (tyArr (tyList t) (tyList t)) (fCons t) x) xs.*)
 Definition mkIn (x lst : expr typ func) :=
-  lap (tyList tyVar) tyProp (lap tyVar (tyArr (tyList tyVar) tyProp) fIn x) lst.
+  App (App fIn x) lst.
+(*  lap (tyList tyVar) tyProp (lap tyVar (tyArr (tyList tyVar) tyProp) fIn x) lst.*)
+Definition mkNoDup (lst : expr typ func) :=
+  App fNoDup lst.
+
 
 Definition land (l : typ) (e e' : expr typ func) : expr typ func :=
   App (App (Inj (inr (ilf_and l))) e) e'.
@@ -213,9 +221,10 @@ Definition lor (l : typ) (e e' : expr typ func) : expr typ func :=
 Definition lembed (t f : typ) (e : expr typ func) : expr typ func :=
   App (Inj (inr (ilf_embed f t))) e.
 Definition lnot (t : typ) (e : expr typ func) : expr typ func := limpl t e (lfalse t).
-Definition lneq (t u : typ) (e e' : expr typ func) : expr typ func :=
-	lnot t (lap u t (lap u (tyArr u t) (leq u) e) e').
-	
+
 Definition mkeq (t : typ) (e1 e2 : expr typ func) :=
-	lap t tyProp (lap t (tyArr t tyProp) (leq t) e1) e2.
+    App (App (leq t) e1) e2.
+Definition mkneq (t : typ) (e1 e2 : expr typ func) : expr typ func :=
+	lnot tyProp (mkeq t e1 e2).
+	
 

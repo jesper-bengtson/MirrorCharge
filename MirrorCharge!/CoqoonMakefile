@@ -34,6 +34,7 @@ OBJECTS = \
 	bin/MirrorCharge/Imp/SymEval2.vo \
 	bin/MirrorCharge/Imp/Syntax.vo \
 	bin/MirrorCharge/Iterated.vo \
+	bin/MirrorCharge/Java/SymEval.vo \
 	bin/MirrorCharge/Java/Syntax.vo \
 	bin/MirrorCharge/MonadicCanceller.vo \
 	bin/MirrorCharge/OrderedCanceller.vo \
@@ -67,6 +68,7 @@ bin/MirrorCharge/Imp/SymEval.vo: src/MirrorCharge/Imp/SymEval.v bin/MirrorCharge
 bin/MirrorCharge/Imp/SymEval2.vo: src/MirrorCharge/Imp/SymEval2.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Imp/Imp.vo bin/MirrorCharge/Imp/Syntax.vo bin/MirrorCharge/Imp/STacSimplify.vo bin/MirrorCharge/Imp/STacCancelEx.vo
 bin/MirrorCharge/Imp/Syntax.vo: src/MirrorCharge/Imp/Syntax.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/Imp/Imp.vo
 bin/MirrorCharge/Iterated.vo: src/MirrorCharge/Iterated.v
+bin/MirrorCharge/Java/SymEval.vo: src/MirrorCharge/Java/SymEval.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Java/Syntax.vo
 bin/MirrorCharge/Java/Syntax.vo: src/MirrorCharge/Java/Syntax.v bin/MirrorCharge/ILogicFunc.vo
 bin/MirrorCharge/MonadicCanceller.vo: src/MirrorCharge/MonadicCanceller.v bin/MirrorCharge/BILNormalize.vo
 bin/MirrorCharge/OrderedCanceller.vo: src/MirrorCharge/OrderedCanceller.v bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/Iterated.vo bin/MirrorCharge/SynSepLog.vo
