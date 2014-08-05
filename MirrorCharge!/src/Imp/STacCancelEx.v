@@ -77,9 +77,9 @@ Section inst_2.
     end.
 End inst_2.
 
-Let Subst_CS : SubstI3.Subst (CascadeSubst subst subst) (expr typ func) :=
+Let Subst_CS : SubstI.Subst (CascadeSubst subst subst) (expr typ func) :=
   @Subst_CascadeSubst (expr typ func) subst _ subst _ (@lift typ func 0).
-Let SubstU_CS : SubstI3.SubstUpdate (CascadeSubst subst subst) (expr typ func) :=
+Let SubstU_CS : SubstI.SubstUpdate (CascadeSubst subst subst) (expr typ func) :=
   @SubstUpdate_CascadeSubst (expr typ func) subst _ _ subst _
                             (@lift typ func 0)
                             (@lower typ func 0)
@@ -167,7 +167,7 @@ Definition the_canceller tus tvs (lhs rhs : expr typ func)
     | Some lhs_norm , Some rhs_norm =>
       (** TODO: I need to build a new substitution **)
       let s' :=
-          @over subst subst s (@SubstI3.empty _ _ _)
+          @over subst subst s (@SubstI.empty _ _ _)
                 (length tus) (length lhs_norm.(exs))
       in
       let rhs_ucount := length rhs_norm.(exs) in
@@ -195,7 +195,7 @@ Definition the_canceller tus tvs (lhs rhs : expr typ func)
              ; BILNormalize.star_true := rhs_norm.(star_true) |}
             s'
       in
-      match SubstI3.pull (length tus) (length rhs_norm.(exs)) s' with
+      match SubstI.pull (length tus) (length rhs_norm.(exs)) s' with
         | None => inl (lhs, rhs, s)
         | Some s' =>
           if is_solved lhs' rhs' then
@@ -210,7 +210,7 @@ Definition the_canceller tus tvs (lhs rhs : expr typ func)
   end.
 
 Definition stac_cancel : stac typ (expr typ func) subst :=
-  fun tus tvs s e =>
+  fun tus tvs s hyps e =>
     match e with
       | App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) L) R =>
         match the_canceller tus tvs L R s with
@@ -218,8 +218,8 @@ Definition stac_cancel : stac typ (expr typ func) subst :=
             let e' :=
                 App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) l) r
             in
-            More tus tvs s e'
-          | inr s' => @Solved _ _ _ s'
+            More tus tvs s hyps e'
+          | inr s' => @Solved _ _ _ nil nil s'
         end
-      | _ => More tus tvs s e
+      | _ => More nil nil s hyps e
     end.

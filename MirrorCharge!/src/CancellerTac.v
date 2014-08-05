@@ -2,10 +2,10 @@ Require Import ExtLib.Core.RelDec.
 Require Import ExtLib.Tactics.
 Require Import MirrorCore.SymI.
 Require Import MirrorCore.EnvI.
-Require Import MirrorCore.Subst.RawSubst2.
+Require Import MirrorCore.Subst.RawSubst.
 Require Import MirrorCore.Ext.Expr.
 Require Import MirrorCore.Ext.ExprUnifySyntactic.
-Require Import MirrorCore.Subst.FMapSubst3.
+Require Import MirrorCore.Subst.FMapSubst.
 (* Charge *)
 Require Import ILogic BILogic.
 (* MirrorCharge *)

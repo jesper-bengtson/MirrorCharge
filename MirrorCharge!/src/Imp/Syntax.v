@@ -5,7 +5,7 @@ Require Import MirrorCore.TypesI.
 Require Import MirrorCore.Lambda.Expr.
 Require MirrorCore.syms.SymEnv.
 Require MirrorCore.syms.SymSum.
-Require Import MirrorCore.Subst.FMapSubst3.
+Require Import MirrorCore.Subst.FMapSubst.
 Require Import MirrorCore.Lambda.ExprSubst.
 Require Import MirrorCore.Lambda.ExprUnify_simul.
 Require Import MirrorCharge.ILogicFunc.
@@ -197,17 +197,6 @@ Instance RSym_imp_func : SymI.RSym imp_func :=
 ; sym_eqb := imp_func_eq
 }.
 
-Definition subst : Type :=
-  FMapSubst3.SUBST.raw (expr typ func).
-Definition SS : SubstI3.Subst subst (expr typ func) :=
-  @FMapSubst3.SUBST.Subst_subst _.
-Definition SU : SubstI3.SubstUpdate subst (expr typ func) :=
-  @FMapSubst3.SUBST.SubstUpdate_subst (expr typ func)
-                                      (@mentionsU typ func)
-                                      (@instantiate typ func).
-Local Existing Instance SS.
-Local Existing Instance SU.
-
 Definition tyLProp := tyArr tyLocals tyHProp.
 
 Definition fs : @SymEnv.functions typ _ :=
@@ -264,6 +253,16 @@ Local Existing Instance RS.
 
 Let Expr_expr : ExprI.Expr _ (expr typ func) := Expr_expr _ _.
 Local Existing Instance Expr_expr.
+
+Definition subst : Type :=
+  FMapSubst.SUBST.raw (expr typ func).
+Definition SS : SubstI.Subst subst (expr typ func) :=
+  @FMapSubst.SUBST.Subst_subst _.
+Definition SU : SubstI.SubstUpdate subst (expr typ func) :=
+  FMapSubst.SUBST.SubstUpdate_subst (@instantiate typ func).
+Local Existing Instance SS.
+Local Existing Instance SU.
+
 
 Definition fTriple : expr typ func := Inj (inl (inl 1%positive)).
 Definition fSeq : expr typ func := Inj (inl (inl 2%positive)).

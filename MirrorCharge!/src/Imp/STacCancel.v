@@ -119,7 +119,7 @@ Definition the_canceller tus tvs (lhs rhs : expr typ func)
   end.
 
 Definition stac_cancel : stac typ (expr typ func) subst :=
-  fun tus tvs s e =>
+  fun tus tvs s hyps e =>
     match e with
       | App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) L) R =>
         match the_canceller tus tvs L R s with
@@ -127,8 +127,8 @@ Definition stac_cancel : stac typ (expr typ func) subst :=
             let e' :=
                 App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) l) r
             in
-            More tus tvs s e'
-          | inr s' => @Solved _ _ _ s'
+            More nil nil s hyps e'
+          | inr s' => @Solved _ _ _ nil nil s'
         end
-      | _ => More tus tvs s e
+      | _ => More nil nil s hyps e
     end.

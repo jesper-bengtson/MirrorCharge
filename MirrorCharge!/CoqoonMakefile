@@ -3,7 +3,7 @@
 # (using CoqoonMakefile.vars.template as a template).
 
 COQC = coqc
-COQFLAGS = -noglob
+COQFLAGS = -noglob -dont-load-proofs
 override _COQCMD = \
 	mkdir -p "`dirname "$@"`" && $(COQC) $(COQFLAGS) "$<" && mv "$<o" "$@"
 
@@ -11,31 +11,42 @@ include CoqoonMakefile.vars
 
 bin/%.vo: src/%.v
 	$(_COQCMD)
-override COQFLAGS += -R src ""
-override COQFLAGS += -R bin ""
+override COQFLAGS += -I $(EXTLIB_PATH) -as ExtLib
+override COQFLAGS += -I $(MIRRORCORE_PATH) -as MirrorCore
+override COQFLAGS += -R src -as MirrorCharge
+override COQFLAGS += -R bin -as MirrorCharge
 override COQFLAGS += $(DK_ITU_SDG_KOPITIAM_LP_COQ_8_4_FLAGS)
-override COQFLAGS += -R $(EXTERNAL_PATH) ""
-override COQFLAGS += -R $(MIRRORCORE_PATH) MirrorCore
-override COQFLAGS += -R $(EXTLIB_PATH) ExtLib
 override COQFLAGS += $(CHARGE_FLAGS)
+#	bin/ILPullQuant.vo
 OBJECTS = \
 	bin/BILNormalize.vo \
-	bin/CancellerTac.vo \
-	bin/ILFFold.vo \
-	bin/ILPullQuant.vo \
-	bin/ILPullQuantStar.vo \
+	bin/BILNormalizeEx.vo \
 	bin/ILogicFunc.vo \
 	bin/Iterated.vo \
-	bin/MonadicCanceller.vo \
 	bin/OrderedCanceller.vo \
-	bin/QuantCancel.vo \
-	bin/Reify.vo \
 	bin/SepLogFold.vo \
-	bin/SepLogFoldWithAnd.vo \
-	bin/SepTests.vo \
+	bin/SepLogFoldEx.vo \
 	bin/SynSepLog.vo \
-	bin/Tauto.vo \
-	bin/TautoTests.vo
+	bin/DependencyOrder.vo \
+	bin/Imp/Imp.vo \
+	bin/Imp/SymEval.vo \
+	bin/Imp/Syntax.vo \
+	bin/Imp/SymEval2.vo \
+	bin/Imp/STacCancel.vo \
+	bin/Imp/STacCancelEx.vo \
+	bin/Imp/STacSimplify.vo
+
+# 	bin/Tauto.vo
+#	bin/TautoTests.vo
+
+#	bin/SepTests.vo
+#	bin/ILPullQuantStar.vo
+#	bin/QuantCancel.vo
+#	bin/ILFFold.vo
+#	bin/CancellerTac.vo
+#	bin/MonadicCanceller.vo
+#	bin/SepLogFoldWithAnd.vo
+#	bin/Reify.vo
 
 all: $(OBJECTS)
 clean:
@@ -58,3 +69,11 @@ bin/SepTests.vo: src/SepTests.v bin/ILogicFunc.vo bin/OrderedCanceller.vo bin/Ca
 bin/SynSepLog.vo: src/SynSepLog.v bin/SepLogFold.vo
 bin/Tauto.vo: src/Tauto.v bin/ILogicFunc.vo
 bin/TautoTests.vo: src/TautoTests.v bin/ILogicFunc.vo bin/Tauto.vo bin/Reify.vo
+bin/Imp/Syntax.vo: bin/Imp/Imp.vo
+bin/Imp/SymEval.vo: bin/Imp/Imp.vo
+bin/Imp/STacCancelEx.vo: bin/BILNormalizeEx.vo bin/SepLogFoldEx.vo bin/OrderedCanceller.vo bin/DependencyOrder.vo bin/Imp/Syntax.vo
+bin/Imp/STacCancel.vo: bin/BILNormalize.vo bin/SepLogFold.vo bin/OrderedCanceller.vo bin/DependencyOrder.vo bin/Imp/Syntax.vo
+bin/Imp/STacSimplify.vo: bin/Imp/Syntax.vo
+bin/Imp/SymEval2.vo: bin/Imp/Syntax.vo bin/Imp/STacCancel.vo bin/Imp/STacCancelEx.vo bin/Imp/STacSimplify.vo
+bin/BILNormalizeEx.vo: bin/SepLogFoldEx.vo
+bin/DependencyOrder.vo: bin/OrderedCanceller.vo

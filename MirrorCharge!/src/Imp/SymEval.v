@@ -9,7 +9,7 @@ Require Import MirrorCore.STac.STac.
 Require Import MirrorCore.provers.DefaultProver.
 Require MirrorCore.syms.SymEnv.
 Require MirrorCore.syms.SymSum.
-Require Import MirrorCore.Subst.FMapSubst3.
+Require Import MirrorCore.Subst.FMapSubst.
 Require Import MirrorCore.Lambda.ExprLift.
 Require Import MirrorCore.Lambda.ExprSubst.
 Require Import MirrorCore.Lambda.ExprUnify_simul.
@@ -109,7 +109,6 @@ Inductive imp_func :=
 | pEq (_ : typ)
 | pEval_expri.
 
-(** TODO: This also needs to include logic stuff! **)
 Definition func := (SymEnv.func + imp_func + ilfunc typ)%type.
 
 Definition typeof_sym_imp (f : imp_func) : option typ :=
@@ -153,17 +152,6 @@ Instance RSym_imp_func : SymI.RSym imp_func :=
 }.
 
 Section tactic.
-  Let subst : Type :=
-    FMapSubst3.SUBST.raw (expr typ func).
-  Let SS : SubstI3.Subst subst (expr typ func) :=
-    @FMapSubst3.SUBST.Subst_subst _.
-  Let SU : SubstI3.SubstUpdate subst (expr typ func) :=
-    @FMapSubst3.SUBST.SubstUpdate_subst (expr typ func)
-                                        (@mentionsU typ func)
-                                        (@instantiate typ func).
-  Local Existing Instance SS.
-  Local Existing Instance SU.
-
   Let tyLProp := tyArr tyLocals tyHProp.
 
   Let fs : @SymEnv.functions typ _ :=
@@ -221,9 +209,19 @@ Section tactic.
   Let Expr_expr : ExprI.Expr _ (expr typ func) := Expr_expr _ _.
   Local Existing Instance Expr_expr.
 
+  Let subst : Type :=
+    FMapSubst.SUBST.raw (expr typ func).
+  Let SS : SubstI.Subst subst (expr typ func) :=
+    @FMapSubst.SUBST.Subst_subst _.
+  Let SU : SubstI.SubstUpdate subst (expr typ func) :=
+    FMapSubst.SUBST.SubstUpdate_subst (@instantiate typ func).
+
+  Local Existing Instance SS.
+  Local Existing Instance SU.
+
   Definition test_lemma :=
     @lemmaD typ RType_typ (expr typ func) Expr_expr (expr typ func)
-            (fun tus tvs e => exprD' nil tus tvs tyProp e)
+            (fun tus tvs e => exprD' tus tvs e tyProp)
             tyProp
             (fun x => x) nil nil.
 
@@ -266,12 +264,13 @@ Section tactic.
        mkTriple (Var 0) (mkSeq (mkSeq (Var 2) (Var 3)) (Var 4)) (Var 1)
    |}.
 
-  Let eapply_other :=
-    @eapply_other typ (expr typ func) subst tyProp vars_to_uvars
-                  (fun tus tvs n e1 e2 t s =>
-                     @exprUnify subst typ func _ _ RS SS SU 3 nil
-                                tus tvs n s e1 e2 t)
-                  (@instantiate typ func) SS SU.
+  Let APPLY :=
+    @APPLY typ (expr typ func) subst _ Typ0_Prop
+           vars_to_uvars
+           (fun tus tvs n e1 e2 t s =>
+              @exprUnify subst typ func _ _ RS SS SU 3 nil
+                         tus tvs n s e1 e2 t)
+           (@instantiate typ func) SS SU.
 
   Definition lex (l t : typ) (e : expr typ func) : expr typ func :=
     App (Inj (inr (ilf_exists t l))) (Abs t e).
@@ -336,10 +335,10 @@ Section tactic.
     REC 3 (fun rec =>
              let rec := rec in
              REPEAT 5
-                    (FIRST (   eapply_other seq_assoc_lemma rec
-                            :: eapply_other seq_lemma rec
-                            :: eapply_other assign_lemma rec
-                            :: eapply_other read_lemma rec
+                    (FIRST (   APPLY seq_assoc_lemma (apply_to_all rec)
+                            :: APPLY seq_lemma (apply_to_all rec)
+                            :: APPLY assign_lemma (apply_to_all rec)
+                            :: APPLY read_lemma (apply_to_all rec)
                             :: nil)))
         (@FAIL _ _ _).
 
@@ -350,7 +349,7 @@ Section tactic.
                  (mkSeq (mkSeq (Var 1) (Var 2)) (Var 3))
                  (Var 4)
     in
-    @all_cases nil vars (SubstI3.empty (expr :=expr typ func)) goal.
+    @all_cases nil vars (SubstI.empty (expr :=expr typ func)) nil goal.
 
   Time Eval vm_compute in test.
 
@@ -362,7 +361,7 @@ Section tactic.
                  (mkSeq (mkAssign (Var 1) (Var 5)) (Var 2))
                  (UVar 0)
     in
-    @all_cases uvars vars (SubstI3.empty (expr :=expr typ func)) goal.
+    @all_cases uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
 
   Time Eval vm_compute in test'.
 
@@ -378,9 +377,9 @@ Section tactic.
                  (UVar 0)
     in
     let tac :=
-        eapply_other read_lemma (@IDTAC _ _ _)
+        APPLY read_lemma (apply_to_all (@IDTAC _ _ _))
     in
-    @tac uvars vars (SubstI3.empty (expr :=expr typ func)) goal.
+    @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
 (*
   Time Eval cbv beta iota zeta delta - [ IDTAC ] in test_read.
 *)

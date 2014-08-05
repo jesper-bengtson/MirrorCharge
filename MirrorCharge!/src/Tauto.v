@@ -9,12 +9,8 @@ Require Import ExtLib.Tactics.Cases.
 Require Import ExtLib.Tactics.Injection.
 Require Import ExtLib.Tactics.EqDep.
 Require Import ExtLib.Tactics.Consider.
-Require Import MirrorCore.Ext.ExprCore.
-Require Import MirrorCore.Ext.Types.
 Require Import MirrorCore.EnvI.
 Require Import MirrorCore.ExprI.
-Require Import MirrorCore.Ext.ExprD.
-Require Import MirrorCore.Ext.ExprTactics.
 Require Import ILogicFunc.
 
 Set Implicit Arguments.

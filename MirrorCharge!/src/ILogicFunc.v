@@ -4,13 +4,11 @@ Require Import Coq.Lists.List.
 Require Import ILogic ILEmbed.
 Require Import MapPositive.
 Require Import ExtLib.Core.RelDec.
+Require Import ExtLib.Data.Fun.
 Require Import ExtLib.Data.Positive.
 Require Import ExtLib.Tactics.
 Require Import MirrorCore.SymI.
 Require Import MirrorCore.TypesI.
-(*
-Require Import MirrorCore.Ext.Types.
-*)
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -19,6 +17,7 @@ Section typed.
   Variable typ : Type.
   Variable RType_typ : RType typ.
   Variable RelDec_typ_eq : RelDec (@eq typ).
+  Variable RelDecCorrect_typ_eq : RelDec_Correct RelDec_typ_eq.
 
   Inductive ilfunc :=
   | ilf_entails (logic : typ)
@@ -53,19 +52,10 @@ Section typed.
   Global Instance RelDec_Correct_ilfunc : RelDec_Correct RelDec_ilfunc.
   Proof.
     constructor.
-(*
-    destruct x; destruct y; simpl; intuition; try congruence;
-    repeat match goal with
-             | _ : context [ ?X ?[ eq ] ?Y ] |- _ =>
-               consider (X ?[ eq ] Y); intros; subst
-             | |- context [ ?X ?[ eq ] ?Y ] =>
-               consider (X ?[ eq ] Y); intros; subst
-             | H : _ |- _ =>
-               first [ solve [ inversion H ]
-                     | inversion H; [ clear H; subst ] ]
-           end; intuition.
-*)
-  Admitted.
+    destruct x; destruct y; simpl;
+    try solve [ try rewrite andb_true_iff ;
+                repeat rewrite rel_dec_correct; intuition congruence ].
+  Qed.
 
   (** TODO: Build an ordered map over types **)
   (** the canonical implementation doesn't work!
@@ -95,7 +85,6 @@ Section typed.
   Variable gs : logic_ops.
   Variable es : embed_ops.
 
-  Require Import ExtLib.Data.Fun.
   Variable Typ2_tyArr : Typ2 _ Fun.
   Variable Typ0_tyProp : Typ0 _ Prop.
 

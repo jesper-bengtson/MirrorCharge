@@ -12,13 +12,9 @@ Set Strict Implicit.
 Section fold.
   Variable typ : Type.
   Variable RType_typ : RType typ.
-(*
-  Variable fs : fun_map ts.
-  Variable gs : logic_ops ts.
-  Variable es : embed_ops ts.
-*)
   Variable T' : Type.
   Let T : Type := tenv typ -> tenv typ -> T'.
+  (** This is a problem b/c ilfunc is not extensible anymore **)
   Let expr := expr typ (ilfunc typ).
 
   Variable do_var : var -> T.
