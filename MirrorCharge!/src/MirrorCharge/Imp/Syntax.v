@@ -260,8 +260,11 @@ Definition SS : SubstI.Subst subst (expr typ func) :=
   @FMapSubst.SUBST.Subst_subst _.
 Definition SU : SubstI.SubstUpdate subst (expr typ func) :=
   FMapSubst.SUBST.SubstUpdate_subst (@instantiate typ func).
+Definition SO := FMapSubst.SUBST.SubstOk_subst.
+
 Local Existing Instance SS.
 Local Existing Instance SU.
+Local Existing Instance SO.
 
 
 Definition fTriple : expr typ func := Inj (inl (inl 1%positive)).

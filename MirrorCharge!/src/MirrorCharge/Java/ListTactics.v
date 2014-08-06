@@ -21,6 +21,7 @@ Require Import MirrorCharge.OrderedCanceller.
 Require Import MirrorCharge.BILNormalize.
 Require Import MirrorCharge.SynSepLog.
 Require Import MirrorCharge.SepLogFold.
+Require Import MirrorCharge.Java.EqTactics.
 Require Import MirrorCharge.Java.Syntax.
 
 Set Implicit Arguments.
@@ -40,22 +41,6 @@ Let eapply_other :=
                    @exprUnify subst typ func _ _ RS SS SU 3 nil
                               tus tvs n s e1 e2 t)
                 (@ExprSubst.instantiate typ func) SS SU.
-
-Definition eq_solve : stac typ (expr typ func) subst :=
-  fun tus tvs s e =>
-    match e with
-      | App (App (Inj (inl (inr (pEq tyVar)))) (Inj (inl (inr (pVar x))))) (Inj (inl (inr (pVar y)))) =>
-	        match Peano_dec.eq_nat_dec x y with
-	          | left _ => @Solved _ _ _ s
-	          | right _ => @Fail _ _ _
-			end
-      | App (App (Inj (inr (ilf_impl tyProp))) (App (App (Inj (inl (inr (pEq tyVar)))) (Inj (inl (inr (pVar x))))) (Inj (inl (inr (pVar y)))))) (Inj (inr (ilf_false tyProp))) =>
-	        match Peano_dec.eq_nat_dec x y with
-	          | left _ => @Fail _ _ _
-	          | right _ => @Solved _ _ _ s
-			end
-      | _ => More tus tvs s e
-   end.
 
 Definition nin_cons_lemma : lemma typ (expr typ func) (expr typ func) :=
 {| vars := tyVar :: tyVar :: tyList tyVar :: nil
@@ -84,57 +69,94 @@ Definition nodup_cons_lemma : lemma typ (expr typ func) (expr typ func) :=
                nil
  ; concl := mkNoDup (mkCons tyVar (Var 0) (Var 1))
  |}.
+ 
+Definition length_refl_lemma : lemma typ (expr typ func) (expr typ func) :=
+  {| vars := tyList tyVar :: nil
+   ; premises := nil
+   ; concl := mkeq tyNat (mkLength tyVar (Var 0)) (mkLength tyVar (Var 0))
+  |}.
+
+Definition length_cons_lemma : lemma typ (expr typ func) (expr typ func) :=
+  {| vars := tyVar :: tyList tyVar :: tyVar :: tyList tyVar :: nil
+   ; premises := mkeq tyNat (mkLength tyVar (Var 1)) (mkLength tyVar (Var 3)) :: nil
+   ; concl := mkeq tyNat (mkLength tyVar (mkCons tyVar (Var 0) (Var 1))) 
+                         (mkLength tyVar (mkCons tyVar (Var 2) (Var 3)))
+  |}.
 
 
-Definition all_cases : stac typ (expr typ func) subst :=
+Definition list_cases : stac typ (expr typ func) subst :=
   REC 5 (fun rec =>
             let rec := rec in
             REPEAT 10
                    (FIRST (eapply_other nin_cons_lemma (FIRST (eq_solve::rec::nil)) ::
                            eapply_other nin_nil_lemma rec::
                            eapply_other nodup_nil_lemma rec::
-                           eapply_other nodup_cons_lemma rec 
+                           eapply_other nodup_cons_lemma rec::
+                           eapply_other length_refl_lemma rec::
+                           eapply_other length_cons_lemma rec
                            :: nil)))
       (@FAIL _ _ _).
 
-Definition test_eq :=
-	let vars := nil in
-	let goal := mkeq tyVar (fVar 0) (fVar 0)
-	in
-	@eq_solve nil vars (SubstI3.empty (expr := expr typ func)) goal.
-
-Time Eval vm_compute in test_eq.
-
-Definition test_neq :=
-	let vars := nil in
-	let goal := mkneq tyVar (fVar 9) (fVar 0)
-	in
-	@eq_solve nil vars (SubstI3.empty (expr := expr typ func)) goal.
-
-Time Eval vm_compute in test_neq.
+Open Scope string.
 
 Definition test_nil :=
   let vars := nil in
-  let goal := lnot tyProp (mkIn (fVar 0) (fNil tyVar))
+  let goal := lnot tyProp (mkIn (fVar "a") (fNil tyVar))
   in
-  @all_cases nil vars (SubstI3.empty (expr :=expr typ func)) goal.
+  @list_cases nil vars (SubstI3.empty (expr :=expr typ func)) goal.
 
 Time Eval vm_compute in test_nil.
 
 Definition test_cons :=
   let vars := nil in
-  let goal := lnot tyProp (mkIn (fVar 0) 
-  	(mkCons tyVar (fVar 3) ((mkCons tyVar (fVar 2) ((mkCons tyVar (fVar 1) (fNil tyVar)))))))
+  let goal := lnot tyProp (mkIn (fVar "a") 
+  	(mkCons tyVar (fVar "b") ((mkCons tyVar (fVar "c") ((mkCons tyVar (fVar "d") (fNil tyVar)))))))
   in
-  @all_cases nil vars (SubstI3.empty (expr :=expr typ func)) goal.
+  @list_cases nil vars (SubstI3.empty (expr :=expr typ func)) goal.
 
 Time Eval vm_compute in test_cons.
 
 Definition test_nodup :=
   let vars := nil in
   let goal := mkNoDup
-  	(mkCons tyVar (fVar 3) ((mkCons tyVar (fVar 2) ((mkCons tyVar (fVar 1) (fNil tyVar))))))
+  	(mkCons tyVar (fVar "a") ((mkCons tyVar (fVar "b") ((mkCons tyVar (fVar "c") (fNil tyVar))))))
   in
-  @all_cases nil vars (SubstI3.empty (expr :=expr typ func)) goal.
+  @list_cases nil vars (SubstI3.empty (expr :=expr typ func)) goal.
   
 Time Eval vm_compute in test_nodup.
+
+Definition test_length_refl1 :=
+  let vars := nil in
+  let goal := mkeq tyNat (mkLength tyVar (fNil tyVar)) (mkLength tyVar (fNil tyVar))
+  in
+  @list_cases nil vars (SubstI3.empty (expr :=expr typ func)) goal.
+  
+Time Eval vm_compute in test_length_refl1.
+
+Definition test_length_refl2 :=
+  let vars := nil in
+  let goal := mkeq tyNat (mkLength tyVar (mkCons tyVar (fVar "a") (mkCons tyVar (fVar "b") (fNil tyVar))))
+                         (mkLength tyVar (mkCons tyVar (fVar "a") (mkCons tyVar (fVar "b") (fNil tyVar))))
+  in
+  @list_cases nil vars (SubstI3.empty (expr :=expr typ func)) goal.
+  
+Time Eval vm_compute in test_length_refl2.
+
+Definition test_length_neq :=
+  let vars := nil in
+  let goal := mkeq tyNat (mkLength tyVar (mkCons tyVar (fVar "a") (mkCons tyVar (fVar "b") (fNil tyVar))))
+                         (mkLength tyVar (mkCons tyVar (fVar "c") (mkCons tyVar (fVar "d") (fNil tyVar))))
+  in
+  @list_cases nil vars (SubstI3.empty (expr :=expr typ func)) goal.
+  
+Time Eval vm_compute in test_length_neq.
+
+Definition test_length_fail :=
+  let vars := nil in
+  let goal := mkeq tyNat (mkLength tyVar (mkCons tyVar (fVar "e") (mkCons tyVar (fVar "a") (mkCons tyVar (fVar "b") (fNil tyVar)))))
+                         (mkLength tyVar (mkCons tyVar (fVar "c") (mkCons tyVar (fVar "d") (fNil tyVar))))
+  in
+  @list_cases nil vars (SubstI3.empty (expr :=expr typ func)) goal.
+  
+Time Eval vm_compute in test_length_fail.
+
