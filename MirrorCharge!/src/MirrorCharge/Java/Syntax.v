@@ -1,3 +1,5 @@
+Require Import Charge.Logics.BILogic.
+
 Require Import Java.Language.Lang.
 Require Import Java.Logic.AssertionLogic.
 Require Import Coq.Strings.String.
@@ -42,7 +44,8 @@ Inductive typ :=
 | tyAsn : typ
 | tyProg : typ
 | tyStack : typ
-| tyCmd : typ.
+| tyCmd : typ
+| tyExpr : typ.
 
 Notation "'tyPure'" := (tyArr tyStack tyProp).
 Notation "'tySasn'" := (tyArr tyStack tyAsn). 
@@ -68,6 +71,7 @@ Fixpoint type_cast_typ (a b : typ) : option (a = b) :=
     | tyVar , tyVar => Some eq_refl
     | tyString, tyString => Some eq_refl
     | tyCmd, tyCmd => Some eq_refl
+    | tyExpr, tyExpr => Some eq_refl
     | _, _ => None
   end.
 
@@ -90,6 +94,7 @@ Fixpoint typD (ls : list Type) (t : typ) : Type :=
     | tyProg => Prog_wf
     | tyStack => stack
     | tyCmd => cmd
+    | tyExpr => dexpr
   end.
   
 Inductive tyAcc_typ : typ -> typ -> Prop :=
@@ -129,16 +134,22 @@ Inductive java_func :=
 | pVarList (_ : list Lang.var)
 | pProg (_ : Prog_wf)
 | pCmd (_ : cmd)
+| pExpr (_ : dexpr)
 | pEq (_ : typ)
 
 | pAp (_ _ : typ)
-| pApConst (_ : typ)
+| pConst (_ : typ)
+| pUpdate (_ : typ)
 | pMethodSpec
 | pProgEq
 | pTriple
 
 | pStackGet
-| pStackSet.
+| pStackSet
+| pEval
+
+| pStar (_ : typ)
+| pPointsto.
 
 Definition func := (SymEnv.func + java_func + ilfunc typ)%type.
 
@@ -150,37 +161,54 @@ Definition typeof_sym_java (f : java_func) : option typ :=
     | pProg _ => Some tyProg
     | pVarList _ => Some tyVarList
     | pCmd _ => Some tyCmd
+    | pExpr _ => Some tyExpr
     | pEq t => Some (tyArr t (tyArr t tyProp))
     | pAp t u => Some (tyArr (tyArr tyStack (tyArr t u)) (tyArr (tyArr tyStack t) (tyArr tyStack u)))
-    | pApConst t => Some (tyArr t (tyArr tyStack t))
+    | pUpdate t => Some (tyArr (tyArr tyStack tyStack)
+                               (tyArr (tyArr tyStack t)
+                                      (tyArr tyStack t)))
+    | pConst t => Some (tyArr t (tyArr tyStack t))
     | pMethodSpec => Some (tyArr tyString (tyArr tyString (tyArr tyVarList
     	 (tyArr tyVar (tyArr tySasn (tyArr tySasn tySpec))))))
     | pProgEq => Some (tyArr tyProg tySpec)
     | pStackGet => Some (tyArr tyVar (tyArr tyStack tyVal))
     | pStackSet => Some (tyArr tyVar (tyArr tyVal (tyArr tyStack tyStack)))
     | pTriple => Some (tyArr tySasn (tyArr tySasn (tyArr tyCmd tySpec)))
+    | pEval => Some (tyArr tyExpr (tyArr tyStack tyVal))
+    
+    | pStar tySasn => Some (tyArr tySasn (tyArr tySasn tySasn))
+    | pStar tyAsn => Some (tyArr tyAsn (tyArr tyAsn tyAsn))
+    | pStar _ => None
+    
+    | pPointsto => Some (tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn)))
     end.
-  
+   
 Definition java_func_eq (a b : java_func) : option bool :=
   match a , b with
     | pVar a , pVar b => Some (a ?[ eq ] b)
     | pVarList a, pVarList b => Some (a ?[ eq ] b)
     | pString a, pString b => Some (a ?[ eq ] b)
-    | pCmd a, pCmd b => Some true (* THIS IS FALSE! Syntactic equality on commands is required *)
+    | pCmd a, pCmd b => Some (beq_cmd a b)
+    | pExpr e1, pExpr e2 => Some (beq_dexpr e1 e2)
     | pProg a, pProg b => Some true (* THIS IS FALSE! We need an equivalence checker for programs. This should just be syntactic equality. *)
     | pEq a , pEq b => Some (a ?[ eq ] b)
         
     | pAp t u , pAp t' u' => Some (t ?[ eq ] t' && u ?[ eq ] u')%bool
-    | pApConst t, pApConst u => Some (t ?[ eq ] u)
+    | pConst t, pConst u => Some (t ?[ eq ] u)
+    | pUpdate t, pUpdate u => Some (t ?[ eq ] u)
     | pMethodSpec, pMethodSpec => Some true
     | pProgEq, pProgEq => Some true
     | pStackGet, pStackGet => Some true
     | pStackSet, pStackSet => Some true
     | pTriple, pTriple => Some true
+    | pStar t, pStar u => Some (t ?[ eq ] u)
+    | pPointsto, pPointsto => Some true
     | _, _ => None
   end.
 
-
+Let update {T} (f : stack -> stack) (m : stack -> T) (l : stack) : T :=
+  m (f l).
+Check sepSP.
 Instance RSym_imp_func : SymI.RSym java_func :=
 { typeof_sym := typeof_sym_java
 ; symD := fun ts f =>
@@ -195,16 +223,25 @@ Instance RSym_imp_func : SymI.RSym java_func :=
               | pVal v => v
               | pVarList lst => lst
               | pCmd c => c
+              | pExpr e => e
               | pEq t => @eq (typD ts t)
               
               | pAp t u => @Applicative.ap (Fun stack) (Applicative_Fun _) (typD ts t) (typD ts u)
-              | pApConst t => @Applicative.pure (Fun stack) (Applicative_Fun _) (typD ts t)
+              | pConst t => @Applicative.pure (Fun stack) (Applicative_Fun _) (typD ts t)
+              | pUpdate t => update
               | pMethodSpec => method_spec
               | pProgEq => prog_eq
               | pStackGet => fun x s => s x
               | pStackSet => stack_add
               
               | pTriple => triple
+              | pEval => eval
+              
+              | pStar tySasn => @sepSP _ BILOperatorsSAsn
+              | pStar tyAsn => @sepSP _ BILOperatorsAsn
+              | pStar _ => tt
+              
+              | pPointsto => pointsto
             end
 ; sym_eqb := java_func_eq
 }.
@@ -221,8 +258,8 @@ Definition fs : @SymEnv.functions typ _ :=
      @SymEnv.F typ _ (tyArr tyVarList tyProp)
                (fun _ => (@NoDup (Lang.var))) ::
      nil).
-     
-Definition lops : logic_ops _ :=
+
+     Definition lops : logic_ops _ :=
   fun t =>
     match t
           return option (forall ts, ILogic.ILogicOps (TypesI.typD ts t))
@@ -242,6 +279,7 @@ Definition eops : embed_ops _ :=
                    (forall ts : list Type,
                       ILEmbed.EmbedOp (TypesI.typD ts t) (TypesI.typD ts u))
     with
+      | tyPure, tySasn => Some (fun _ => EmbedSasnPureOp)
       | _ , _ => None
     end.
 
@@ -288,11 +326,18 @@ Local Existing Instance SO.
 Notation "'fMethodSpec'" := (Inj (inl (inr pMethodSpec))) (at level 0).
 Notation "'fProgEq'" := (Inj (inl (inr pProgEq))) (at level 0).
 Notation "'fTriple'" := (Inj (inl (inr pTriple))) (at level 0).
+Notation "'fEval'" := (Inj (inl (inr pEval))) (at level 0).
 
-Notation "'fEq' t" := (Inj (inl (inr (pEq t)))) (at level 0).
-Notation "'fAp'" := (Inj (inl (inr pAp))) (at level 0).
+Notation "'fEq' '[' t ']'" := (Inj (inl (inr (pEq t)))) (at level 0).
+Notation "'fAp' '[' t ',' u ']'" := (Inj (inl (inr (pAp t u)))) (at level 0).
+Notation "'fConst' '[' t ']'" := (Inj (inl (inr (pConst t)))) (at level 0).
+Notation "'fstack_get'" := (Inj (inl (inr pStackGet))).
+Notation "'fstack_set'" := (Inj (inl (inr pStackSet))).
 
-Notation "'mkAp' t u a b" := (App (App (fAp t u) a) b) (at level 0).
+Definition fupdate t : expr typ func := Inj (inl (inr (pUpdate t))).
+Definition fPointsto : expr typ func := Inj (inl (inr (pPointsto))).
+
+Notation "'mkAp' '[' t ',' u ',' a ',' b ']'" := (App (App (fAp [t, u]) a) b) (at level 0).
 Notation "'mkMethodSpec' '[' C ',' m ',' args ',' r ',' p ',' q ']'" := 
     (App (App (App (App (App (App fMethodSpec C) m) args) r) p) q) (at level 0).
 Notation "'mkTriple' '[' P ',' c ',' Q ']'" := (App (App (App fTriple P) c) Q) (at level 0).
@@ -304,7 +349,13 @@ Notation "'mkString' '[' s ']'" := (Inj (inl (inr (pString s)))) (at level 0).
 Notation "'mkProg' '[' P ']'" := (Inj (inl (inr (pProg P)))) (at level 0).
 Notation "'mkProgEq' '[' P ']'" := (App fProgEq P) (at level 0).
 Notation "'mkCmd' '[' c ']'" := (Inj (inl (inr (pCmd c)))) (at level 0).
+Notation "'mkExpr' '[' e ']'" := (Inj (inl (inr (pExpr e)))) (at level 0).
+
+Notation "'mkConst' '[' t ',' a ']'" := (App (fConst [t]) a) (at level 0).
+Notation "'mkEval' '[' e ',' s ']'" := (App (App fEval e) s) (at level 0).
 	
+Definition lexists (l t : typ) (e : expr typ func) : expr typ func :=
+  App (Inj (inr (ilf_exists t l))) (Abs t e).
 Definition land (l : typ) (e e' : expr typ func) : expr typ func :=
   App (App (Inj (inr (ilf_and l))) e) e'.
 Definition ltrue (l : typ) : expr typ func :=
@@ -319,9 +370,20 @@ Definition lor (l : typ) (e e' : expr typ func) : expr typ func :=
 Definition lembed (t f : typ) (e : expr typ func) : expr typ func :=
   App (Inj (inr (ilf_embed f t))) e.
 Definition lnot (t : typ) (e : expr typ func) : expr typ func := limpl t e (lfalse t).
+Definition lupdate (t : typ) (a b : expr typ func) : expr typ func :=
+  App (App (fupdate t) a) b.
+Definition lstackGet (x s : expr typ func) := App (App fstack_get x) s.
+Definition lstackSet (x v s : expr typ func) := App (App (App fstack_set x) v) s.
 
+Definition lstar (l : typ) (e e' : expr typ func) : expr typ func :=
+  App (App (Inj (inl (inr (pStar l)))) e) e'.
+Definition lpointsto (v f v' : expr typ func) := 
+	App (App (App fPointsto v) f) v'.
+	
 Definition test_lemma :=
   @lemmaD typ RType_typ (expr typ func) Expr_expr (expr typ func)
           (fun tus tvs e => exprD' nil tus tvs tyProp e)
           tyProp
           (fun x => x) nil nil.
+
+          

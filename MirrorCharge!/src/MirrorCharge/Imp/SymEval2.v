@@ -10,7 +10,7 @@ Require Import MirrorCore.STac.STac.
 Require Import MirrorCore.provers.DefaultProver.
 Require MirrorCore.syms.SymEnv.
 Require MirrorCore.syms.SymSum.
-Require Import MirrorCore.Subst.FMapSubst3.
+Require Import MirrorCore.Subst.FMapSubst.
 Require Import MirrorCore.Lambda.ExprLift.
 Require Import MirrorCore.Lambda.ExprSubst.
 Require Import MirrorCore.Lambda.ExprUnify_simul.
@@ -44,7 +44,7 @@ Local Notation "x '|-' y" :=
 Local Notation "'{{'  P  '}}'  c  '{{'  Q  '}}'" :=
   (Inj (inl (inl 1%positive)) @ P @ c @ Q) (at level 20).
 Local Notation "c1 ;; c2" := (Inj (inl (inl 2%positive)) @ c1 @ c2) (at level 30).
-
+(*
 Let eapply_other :=
   @eapply_other typ (expr typ func) subst tyProp ExprLift.vars_to_uvars
                 (fun tus tvs n e1 e2 t s =>
@@ -52,7 +52,7 @@ Let eapply_other :=
                               tus tvs n s e1 e2 t)
                 (@ExprSubst.instantiate typ func) SS SU.
 
-
+*)
 (** NOTE: Manual lemma reification for the time being **)
 (** Pull Ex **)
 Definition pull_nat_lemma : lemma typ (expr typ func) (expr typ func) :=
@@ -179,6 +179,7 @@ Definition all_cases : stac typ (expr typ func) subst :=
                            :: eapply_other to_skip rec
                            :: nil)))
       (@FAIL _ _ _).
+     
 
 Definition test :=
   let vars := tyLProp :: tyCmd :: tyCmd :: tyCmd :: tyLProp :: nil in
