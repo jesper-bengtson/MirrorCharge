@@ -24,11 +24,17 @@ Require Import MirrorCharge.SynSepLog.
 Require Import MirrorCharge.SepLogFold.
 
 Require Import MirrorCharge.Java.Syntax.
-
+ 
 Require Import Java.Language.Lang.
 Require Import Java.Language.Program.
 
 Require Import Coq.Arith.Peano_dec.
+
+Local Existing Instance SS.
+Local Existing Instance SU.
+Local Existing Instance RSym_ilfunc.
+Local Existing Instance RS.
+Local Existing Instance Expr_expr.
 
 Fixpoint search_NoDup
     {A} (A_dec: forall a b: A, {a=b}+{a=b->False}) (l: list A) : option (NoDup l) :=
@@ -49,9 +55,8 @@ Fixpoint search_NoDup
       end
   end.
 
-  Definition list_notin_set lst s :=
+Definition list_notin_set lst s :=
   	fold_right (fun a acc => andb (SS.for_all (fun b => negb (string_dec a b)) s) acc) true lst.
-Print Result.
 
 Definition method_specI : stac typ (expr typ func) subst :=
   fun tus tvs s lst e =>
@@ -75,7 +80,7 @@ Definition method_specI : stac typ (expr typ func) subst :=
 						  	      else
 						  	        @Fail _ _ _
 						  	    | right _ => @Fail _ _ _
-						  	  end
+						  	  end 
 						  	| None => @Fail _ _ _
 						  end
     	          	    | None => @Fail _ _ _
@@ -86,6 +91,130 @@ Definition method_specI : stac typ (expr typ func) subst :=
     	      end
       	| _ => @Fail _ _ _
     end.
+
+Definition skip_lemma : lemma typ (expr typ func) (expr typ func) :=
+{| vars := tySpec :: tySasn ::  nil
+ ; premises := nil
+ ; concl := mkEntails [tySpec, Var 0, mkTriple [Var 1, mkCmd [cskip], Var 1]]
+ |}.
+ 
+Eval vm_compute in (test_lemma skip_lemma).
+
+Definition seq_lemma c1 c2 : lemma typ (expr typ func) (expr typ func) :=
+	{| vars := tySpec :: tySasn :: tySasn :: tySasn :: nil;
+	   premises := mkEntails [tySpec, Var 0, mkTriple [Var 1, mkCmd [c1], Var 2]] ::
+                   mkEntails [tySpec, Var 0, mkTriple [Var 2, mkCmd [c2] , Var 3]] :: nil;
+       concl := mkEntails [tySpec, Var 0, mkTriple [Var 1, mkCmd [cseq c1 c2], Var 3]]
+    |}.
+
+Definition assign_lemma x e : lemma typ (expr typ func) (expr typ func) :=
+{| vars := tySpec :: tySasn :: nil
+ ; premises := nil
+ ; concl := mkEntails [tySpec, Var 0, mkTriple [Var 1, mkCmd [cassign x e], 
+                       lexists tySasn tyVal (land tySasn (lembed tyPure tySasn
+                                                                 (mkAp [tyVal, tyProp, 
+                                                                        mkAp [tyVal, tyArr tyVal tyProp,
+                                                                              mkConst [tyArr tyVal (tyArr tyVal tyProp), fEq [tyVal]],
+                                                                              (App fstack_get (mkVar [x]))],
+                                                                        lupdate tyVal (App (App fstack_set (mkVar [x])) (Var 0)) (App fEval (mkExpr [e]))]))
+                                                         (lupdate tyAsn (App (App fstack_set (mkVar [x])) (Var 0)) (Var 1))) ]]
+|}.
+
+Definition write_lemma x f e : lemma typ (expr typ func) (expr typ func) :=
+{| vars := tySpec :: tySasn :: tySasn :: nil
+ ; premises := mkEntails [tySasn, Var 1, lexists tySasn tyVal 
+      											 (lstar tySasn (Var 3) 
+                                                        (mkAp [tyVal, tyAsn,
+                                                               mkAp [tyString, tyArr tyVal tyAsn,
+                                                                     mkAp [tyVal, tyArr tyString (tyArr tyVal tyAsn),
+                                                                           mkConst [tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn)), fPointsto],
+                                                                           App fstack_get (mkVar [x])],
+                                                                     mkConst [tyString, mkString [f]]],
+                                                               mkConst [tyVal, Var 0]]))] :: nil
+ ; concl := mkEntails [tySpec, Var 0, mkTriple [Var 1, mkCmd [cwrite x f e], Var 1]]
+     
+ |}.
+                                                                            (lpointsto (mkVal [e]) (mkString [f]) (Var 0)))] :: nil
+
+Definition write_lemma : lemma typ (expr typ func) (expr typ func) :=
+{| vars := tyLProp :: tyLProp :: tyExpr :: tyExpr :: nil
+ ; premises :=
+     lentails tyLProp
+              (Var 0)
+              (lex tyLProp tyNat
+                   (lstar tyLProp
+                          (lap tyNat tyHProp (lap tyNat (tyArr tyNat tyHProp)
+                                                  (lpure (tyArr tyNat (tyArr tyNat tyHProp)) fPtsTo)
+                                                  (feval_iexpr @ Var 3))
+                               (lpure tyNat (Var 0)))
+                          (Var 2)))
+     :: nil
+ ; concl :=
+     mkTriple (Var 0)
+              (mkWrite (Var 2) (Var 3))
+              (lstar tyLProp
+                     (lap tyNat tyHProp (lap tyNat (tyArr tyNat tyHProp) (lpure (tyArr tyNat (tyArr tyNat tyHProp)) fPtsTo) (feval_iexpr @ Var 2)) (feval_iexpr @ Var 3))
+                     (Var 1))
+ |}.
+
+Definition skip_lemma x e
+
+Check cmd.
+Definition write_lemma 
+
+Example test_assign x e : test_lemma (assign_lemma x e).
+Proof.
+  vm_compute.
+ 
+  Let EAPPLY :=
+    @EAPPLY typ (expr typ func) subst _ Typ0_Prop
+           vars_to_uvars
+           (fun tus tvs n e1 e2 t s =>
+              @exprUnify subst typ func _ _ RS SS SU 3 nil
+                         tus tvs n s e1 e2 t)
+           (@instantiate typ func) SS SU.
+
+  Let APPLY :=
+    @APPLY typ (expr typ func) subst _ Typ0_Prop
+           vars_to_uvars
+           (fun tus tvs n e1 e2 t s =>
+              @exprUnify subst typ func _ _ RS SS SU 3 nil
+                         tus tvs n s e1 e2 t)
+           (@instantiate typ func) SS SU.
+
+Fixpoint tripleE (c : cmd) : stac typ (expr typ func) subst :=
+	match c with
+	    | cskip => APPLY skip_lemma (apply_to_all (@IDTAC _ _ _))
+		| cseq c1 c2 => EAPPLY (seq_lemma c1 c2) (apply_to_all (FIRST (tripleE c1::tripleE c2::nil)))
+		| _ => @IDTAC _ _ _
+	end.
+
+Definition symE : stac typ (expr typ func) subst :=
+	fun tus tvs s lst e => 
+		match e with 
+			| mkEntails [tySpec, G, mkTriple [P, mkCmd [c], Q]] => 
+			  (tripleE c) tus tvs s lst e
+			| _ => Fail _ _ _
+		end.
+	
+Definition test_skip :=
+  let uvars := nil in
+  let vars := tySasn :: tySpec :: nil in
+  let goal := mkEntails [tySpec, Var 1, mkTriple [Var 0, mkCmd [cskip], Var 0]]
+  in
+  let tac := symE in
+  @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
+Time Eval vm_compute in test_skip.
+
+Definition test_skip2 :=
+  let uvars := nil in
+  let vars := tySpec :: tySasn :: nil in
+  let goal := mkEntails [tySpec, Var 0, mkTriple [Var 1, mkCmd [cseq (cseq cskip cskip) (cseq cskip cskip)], Var 1]]
+  in
+  let tac := symE in
+  @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
+Time Eval vm_compute in test_skip2.
+
 
 Fixpoint tripleE tus tvs (G P Q : expr typ func) l (c : cmd) s args : Result typ (expr typ func) subst :=
 	match c with 
@@ -108,8 +237,10 @@ Fixpoint tripleE tus tvs (G P Q : expr typ func) l (c : cmd) s args : Result typ
 	  | _ => More nil nil s args (mkEntails [l, G, mkTriple [P, mkCmd [c], Q]])
     end.
     
+(** Sequence **)
 
-    
+
+
 Definition symE : stac typ (expr typ func) subst :=
 	fun tus tvs s lst e => 
 		match e with 
@@ -118,7 +249,6 @@ Definition symE : stac typ (expr typ func) subst :=
 			| _ => Fail _ _ _
 		end.
 
-
 Require Import ExtLib.Tactics.
 Require Import Lambda.ExprTac.
 
@@ -126,6 +256,9 @@ Local Existing Instance SS.
 Local Existing Instance SU.
 Local Existing Instance SO.
 Check @stac_sound.
+Check REC.
+
+
 
 Lemma symE_sound : @stac_sound typ (expr typ func) subst RType_typ Syntax.Expr_expr _ SS SO symE.
 Proof.
@@ -135,6 +268,10 @@ Proof.
   destruct r; [apply I | |].
   unfold symE in Heqr.
   forward; inv_all; subst.
+  
+  Lemma tripleE_Solved_WellFormed_subst : tus tvs G P Q l c s args tus' tvs' s' (H : tripleE tus tvs G P Q l c s args = Solved (expr typ func) tus' tvs' s') 
+    (:
+    wellFormedSubst s'.
 
   unfold goalD; simpl; red_exprD.
   split; [admit|]. forward.
@@ -144,8 +281,34 @@ Proof.
   split; [admit|].
   unfold goalD. 
   forward; inv_all; subst.
-  assert (exist t, @exprD' typ RType_typ (expr typ func) Expr_expr (@app typ tus l)
-      (@app typ tvs l0) e (@typ0 typ RType_typ Prop Typ0_Prop) = Some t).
+  unfold typ0_cast. simpl.
+  match goal with
+	| |- match ?X with _ => _ end =>
+          consider X; intros
+  end.
+  match goal with
+	| |- match ?X with _ => _ end =>
+          consider X; intros
+  end.
+  match goal with
+	| |- match ?X with _ => _ end =>
+          consider X; intros
+  end.
+  forward; inv_all; subst.
+  simpl in WFs.
+  
+  Focus 3. generalize dependent l1.
+  forward_reason.
+  unfold SUBST.WellFormed in WFs.
+  unfold SUBST.normalized in WFs.
+simpl in *. 
+  
+  assert (ExprDsimul.ExprDenote.exprD' nil (tus ++ l) (tvs ++ l0) tyProp x = Some (fun _ _ => Prop)).
+  red_exprD.
+  assert (exists t, @exprD' typ RType_typ (expr typ func) Expr_expr (@app typ tus l)
+      (@app typ tvs l0) e (@typ0 typ RType_typ Prop Typ0_Prop) = Some t) by admit.
+  destruct H0 as [t' H0].    rewrite H0.
+  simpl. red_exprD.
   assert (exists t, exprD' (tus ++ l) (tvs ++ l0) e (typ0 (F := Prop)) = Some t).
   simpl in *.
   induction c; simpl in H15; try (inversion H15; subst). 

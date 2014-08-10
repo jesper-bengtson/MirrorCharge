@@ -1,7 +1,8 @@
 Require Import Coq.Bool.Bool.
 Require Import Coq.ZArith.ZArith.
 Require Import Coq.Lists.List.
-Require Import ILogic ILEmbed.
+Require Import Charge.Logics.ILogic.
+Require Import Charge.Logics.ILEmbed.
 Require Import MapPositive.
 Require Import ExtLib.Core.RelDec.
 Require Import ExtLib.Data.Fun.

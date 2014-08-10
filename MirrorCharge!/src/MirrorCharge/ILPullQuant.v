@@ -1,34 +1,44 @@
 Require Import ILogic ILInsts.
 Require Import ILogicFunc.
-Require Import MirrorCore.Ext.Types.
-Require Import MirrorCore.Ext.ExprCore.
+Require Import MirrorCore.Lambda.ExprCore.
+Require Import MirrorCore.TypesI.
 Require Import MapPositive.
 Require Import MirrorCore.SymI.
 Require Import ExtLib.Core.RelDec.
 Require Import Coq.Bool.Bool.
 Require Import ExtLib.Data.Positive.
-Require Import Ext.ExprLift.
+Require Import MirrorCore.Lambda.ExprLift.
 Require Import ExtLib.Tactics.Consider.
-Require Import MirrorCore.Ext.Expr.
-Require Import MirrorCore.Ext.ExprD.
-Require Import MirrorCore.Ext.ExprTactics.
+Require Import MirrorCore.Lambda.Expr.
+Require Import MirrorCore.Lambda.ExprD.
 Require Import MirrorCore.EnvI.
 Require Import ExtLib.Tactics.Cases.
 Require Import ExtLib.Tactics.Injection.
 Require Import ExtLib.Tactics.EqDep.
-Require Import Ext.SetoidFold.
 Require Import Relation_Definitions.
-Require Import MirrorCore.Ext.AppFull.
-(*
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Set Maximal Implicit Insertion.
-
+(*
 Definition inhabited (ts : types)  := forall (t : typ),
   option (Inhabited (typD ts nil t)).
+*)
+Check logic_ops.
+
+Check RSym_ilfunc.
 
 Section PullQuant.
-  Context (ts : types) (funcs : fun_map ts).
+  Variable typ : Type.
+  Variable RType_typ : RType typ.
+  Variable Typ2_Fun : Typ2 _ Fun.
+  Variable func : Type.
+  Variable RSym_func : RSym func.
+
+  Context (gs : logic_ops RType_typ).
+  Conext {gsOk : logic_opsOk gs}.
+
+  Context (ts : typs) (funcs : fun_map ts).
   Context (gs : logic_ops ts) {gsOk : logic_opsOk gs}.
   Context {es : embed_ops ts} {esOk : embed_opsOk gs es}.
   Context {is : inhabited ts}.
