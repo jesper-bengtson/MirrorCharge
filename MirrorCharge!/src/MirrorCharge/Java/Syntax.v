@@ -182,6 +182,9 @@ Definition typeof_sym_java (f : java_func) : option typ :=
     
     | pPointsto => Some (tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn)))
     end.
+(* This exists in Java, but wasn't pushed *)
+Definition beq_cmd (a b : cmd) := true.   
+Definition beq_dexpr (a b : dexpr) := true.
    
 Definition java_func_eq (a b : java_func) : option bool :=
   match a , b with
@@ -208,7 +211,7 @@ Definition java_func_eq (a b : java_func) : option bool :=
 
 Let update {T} (f : stack -> stack) (m : stack -> T) (l : stack) : T :=
   m (f l).
-Check sepSP.
+
 Instance RSym_imp_func : SymI.RSym java_func :=
 { typeof_sym := typeof_sym_java
 ; symD := fun ts f =>
