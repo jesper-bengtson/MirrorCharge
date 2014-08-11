@@ -184,10 +184,7 @@ Definition typeof_sym_java (f : java_func) : option typ :=
     
     | pPointsto => Some (tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn)))
     end.
-(* This exists in Java, but wasn't pushed *)
-Definition beq_cmd (a b : cmd) := true.   
-Definition beq_dexpr (a b : dexpr) := true.
-   
+
 Definition java_func_eq (a b : java_func) : option bool :=
   match a , b with
     | pVar a , pVar b => Some (a ?[ eq ] b)
@@ -372,7 +369,7 @@ Definition limpl (l : typ) (e e' : expr typ func) : expr typ func :=
   App (App (Inj (inr (ilf_impl l))) e) e'.
 Definition lor (l : typ) (e e' : expr typ func) : expr typ func :=
   App (App (Inj (inr (ilf_or l))) e) e'.
-Definition lembed (t f : typ) (e : expr typ func) : expr typ func :=
+Definition lembed (f t : typ) (e : expr typ func) : expr typ func :=
   App (Inj (inr (ilf_embed f t))) e.
 Definition lnot (t : typ) (e : expr typ func) : expr typ func := limpl t e (lfalse t).
 Definition lupdate (t : typ) (a b : expr typ func) : expr typ func :=
