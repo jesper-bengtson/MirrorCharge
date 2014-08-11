@@ -99,6 +99,14 @@ Definition skip_lemma : lemma typ (expr typ func) (expr typ func) :=
  |}.
  
 Eval vm_compute in (test_lemma skip_lemma).
+ 
+Definition skip_lemma2 : lemma typ (expr typ func) (expr typ func) :=
+{| vars := tySasn ::  nil
+ ; premises := nil
+ ; concl := mkEntails [tySasn, Var 0, Var 0]
+ |}.
+ 
+Eval vm_compute in (test_lemma skip_lemma2).
 
 Definition seq_lemma c1 c2 : lemma typ (expr typ func) (expr typ func) :=
 	{| vars := tySpec :: tySasn :: tySasn :: tySasn :: nil;
@@ -106,6 +114,9 @@ Definition seq_lemma c1 c2 : lemma typ (expr typ func) (expr typ func) :=
                    mkEntails [tySpec, Var 0, mkTriple [Var 2, mkCmd [c2] , Var 3]] :: nil;
        concl := mkEntails [tySpec, Var 0, mkTriple [Var 1, mkCmd [cseq c1 c2], Var 3]]
     |}.
+
+Eval vm_compute in (test_lemma skip_lemma2).
+
 
 Definition assign_lemma x e : lemma typ (expr typ func) (expr typ func) :=
 {| vars := tySpec :: tySasn :: nil
@@ -175,12 +186,6 @@ Definition read_lemma x y f : lemma typ (expr typ func) (expr typ func) :=
 
 Print cmd.
 
-Example test_assign x e : test_lemma (assign_lemma x e).
-Proof.
-  vm_compute.
-  admit. (* Does not work *)
-Qed.
- 
   Let EAPPLY :=
     @EAPPLY typ (expr typ func) subst _ Typ0_Prop
            vars_to_uvars

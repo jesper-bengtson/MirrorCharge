@@ -262,7 +262,7 @@ Definition fs : @SymEnv.functions typ _ :=
                (fun _ => (@NoDup (Lang.var))) ::
      nil).
 
-     Definition lops : logic_ops _ :=
+  Definition lops : logic_ops RType_typ :=
   fun t =>
     match t
           return option (forall ts, ILogic.ILogicOps (TypesI.typD ts t))
@@ -275,7 +275,7 @@ Definition fs : @SymEnv.functions typ _ :=
       | _ => None
     end.
 
-Definition eops : embed_ops _ :=
+Definition eops : embed_ops RType_typ :=
   fun t u =>
     match t as t , u as u
           return option
@@ -287,7 +287,7 @@ Definition eops : embed_ops _ :=
     end.
 
 Local Instance RSym_ilfunc : SymI.RSym (ilfunc typ) :=
-  @ILogicFunc.RSym_ilfunc typ _ _ lops eops _ _.
+  @ILogicFunc.RSym_ilfunc typ RType_typ RelDec_eq_typ lops eops Typ2_Fun Typ0_Prop.
 
 Definition RS : SymI.RSym func :=
   SymSum.RSym_sum (SymSum.RSym_sum (SymEnv.RSym_func fs) _) _.
@@ -343,7 +343,7 @@ Definition fPointsto : expr typ func := Inj (inl (inr (pPointsto))).
 Notation "'mkAp' '[' t ',' u ',' a ',' b ']'" := (App (App (fAp [t, u]) a) b) (at level 0).
 Notation "'mkMethodSpec' '[' C ',' m ',' args ',' r ',' p ',' q ']'" := 
     (App (App (App (App (App (App fMethodSpec C) m) args) r) p) q) (at level 0).
-Notation "'mkTriple' '[' P ',' c ',' Q ']'" := (App (App (App fTriple P) c) Q) (at level 0).
+Notation "'mkTriple' '[' P ',' c ',' Q ']'" := (App (App (App fTriple P) Q) c) (at level 0).
 	
 Notation "'mkVar' '[' x ']'" := (Inj (inl (inr (pVar x)))) (at level 0).
 Notation "'mkVal' '[' v ']'" := (Inj (inl (inr (pVal v)))) (at level 0).
@@ -365,7 +365,7 @@ Definition ltrue (l : typ) : expr typ func :=
   Inj (inr (ilf_true l)).
 Definition lfalse (l : typ) : expr typ func :=
   Inj (inr (ilf_false l)).
-Notation "'mkEntails' '[' l ',' e ',' e' ']'" := (App (App (Inj (inr (ilf_entails l))) e) e') (at level 0).
+Notation "'mkEntails' '[' l ',' a ',' b ']'" := (App (App (Inj (inr (ilf_entails l))) a) b) (at level 0).
 Definition limpl (l : typ) (e e' : expr typ func) : expr typ func :=
   App (App (Inj (inr (ilf_impl l))) e) e'.
 Definition lor (l : typ) (e e' : expr typ func) : expr typ func :=
