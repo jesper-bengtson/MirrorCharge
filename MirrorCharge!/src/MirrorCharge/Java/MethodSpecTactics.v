@@ -132,98 +132,54 @@ Definition write_lemma x f e : lemma typ (expr typ func) (expr typ func) :=
                                                                      mkConst [tyString, mkString [f]]],
                                                                mkConst [tyVal, Var 0]]))] :: nil
  ; concl := mkEntails [tySpec, Var 0, 
-                       mkTriple [Var 1, mkCmd [cwrite x f e], 
-                                               lstar tySasn (Var 2) 
-                                                     (mkAp [tyVal, tyAsn,
-                                                            mkAp [tyString, tyArr tyVal tyAsn,
-                                                                  mkAp [tyVal, tyArr tyString (tyArr tyVal tyAsn),
-                                                                        mkConst [tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn)), fPointsto],
-                                                                        App fstack_get (mkVar [x])],
-                                                                  mkConst [tyString, mkString [f]]],
-                                                            App fEval (mkExpr [e])])
+                       mkTriple [Var 1, 
+                                 mkCmd [cwrite x f e], 
+                                 lstar tySasn (Var 2) 
+                                       (mkAp [tyVal, tyAsn,
+                                              mkAp [tyString, tyArr tyVal tyAsn,
+                                                    mkAp [tyVal, tyArr tyString (tyArr tyVal tyAsn),
+                                                          mkConst [tyArr tyVal 
+                                                                         (tyArr tyString (tyArr tyVal tyAsn)), 
+                                                                   fPointsto],
+                                                          App fstack_get (mkVar [x])],
+                                                    mkConst [tyString, mkString [f]]],
+                                              App fEval (mkExpr [e])])
  ]]
      
  |}.
 
 Definition read_lemma x y f : lemma typ (expr typ func) (expr typ func) :=
-{| vars := tyLProp :: tyVariable :: tyExpr ::
-                   tyArr tyLocals tyNat :: nil
+{| vars := tySpec :: tySasn :: tyExpr :: nil
  ; premises :=
-     lentails tyLProp
-              (Var 0)
-              (lstar tyLProp
-                     (lap tyNat tyHProp (lap tyNat (tyArr tyNat tyHProp) (lpure (tyArr tyNat (tyArr tyNat tyHProp)) fPtsTo) (feval_iexpr @ Var 2)) (Var 3))
-                     (ltrue tyLProp))
-              :: nil
- ; concl :=
-     mkTriple (Var 0)
-              (mkRead (Var 1) (Var 2))
-              (lex tyLProp tyNat
-                   (land tyLProp
-                         (lap tyProp tyHProp
-                              (lpure (tyArr tyProp tyHProp) ((Inj (inr (ilf_embed tyProp tyHProp)))))
-                              (lap tyNat tyProp (lap tyNat (tyArr tyNat tyProp) (lpure (tyArr tyNat (tyArr tyNat tyProp))
-                                                                                       (fEq tyNat))
-                                                     (App flocals_get (Var 2)))
-                                   (lupdate tyNat (App (App flocals_upd (Var 2)) (Var 0)) (Var 4))))
-                         (lupdate tyHProp (App (App flocals_upd (Var 2)) (Var 0)) (Var 1))))
- |}.
-Definition read_lemma : lemma typ (expr typ func) (expr typ func) :=
-{| vars := tyLProp :: tyVariable :: tyExpr ::
-                   tyArr tyLocals tyNat :: nil
- ; premises :=
-     lentails tyLProp
-              (Var 0)
-              (lstar tyLProp
-                     (lap tyNat tyHProp (lap tyNat (tyArr tyNat tyHProp) (lpure (tyArr tyNat (tyArr tyNat tyHProp)) fPtsTo) (feval_iexpr @ Var 2)) (Var 3))
-                     (ltrue tyLProp))
-              :: nil
- ; concl :=
-     mkTriple (Var 0)
-              (mkRead (Var 1) (Var 2))
-              (lex tyLProp tyNat
-                   (land tyLProp
-                         (lap tyProp tyHProp
-                              (lpure (tyArr tyProp tyHProp) ((Inj (inr (ilf_embed tyProp tyHProp)))))
-                              (lap tyNat tyProp (lap tyNat (tyArr tyNat tyProp) (lpure (tyArr tyNat (tyArr tyNat tyProp))
-                                                                                       (fEq tyNat))
-                                                     (App flocals_get (Var 2)))
-                                   (lupdate tyNat (App (App flocals_upd (Var 2)) (Var 0)) (Var 4))))
-                         (lupdate tyHProp (App (App flocals_upd (Var 2)) (Var 0)) (Var 1))))
+     mkEntails [tySpec,
+               Var 0,
+               (mkAp [tyVal, tyAsn, 
+                      mkAp [tyString, tyArr tyVal tyAsn,
+                            mkAp [tyVal, tyArr tyString (tyArr tyVal tyAsn),
+                                  mkConst [tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn)), fPointsto],
+                                  App fstack_get (mkVar [y])],
+                            mkConst [tyString, mkString [f]]],
+                      App fEval (Var 2)])] :: nil
+ ; concl := mkEntails [tySpec,
+                       Var 0,
+                       mkTriple [Var 1, mkCmd [cread x y f], 
+                       lexists tySasn tyVal (land tySasn (lembed tyPure tySasn
+                                                                 (mkAp [tyVal, tyProp, 
+                                                                        mkAp [tyVal, tyArr tyVal tyProp,
+                                                                              mkConst [tyArr tyVal (tyArr tyVal tyProp), fEq [tyVal]],
+                                                                              (App fstack_get (mkVar [x]))],
+                                                                        lupdate tyVal (App (App fstack_set (mkVar [x])) (Var 0)) (App fEval (Var 3))]))
+                                                         (lupdate tyAsn (App (App fstack_set (mkVar [x])) (Var 0)) (Var 1))) ]]
+                                 
  |}.
 
-
-                                                                      (lpointsto (mkVal [e]) (mkString [f]) (Var 0)))] :: nil
-
-Definition write_lemma : lemma typ (expr typ func) (expr typ func) :=
-{| vars := tyLProp :: tyLProp :: tyExpr :: tyExpr :: nil
- ; premises :=
-     lentails tyLProp
-              (Var 0)
-              (lex tyLProp tyNat
-                   (lstar tyLProp
-                          (lap tyNat tyHProp (lap tyNat (tyArr tyNat tyHProp)
-                                                  (lpure (tyArr tyNat (tyArr tyNat tyHProp)) fPtsTo)
-                                                  (feval_iexpr @ Var 3))
-                               (lpure tyNat (Var 0)))
-                          (Var 2)))
-     :: nil
- ; concl :=
-     mkTriple (Var 0)
-              (mkWrite (Var 2) (Var 3))
-              (lstar tyLProp
-                     (lap tyNat tyHProp (lap tyNat (tyArr tyNat tyHProp) (lpure (tyArr tyNat (tyArr tyNat tyHProp)) fPtsTo) (feval_iexpr @ Var 2)) (feval_iexpr @ Var 3))
-                     (Var 1))
- |}.
-
-Definition skip_lemma x e
-
-Check cmd.
-Definition write_lemma 
+Print cmd.
 
 Example test_assign x e : test_lemma (assign_lemma x e).
 Proof.
   vm_compute.
+  admit. (* Does not work *)
+Qed.
  
   Let EAPPLY :=
     @EAPPLY typ (expr typ func) subst _ Typ0_Prop

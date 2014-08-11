@@ -80,7 +80,7 @@ Section fold.
       let ft := fold_right typ2 t ts in
       R_t ft l (l_res tus tvs) tus tvs ->
       Forall2 (fun t x =>
-                    typeof_expr tus tvs (fst x) = Some t
+                    typeof_expr ts tus tvs (fst x) = Some t
                  /\ R_t t (fst x) (snd x tus tvs) tus tvs)
               ts rs ->
       R_t t (apps l (map fst rs)) (do_app l l_res rs tus tvs) tus tvs.
