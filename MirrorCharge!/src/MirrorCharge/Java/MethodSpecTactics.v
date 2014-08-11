@@ -97,8 +97,10 @@ Definition skip_lemma : lemma typ (expr typ func) (expr typ func) :=
  ; premises := nil
  ; concl := mkEntails [tySpec, Var 0, mkTriple [Var 1, mkCmd [cskip], Var 1]]
  |}.
- 
-Eval vm_compute in (test_lemma skip_lemma).
+
+Check test_lemma.
+  
+Time Eval compute in (test_lemma skip_lemma).
  
 Definition skip_lemma2 : lemma typ (expr typ func) (expr typ func) :=
 {| vars := tySasn ::  nil

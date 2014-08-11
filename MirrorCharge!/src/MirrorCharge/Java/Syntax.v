@@ -72,6 +72,8 @@ Fixpoint type_cast_typ (a b : typ) : option (a = b) :=
     | tyString, tyString => Some eq_refl
     | tyCmd, tyCmd => Some eq_refl
     | tyExpr, tyExpr => Some eq_refl
+    | tyStack, tyStack => Some eq_refl
+    | tyAsn, tyAsn => Some eq_refl
     | _, _ => None
   end.
 
