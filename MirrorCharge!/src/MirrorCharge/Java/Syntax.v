@@ -1,5 +1,6 @@
+Require Import Charge.Open.Open.
+Require Import Charge.Logics.Later.
 Require Import Charge.Logics.BILogic.
-
 Require Import Java.Language.Lang.
 Require Import Java.Logic.AssertionLogic.
 Require Import Coq.Strings.String.
@@ -25,6 +26,8 @@ Require Import Java.Semantics.OperationalSemantics.
 Require Import Java.Language.Program.
 Require Import Java.Language.Lang.
 
+Require Import Charge.Open.Subst.
+
 Set Implicit Arguments.
 Set Strict Implicit.
 
@@ -35,7 +38,8 @@ Local Instance Applicative_Fun A : Applicative (Fun A) :=
 
 Inductive typ :=
 | tyArr : typ -> typ -> typ
-| tyVarList : typ
+| tyList : typ -> typ
+| tyPair : typ -> typ -> typ
 | tyVar : typ
 | tyVal : typ
 | tyString : typ
@@ -45,10 +49,15 @@ Inductive typ :=
 | tyProg : typ
 | tyStack : typ
 | tyCmd : typ
-| tyExpr : typ.
+| tyFields : typ
+| tyExpr : typ
+| tySubst : typ. 
 
 Notation "'tyPure'" := (tyArr tyStack tyProp).
 Notation "'tySasn'" := (tyArr tyStack tyAsn). 
+Notation "'tyVarList'" := (tyList tyVar).
+Notation "'tyExprList'" := (tyList tyExpr).
+Notation "'tySubstList'" := (tyList (tyPair tyVar tyExpr)).
 
 Fixpoint type_cast_typ (a b : typ) : option (a = b) :=
   match a as a , b as b return option (a = b) with
@@ -56,7 +65,6 @@ Fixpoint type_cast_typ (a b : typ) : option (a = b) :=
     | tySpec , tySpec => Some eq_refl
     | tyVal, tyVal => Some eq_refl
     | tyProg, tyProg => Some eq_refl
-    | tyVarList, tyVarList => Some eq_refl
     | tyArr x y , tyArr a b =>
       match type_cast_typ x a , type_cast_typ y b with
         | Some pf , Some pf' =>
@@ -68,12 +76,35 @@ Fixpoint type_cast_typ (a b : typ) : option (a = b) :=
                 end)
         | _ , _ => None
       end
+    | tyPair x y , tyPair a b =>
+      match type_cast_typ x a , type_cast_typ y b with
+        | Some pf , Some pf' =>
+          Some (match pf in _ = t
+                    , pf' in _ = t'
+                      return tyPair x y = tyPair t t'
+                with
+                  | eq_refl , eq_refl => eq_refl
+                end)
+        | _ , _ => None
+      end
+    | tyList x , tyList a =>
+      match type_cast_typ x a with
+        | Some pf =>
+          Some (match pf in _ = t
+                      return tyList x = tyList t
+                with
+                  | eq_refl => eq_refl
+                end)
+        | _ => None
+      end
     | tyVar , tyVar => Some eq_refl
     | tyString, tyString => Some eq_refl
     | tyCmd, tyCmd => Some eq_refl
     | tyExpr, tyExpr => Some eq_refl
     | tyStack, tyStack => Some eq_refl
     | tyAsn, tyAsn => Some eq_refl
+    | tyFields, tyFields => Some eq_refl
+    | tySubst, tySubst => Some eq_refl
     | _, _ => None
   end.
 
@@ -86,17 +117,20 @@ Instance RelDec_eq_typ : RelDec (@eq typ) :=
 Fixpoint typD (ls : list Type) (t : typ) : Type :=
   match t with
     | tyArr a b => typD ls a -> typD ls b
+    | tyList a => @list (typD ls a)
+    | tyPair a b => @prod (typD ls a) (typD ls b)
     | tyProp => Prop
     | tySpec => spec
     | tyAsn => asn
-    | tyVarList => list Lang.var 
     | tyVar => Lang.var
     | tyVal => sval
     | tyString => string
     | tyProg => Prog_wf
     | tyStack => stack
     | tyCmd => cmd
+    | tyFields => SS.t
     | tyExpr => dexpr
+    | tySubst => @subst val SVal
   end.
   
 Inductive tyAcc_typ : typ -> typ -> Prop :=
@@ -133,7 +167,7 @@ Inductive java_func :=
 | pVar (_ : Lang.var)
 | pString (_ : string)
 | pVal (_ : sval)
-| pVarList (_ : list Lang.var)
+| pList (t : typ) (_ : forall ts, list (typD ts t)) : java_func
 | pProg (_ : Prog_wf)
 | pCmd (_ : cmd)
 | pExpr (_ : dexpr)
@@ -141,34 +175,45 @@ Inductive java_func :=
 
 | pAp (_ _ : typ)
 | pConst (_ : typ)
-| pUpdate (_ : typ)
+| pApplySubst (_ : typ)
 | pMethodSpec
 | pProgEq
 | pTriple
+
+| pTypeOf
 
 | pStackGet
 | pStackSet
 | pEval
 
+| pFieldLookup
+
+| pSetFold
+| pSetFoldFun 
+
 | pStar (_ : typ)
+| pLater (_ : typ)
 | pPointsto.
 
 Definition func := (SymEnv.func + java_func + ilfunc typ)%type.
-
+Check substl .
+Check @apply_subst.
 Definition typeof_sym_java (f : java_func) : option typ :=
   match f with
     | pVar _ => Some tyVar
     | pString _ => Some tyString
     | pVal _ => Some tyVal
+    | pList t _ => Some (tyList t)
     | pProg _ => Some tyProg
-    | pVarList _ => Some tyVarList
     | pCmd _ => Some tyCmd
     | pExpr _ => Some tyExpr
     | pEq t => Some (tyArr t (tyArr t tyProp))
     | pAp t u => Some (tyArr (tyArr tyStack (tyArr t u)) (tyArr (tyArr tyStack t) (tyArr tyStack u)))
+    | pApplySubst t => Some (tyArr (tyArr tyStack t) (tyArr tySubst (tyArr tyStack t)))
+(*    | pSubst
     | pUpdate t => Some (tyArr (tyArr tyStack tyStack)
                                (tyArr (tyArr tyStack t)
-                                      (tyArr tyStack t)))
+                                      (tyArr tyStack t)))*)
     | pConst t => Some (tyArr t (tyArr tyStack t))
     | pMethodSpec => Some (tyArr tyString (tyArr tyString (tyArr tyVarList
     	 (tyArr tyVar (tyArr tySasn (tyArr tySasn tySpec))))))
@@ -182,13 +227,22 @@ Definition typeof_sym_java (f : java_func) : option typ :=
     | pStar tyAsn => Some (tyArr tyAsn (tyArr tyAsn tyAsn))
     | pStar _ => None
     
+    | pLater tySpec => Some (tyArr tySpec tySpec)
+    | pLater _ => None
+    
+    | pTypeOf => Some (tyArr tyString (tyArr tyVal tyProp))
+    
+    | pFieldLookup => Some (tyArr tyProg (tyArr tyString (tyArr tyFields tyProp)))
+    
+    | pSetFoldFun => Some (tyArr tyString (tyArr tyString (tyArr tySasn tySasn)))
+    | pSetFold => Some (tyArr (tyArr tyString (tyArr tySasn tySasn)) (tyArr tyFields (tyArr tySasn tySasn)))
+    
     | pPointsto => Some (tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn)))
     end.
 
 Definition java_func_eq (a b : java_func) : option bool :=
   match a , b with
     | pVar a , pVar b => Some (a ?[ eq ] b)
-    | pVarList a, pVarList b => Some (a ?[ eq ] b)
     | pString a, pString b => Some (a ?[ eq ] b)
     | pCmd a, pCmd b => Some (beq_cmd a b)
     | pExpr e1, pExpr e2 => Some (beq_dexpr e1 e2)
@@ -197,20 +251,31 @@ Definition java_func_eq (a b : java_func) : option bool :=
         
     | pAp t u , pAp t' u' => Some (t ?[ eq ] t' && u ?[ eq ] u')%bool
     | pConst t, pConst u => Some (t ?[ eq ] u)
-    | pUpdate t, pUpdate u => Some (t ?[ eq ] u)
     | pMethodSpec, pMethodSpec => Some true
     | pProgEq, pProgEq => Some true
     | pStackGet, pStackGet => Some true
     | pStackSet, pStackSet => Some true
     | pTriple, pTriple => Some true
     | pStar t, pStar u => Some (t ?[ eq ] u)
+    | pLater t, pLater u => Some (t ?[ eq ] u)
     | pPointsto, pPointsto => Some true
+    | pFieldLookup, pFieldLookup => Some true
+    | pSetFold, pSetFold => Some true
+    | pSetFoldFun, pSetFoldFun => Some true
+    | pTypeOf, pTypeOf => Some true
     | _, _ => None
   end.
 
 Let update {T} (f : stack -> stack) (m : stack -> T) (l : stack) : T :=
   m (f l).
-
+ 
+Definition set_fold_fun (x : var) (f : field) (P : sasn) :=
+	(`pointsto) (x/V) `f `null ** P.
+Print open.
+Eval vm_compute in (match typeof_sym_java (pApplySubst tyProp) with | None => unit | Some t => typD nil t end).
+Check @apply_subst val SVal Prop.
+Check @subst (@val SVal) SVal.
+Eval vm_compute in (@subst (@val SVal) SVal).
 Instance RSym_imp_func : SymI.RSym java_func :=
 { typeof_sym := typeof_sym_java
 ; symD := fun ts f =>
@@ -223,25 +288,35 @@ Instance RSym_imp_func : SymI.RSym java_func :=
               | pString s => s
               | pProg p => p
               | pVal v => v
-              | pVarList lst => lst
+              | pList t lst => lst ts
               | pCmd c => c
               | pExpr e => e
               | pEq t => @eq (typD ts t)
               
               | pAp t u => @Applicative.ap (Fun stack) (Applicative_Fun _) (typD ts t) (typD ts u)
               | pConst t => @Applicative.pure (Fun stack) (Applicative_Fun _) (typD ts t)
-              | pUpdate t => update
               | pMethodSpec => method_spec
               | pProgEq => prog_eq
               | pStackGet => fun x s => s x
               | pStackSet => stack_add
               
+              | pApplySubst t => @apply_subst val _ (typD ts t)
+              
               | pTriple => triple
               | pEval => eval
+              
+              | pTypeOf => typeof
               
               | pStar tySasn => @sepSP _ BILOperatorsSAsn
               | pStar tyAsn => @sepSP _ BILOperatorsAsn
               | pStar _ => tt
+              
+              | pLater tySpec => @illater _ _
+              | pLater _ => tt
+              
+              | pFieldLookup => field_lookup
+              | pSetFold => @SS.fold (typD ts tySasn)
+              | pSetFoldFun => set_fold_fun
               
               | pPointsto => pointsto
             end
@@ -336,6 +411,12 @@ Notation "'fConst' '[' t ']'" := (Inj (inl (inr (pConst t)))) (at level 0).
 Notation "'fstack_get'" := (Inj (inl (inr pStackGet))).
 Notation "'fstack_set'" := (Inj (inl (inr pStackSet))).
 
+Notation "'fFieldLookup'" := (Inj (inl (inr pFieldLookup))).
+Notation "'fSetFold'" := (Inj (inl (inr pSetFold))).
+Notation "'fSetFoldFun'" := (Inj (inl (inr pSetFoldFun))).
+
+Notation "'fTypeOf'" := (Inj (inl (inr pTypeOf))).
+
 Definition fupdate t : expr typ func := Inj (inl (inr (pUpdate t))).
 Definition fPointsto : expr typ func := Inj (inl (inr (pPointsto))).
 
@@ -343,6 +424,9 @@ Notation "'mkAp' '[' t ',' u ',' a ',' b ']'" := (App (App (fAp [t, u]) a) b) (a
 Notation "'mkMethodSpec' '[' C ',' m ',' args ',' r ',' p ',' q ']'" := 
     (App (App (App (App (App (App fMethodSpec C) m) args) r) p) q) (at level 0).
 Notation "'mkTriple' '[' P ',' c ',' Q ']'" := (App (App (App fTriple P) Q) c) (at level 0).
+Notation "'mkFieldLookup' '[' P ',' C ',' f ']'" := (App (App (App fFieldLookup P) C) f) (at level 0).
+Notation "'mkSetFold' '[' x ',' f ',' P ']'" := (App (App (App fSetFold (App fSetFoldFun x)) f) P). 
+Notation "'mkTypeOf' '[' C ',' x ']'" := (App (App fTypeOf C) x) (at level 0).
 	
 Notation "'mkVar' '[' x ']'" := (Inj (inl (inr (pVar x)))) (at level 0).
 Notation "'mkVal' '[' v ']'" := (Inj (inl (inr (pVal v)))) (at level 0).

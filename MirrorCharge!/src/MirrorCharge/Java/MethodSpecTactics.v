@@ -1,10 +1,10 @@
-Require Import Coq.Strings.String.
-Require Import Coq.PArith.BinPos.
-Require Import ExtLib.Core.RelDec.
-Require Import ExtLib.Data.String.
-Require Import ExtLib.Data.Nat.
-Require Import ExtLib.Data.HList.
-Require Import MirrorCore.Lemma.
+Require Import Coq.Strings.String.  
+Require Import Coq.PArith.BinPos.  
+Require Import ExtLib.Core.RelDec.  
+Require Import ExtLib.Data.String.  
+Require Import ExtLib.Data.Nat. 
+Require Import ExtLib.Data.HList.    
+Require Import MirrorCore.Lemma.  
 Require Import MirrorCore.TypesI. 
 Require Import MirrorCore.Lambda.Expr.
 Require Import MirrorCore.STac.STac.
@@ -22,14 +22,14 @@ Require Import MirrorCharge.OrderedCanceller.
 Require Import MirrorCharge.BILNormalize.
 Require Import MirrorCharge.SynSepLog.
 Require Import MirrorCharge.SepLogFold.
-
+  
 Require Import MirrorCharge.Java.Syntax.
  
 Require Import Java.Language.Lang.
 Require Import Java.Language.Program.
-
+ 
 Require Import Coq.Arith.Peano_dec.
-
+    
 Local Existing Instance SS.
 Local Existing Instance SU.
 Local Existing Instance RSym_ilfunc.
@@ -200,6 +200,42 @@ Proof.
    admit.
 Qed.
 
+Definition alloc_lemma x C : lemma typ (expr typ func) (expr typ func) :=
+  {|
+     vars := tySpec :: tySasn :: tyProg :: tyFields :: nil;
+     premises := mkEntails [tySpec, Var 0, mkProgEq [Var 2]] :: 
+                 mkFieldLookup [Var 2, mkString [C], Var 3] :: nil;
+     concl := mkEntails [tySpec, Var 0,
+                         mkTriple [Var 1, mkCmd [calloc x C], 
+                                   lexists tySasn tyVal
+                                           (mkSetFold [mkString [x], Var 4, 
+                                                      (lupdate tyAsn (App (App fstack_set (mkVar [x])) (Var 0)) (Var 2))])]]
+  |}.
+
+Example alloc_test x C : test_lemma (alloc_lemma x C).
+Proof.
+   admit.
+Qed.
+
+Definition dcall_lemma x (y : var) m es : lemma typ (expr typ func) (expr typ func) :=
+  {|
+     vars := tySpec :: tySasn :: tyString :: tyVarList :: tyVar :: tySasn :: tySasn :: nil;
+     premises := mkEntails [tySasn, Var 1, lembed tyPure tySasn 
+                                                  (mkAp [tyVal, tyProp, 
+                                                   mkAp [tyString, tyArr tyVal tyProp,
+                                                         mkConst [tyArr tyString (tyArr tyVal tyProp), fTypeOf],
+                                                         mkConst [tyString, Var 2]],
+                                                   (App fstack_get (mkVar [y]))])] :: 
+                mkEntails [tySpec, Var 0, mkMethodSpec [Var 2, mkString [m], Var 3, Var 4, Var 5, Var 6]] ::
+                nil ;
+     concl := mkEntails [tySpec, Var 0, mkTriple [Var 1, mkCmd [cdcall x y m es], Var 1]]
+  |}.
+  
+Example dcall_test x y m es : test_lemma (dcall_lemma x y m es).
+Proof.
+   vm_compute. 
+   admit.
+Qed.
 
   Let EAPPLY :=
     @EAPPLY typ (expr typ func) subst _ Typ0_Prop
@@ -229,7 +265,7 @@ Definition symE : stac typ (expr typ func) subst :=
 		match e with 
 			| mkEntails [tySpec, G, mkTriple [P, mkCmd [c], Q]] => 
 			  (tripleE c) tus tvs s lst e
-			| _ => Fail _ _ _
+			| _ => Fail
 		end.
 	
 Definition test_skip :=
