@@ -5,10 +5,10 @@ Require Import ExtLib.Data.String.
 Require Import ExtLib.Data.Nat.
 Require Import ExtLib.Data.HList.
 Require Import MirrorCore.Lemma.
-Require Import MirrorCore.TypesI.
+Require Import MirrorCore.TypesI. 
 Require Import MirrorCore.Lambda.Expr.
 Require Import MirrorCore.STac.STac.
-Require Import MirrorCore.provers.DefaultProver.
+Require Import MirrorCore.provers.DefaultProver. 
 Require MirrorCore.syms.SymEnv.
 Require MirrorCore.syms.SymSum.
 Require Import MirrorCore.Subst.FMapSubst.
@@ -97,19 +97,19 @@ Definition skip_lemma : lemma typ (expr typ func) (expr typ func) :=
  ; premises := nil
  ; concl := mkEntails [tySpec, Var 0, mkTriple [Var 1, mkCmd [cskip], Var 1]]
  |}.
-
-Check test_lemma.
-  
-Time Eval compute in (test_lemma skip_lemma).
  
+Check test_lemma.
+ (* 
+Time Eval compute in (test_lemma skip_lemma).
+ *)
 Definition skip_lemma2 : lemma typ (expr typ func) (expr typ func) :=
 {| vars := tySasn ::  nil
  ; premises := nil
  ; concl := mkEntails [tySasn, Var 0, Var 0]
  |}.
- 
+ (*
 Eval vm_compute in (test_lemma skip_lemma2).
-
+*)
 Definition seq_lemma c1 c2 : lemma typ (expr typ func) (expr typ func) :=
 	{| vars := tySpec :: tySasn :: tySasn :: tySasn :: nil;
 	   premises := mkEntails [tySpec, Var 0, mkTriple [Var 1, mkCmd [c1], Var 2]] ::
@@ -117,21 +117,25 @@ Definition seq_lemma c1 c2 : lemma typ (expr typ func) (expr typ func) :=
        concl := mkEntails [tySpec, Var 0, mkTriple [Var 1, mkCmd [cseq c1 c2], Var 3]]
     |}.
 
-Eval vm_compute in (test_lemma skip_lemma2).
-
+Example skip_test c1 c2 : test_lemma (seq_lemma c1 c2). admit.
 
 Definition assign_lemma x e : lemma typ (expr typ func) (expr typ func) :=
 {| vars := tySpec :: tySasn :: nil
  ; premises := nil
  ; concl := mkEntails [tySpec, Var 0, mkTriple [Var 1, mkCmd [cassign x e], 
-                       lexists tySasn tyVal (land tySasn (lembed tyPure tySasn
+                       lexists tySasn tyVal (land tySasn (lembed tyPure tySasn 
                                                                  (mkAp [tyVal, tyProp, 
                                                                         mkAp [tyVal, tyArr tyVal tyProp,
                                                                               mkConst [tyArr tyVal (tyArr tyVal tyProp), fEq [tyVal]],
                                                                               (App fstack_get (mkVar [x]))],
                                                                         lupdate tyVal (App (App fstack_set (mkVar [x])) (Var 0)) (App fEval (mkExpr [e]))]))
-                                                         (lupdate tyAsn (App (App fstack_set (mkVar [x])) (Var 0)) (Var 1))) ]]
+                                                         (lupdate tyAsn (App (App fstack_set (mkVar [x])) (Var 0)) (Var 2))) ]]
 |}.
+
+Example assign_test x e : test_lemma (assign_lemma x e).
+Proof.
+  admit.
+Qed.
 
 Definition write_lemma x f e : lemma typ (expr typ func) (expr typ func) :=
 {| vars := tySpec :: tySasn :: tySasn :: nil
@@ -161,11 +165,16 @@ Definition write_lemma x f e : lemma typ (expr typ func) (expr typ func) :=
      
  |}.
 
+Example write_test x f e : test_lemma (write_lemma x f e).
+Proof.
+  admit.
+Qed.
+
 Definition read_lemma x y f : lemma typ (expr typ func) (expr typ func) :=
 {| vars := tySpec :: tySasn :: tyExpr :: nil
  ; premises :=
-     mkEntails [tySpec,
-               Var 0,
+     mkEntails [tySasn,
+               Var 1,
                (mkAp [tyVal, tyAsn, 
                       mkAp [tyString, tyArr tyVal tyAsn,
                             mkAp [tyVal, tyArr tyString (tyArr tyVal tyAsn),
@@ -182,11 +191,15 @@ Definition read_lemma x y f : lemma typ (expr typ func) (expr typ func) :=
                                                                               mkConst [tyArr tyVal (tyArr tyVal tyProp), fEq [tyVal]],
                                                                               (App fstack_get (mkVar [x]))],
                                                                         lupdate tyVal (App (App fstack_set (mkVar [x])) (Var 0)) (App fEval (Var 3))]))
-                                                         (lupdate tyAsn (App (App fstack_set (mkVar [x])) (Var 0)) (Var 1))) ]]
+                                                         (lupdate tyAsn (App (App fstack_set (mkVar [x])) (Var 0)) (Var 2))) ]]
                                  
  |}.
 
-Print cmd.
+Example read_test x y e : test_lemma (read_lemma x y e).
+Proof.
+   admit.
+Qed.
+
 
   Let EAPPLY :=
     @EAPPLY typ (expr typ func) subst _ Typ0_Prop
