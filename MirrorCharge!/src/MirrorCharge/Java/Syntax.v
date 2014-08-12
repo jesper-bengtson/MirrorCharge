@@ -130,7 +130,7 @@ Fixpoint typD (ls : list Type) (t : typ) : Type :=
     | tyCmd => cmd
     | tyFields => SS.t
     | tyExpr => dexpr
-    | tySubst => @subst val SVal
+    | tySubst => @subst var SVal
   end.
   
 Inductive tyAcc_typ : typ -> typ -> Prop :=
@@ -273,9 +273,9 @@ Definition set_fold_fun (x : var) (f : field) (P : sasn) :=
 	(`pointsto) (x/V) `f `null ** P.
 Print open.
 Eval vm_compute in (match typeof_sym_java (pApplySubst tyProp) with | None => unit | Some t => typD nil t end).
-Check @apply_subst val SVal Prop.
-Check @subst (@val SVal) SVal.
+
 Eval vm_compute in (@subst (@val SVal) SVal).
+Eval vm_compute in (@open var (SVal) Prop).
 Instance RSym_imp_func : SymI.RSym java_func :=
 { typeof_sym := typeof_sym_java
 ; symD := fun ts f =>
@@ -300,7 +300,7 @@ Instance RSym_imp_func : SymI.RSym java_func :=
               | pStackGet => fun x s => s x
               | pStackSet => stack_add
               
-              | pApplySubst t => @apply_subst val _ (typD ts t)
+              | pApplySubst t => @apply_subst var SVal (typD ts t)
               
               | pTriple => triple
               | pEval => eval
