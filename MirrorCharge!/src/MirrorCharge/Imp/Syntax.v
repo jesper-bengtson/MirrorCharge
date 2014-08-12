@@ -18,6 +18,7 @@ Inductive typ :=
 | tyArr : typ -> typ -> typ
 | tyLocals
 | tyCmd
+| tySProp
 | tyHProp
 | tyProp
 | tyVariable
@@ -28,6 +29,7 @@ Fixpoint type_cast_typ (a b : typ) : option (a = b) :=
   match a as a , b as b return option (a = b) with
     | tyLocals , tyLocals => Some eq_refl
     | tyCmd , tyCmd => Some eq_refl
+    | tySProp , tySProp => Some eq_refl
     | tyHProp , tyHProp => Some eq_refl
     | tyProp , tyProp => Some eq_refl
     | tyArr x y , tyArr a b =>
@@ -58,6 +60,7 @@ Fixpoint typD (ls : list Type) (t : typ) : Type :=
     | tyArr a b => typD ls a -> typD ls b
     | tyLocals => locals
     | tyCmd => icmd
+    | tySProp => SProp
     | tyHProp => HProp
     | tyProp => Prop
     | tyVariable => var
@@ -199,9 +202,11 @@ Instance RSym_imp_func : SymI.RSym imp_func :=
 
 Definition tyLProp := tyArr tyLocals tyHProp.
 
+Local Notation "a >> b" := (tyArr a b) (at level 31,right associativity).
+
 Definition fs : @SymEnv.functions typ _ :=
   SymEnv.from_list
-    (@SymEnv.F typ _ (tyArr tyLProp (tyArr tyCmd (tyArr tyLProp tyProp)))
+    (@SymEnv.F typ _ (tyArr tyLProp (tyArr tyCmd (tyArr tyLProp tySProp)))
                (fun _ => triple) ::
      @SymEnv.F typ _ (tyArr tyCmd (tyArr tyCmd tyCmd))
                (fun _ => Seq) ::
@@ -215,6 +220,8 @@ Definition fs : @SymEnv.functions typ _ :=
                (fun _ => Skip) ::
      @SymEnv.F typ _ (tyArr tyNat (tyArr tyNat tyHProp))
                (fun _ => PtsTo) ::
+     @SymEnv.F typ _ (tyVariable >> (tyNat >> tyLProp) >> (tyNat >> tyLProp) >> tySProp)
+               (fun _ => function_spec) ::
      nil).
 
 Definition lops : logic_ops _ :=
@@ -265,6 +272,42 @@ Definition SO := FMapSubst.SUBST.SubstOk_subst.
 Local Existing Instance SS.
 Local Existing Instance SU.
 Local Existing Instance SO.
+
+Require Import Coq.Bool.Bool.
+
+Instance RelDec_eq_imp_func : RelDec (@eq imp_func) :=
+{ rel_dec := fun a b =>
+               match a , b with
+                 | pVar a , pVar b => a ?[ eq ] b
+                 | pNat a , pNat b => a ?[ eq ] b
+                 | pLocals_get , pLocals_get => true
+                 | pLocals_upd , pLocals_upd => true
+                 | pEq a , pEq b => a ?[ eq ] b
+                 | pEval_expri , pEval_expri => true
+                 | eVar , eVar
+                 | eConst , eConst => true
+                 | pAp a a' , pAp b b' => (a ?[ eq ] b) && (a' ?[ eq ] b')
+                 | pPure a , pPure b => a ?[ eq ] b
+                 | pUpdate a , pUpdate b => a ?[ eq ] b
+                 | pEmp a , pEmp b => a ?[ eq ] b
+                 | pStar a , pStar b => a ?[ eq ] b
+                 | _ , _ => false
+               end
+}.
+
+
+Instance RelDec_eq_func : RelDec (@eq func) :=
+{ rel_dec := fun a b =>
+               match a , b with
+                 | inl (inl a) , inl (inl b) => a ?[ eq ] b
+                 | inl (inr a) , inl (inr b) => a ?[ eq ] b
+                 | inr a , inr b => a ?[ eq ] b
+                 | _ , _ => false
+               end
+}.
+
+Definition RelDec_eq_expr : RelDec (@eq (expr typ func)) :=
+  @RelDec_eq_expr typ func _ _.
 
 
 Definition fTriple : expr typ func := Inj (inl (inl 1%positive)).
