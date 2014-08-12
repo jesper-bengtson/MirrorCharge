@@ -14,7 +14,7 @@ Require Import MirrorCore.Subst.FMapSubst.
 Require Import MirrorCore.Lambda.ExprLift.
 Require Import MirrorCore.Lambda.ExprSubst.
 Require Import MirrorCore.Lambda.ExprUnify_simul.
-Require Import MirrorCore.Lambda.Red.
+Require Import MirrorCore.Lambda.RedAll.
 Require Import MirrorCore.Lambda.AppN.
 Require Import MirrorCharge.ILogicFunc.
 Require Import MirrorCharge.OrderedCanceller.
@@ -44,15 +44,15 @@ Local Notation "x '|-' y" :=
 Local Notation "'{{'  P  '}}'  c  '{{'  Q  '}}'" :=
   (Inj (inl (inl 1%positive)) @ P @ c @ Q) (at level 20).
 Local Notation "c1 ;; c2" := (Inj (inl (inl 2%positive)) @ c1 @ c2) (at level 30).
-(*
-Let eapply_other :=
-  @eapply_other typ (expr typ func) subst tyProp ExprLift.vars_to_uvars
+
+Let EAPPLY lem tac :=
+  @EAPPLY typ (expr typ func) subst _ _ ExprLift.vars_to_uvars
                 (fun tus tvs n e1 e2 t s =>
                    @exprUnify subst typ func _ _ RS SS SU 3 nil
                               tus tvs n s e1 e2 t)
-                (@ExprSubst.instantiate typ func) SS SU.
+                (@ExprSubst.instantiate typ func) SS SU
+                lem (apply_to_all tac).
 
-*)
 (** NOTE: Manual lemma reification for the time being **)
 (** Pull Ex **)
 Definition pull_nat_lemma : lemma typ (expr typ func) (expr typ func) :=
@@ -170,16 +170,15 @@ Definition all_cases : stac typ (expr typ func) subst :=
   REC 2 (fun rec =>
             let rec := rec in
             REPEAT 5
-                   (FIRST (   eapply_other seq_assoc_lemma rec
-                           :: eapply_other seq_lemma rec
-                           :: eapply_other assign_lemma rec
-                           :: eapply_other read_lemma solve_entailment
-                           :: eapply_other write_lemma solve_entailment
-                           :: eapply_other skip_lemma solve_entailment
-                           :: eapply_other to_skip rec
+                   (FIRST (   EAPPLY seq_assoc_lemma rec
+                           :: EAPPLY seq_lemma rec
+                           :: EAPPLY assign_lemma rec
+                           :: EAPPLY read_lemma solve_entailment
+                           :: EAPPLY write_lemma solve_entailment
+                           :: EAPPLY skip_lemma solve_entailment
+                           :: EAPPLY to_skip rec
                            :: nil)))
       (@FAIL _ _ _).
-     
 
 Definition test :=
   let vars := tyLProp :: tyCmd :: tyCmd :: tyCmd :: tyLProp :: nil in
@@ -188,7 +187,7 @@ Definition test :=
                (mkSeq (mkSeq (Var 1) (Var 2)) (Var 3))
                (Var 4)
   in
-  @all_cases nil vars (SubstI3.empty (expr :=expr typ func)) goal.
+  @all_cases nil vars (SubstI.empty (expr :=expr typ func)) nil goal.
 
 Time Eval vm_compute in test.
 
@@ -200,7 +199,7 @@ Definition test' :=
                (mkSeq (mkAssign (Var 1) (Var 5)) (Var 2))
                (UVar 0)
   in
-  @all_cases uvars vars (SubstI3.empty (expr :=expr typ func)) goal.
+  @all_cases uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
 
 Time Eval vm_compute in test'.
 
@@ -215,7 +214,7 @@ Definition test_read :=
                (UVar 0)
   in
   let tac := all_cases in
-  @tac uvars vars (SubstI3.empty (expr :=expr typ func)) goal.
+  @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
 
 Time Eval vm_compute  in test_read.
 
@@ -237,7 +236,7 @@ Definition test_read2 :=
          (UVar 0))%string
   in
   let tac := all_cases in
-  @tac uvars vars (SubstI3.empty (expr :=expr typ func)) goal.
+  @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
 
 Eval cbv beta iota zeta delta in test_read2.
 
@@ -258,7 +257,7 @@ Definition test_swap :=
                 (lifted_ptsto (flocals_get @ fVar "p2") (lpure tyNat (Var 0)))))%string
   in
   let tac := all_cases in
-  @tac uvars vars (SubstI3.empty (expr :=expr typ func)) goal.
+  @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
 
 Eval vm_compute in test_swap.
 (** This is not the strongest post condition because we forgot the pure facts.
