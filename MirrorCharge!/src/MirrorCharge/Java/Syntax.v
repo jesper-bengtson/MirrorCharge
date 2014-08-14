@@ -38,11 +38,12 @@ Local Instance Applicative_Fun A : Applicative (Fun A) :=
 
 Inductive typ :=
 | tyArr : typ -> typ -> typ
-| tyList : typ -> typ
-| tyPair : typ -> typ -> typ
-| tyVar : typ
+| tyVarList : typ
+| tyExprList : typ
+| tySubstList : typ
 | tyVal : typ
 | tyString : typ
+| tyNat : typ
 | tyProp : typ
 | tySpec : typ
 | tyAsn : typ
@@ -55,9 +56,6 @@ Inductive typ :=
 
 Notation "'tyPure'" := (tyArr tyStack tyProp).
 Notation "'tySasn'" := (tyArr tyStack tyAsn). 
-Notation "'tyVarList'" := (tyList tyVar).
-Notation "'tyExprList'" := (tyList tyExpr).
-Notation "'tySubstList'" := (tyList (tyPair tyVar tyExpr)).
 
 Fixpoint type_cast_typ (a b : typ) : option (a = b) :=
   match a as a , b as b return option (a = b) with
@@ -65,6 +63,7 @@ Fixpoint type_cast_typ (a b : typ) : option (a = b) :=
     | tySpec , tySpec => Some eq_refl
     | tyVal, tyVal => Some eq_refl
     | tyProg, tyProg => Some eq_refl
+    | tyNat, tyNat => Some eq_refl
     | tyArr x y , tyArr a b =>
       match type_cast_typ x a , type_cast_typ y b with
         | Some pf , Some pf' =>
@@ -76,28 +75,6 @@ Fixpoint type_cast_typ (a b : typ) : option (a = b) :=
                 end)
         | _ , _ => None
       end
-    | tyPair x y , tyPair a b =>
-      match type_cast_typ x a , type_cast_typ y b with
-        | Some pf , Some pf' =>
-          Some (match pf in _ = t
-                    , pf' in _ = t'
-                      return tyPair x y = tyPair t t'
-                with
-                  | eq_refl , eq_refl => eq_refl
-                end)
-        | _ , _ => None
-      end
-    | tyList x , tyList a =>
-      match type_cast_typ x a with
-        | Some pf =>
-          Some (match pf in _ = t
-                      return tyList x = tyList t
-                with
-                  | eq_refl => eq_refl
-                end)
-        | _ => None
-      end
-    | tyVar , tyVar => Some eq_refl
     | tyString, tyString => Some eq_refl
     | tyCmd, tyCmd => Some eq_refl
     | tyExpr, tyExpr => Some eq_refl
@@ -105,6 +82,9 @@ Fixpoint type_cast_typ (a b : typ) : option (a = b) :=
     | tyAsn, tyAsn => Some eq_refl
     | tyFields, tyFields => Some eq_refl
     | tySubst, tySubst => Some eq_refl
+	| tyVarList, tyVarList => Some eq_refl
+	| tySubstList, tySubstList => Some eq_refl
+	| tyExprList, tyExprList => Some eq_refl
     | _, _ => None
   end.
 
@@ -117,12 +97,13 @@ Instance RelDec_eq_typ : RelDec (@eq typ) :=
 Fixpoint typD (ls : list Type) (t : typ) : Type :=
   match t with
     | tyArr a b => typD ls a -> typD ls b
-    | tyList a => @list (typD ls a)
-    | tyPair a b => @prod (typD ls a) (typD ls b)
+    | tyVarList => @list string
+    | tyExprList => @list (@Open.expr var SVal)
+    | tySubstList => @list (Lang.var * (@Open.expr var SVal))
     | tyProp => Prop
+    | tyNat => nat
     | tySpec => spec
     | tyAsn => asn
-    | tyVar => Lang.var
     | tyVal => sval
     | tyString => string
     | tyProg => Prog_wf
@@ -130,9 +111,9 @@ Fixpoint typD (ls : list Type) (t : typ) : Type :=
     | tyCmd => cmd
     | tyFields => SS.t
     | tyExpr => dexpr
-    | tySubst => @subst var SVal
+    | tySubst => @Subst.subst var SVal
   end.
-  
+   
 Inductive tyAcc_typ : typ -> typ -> Prop :=
 | tyAcc_tyArrL : forall a b, tyAcc_typ a (tyArr a b)
 | tyAcc_tyArrR : forall a b, tyAcc_typ a (tyArr b a).
@@ -164,10 +145,9 @@ Instance Typ0_Prop : Typ0 _ Prop :=
 }.
 
 Inductive java_func :=
-| pVar (_ : Lang.var)
 | pString (_ : string)
 | pVal (_ : sval)
-| pList (t : typ) (_ : forall ts, list (typD ts t)) : java_func
+| pVarList (_ : @list Lang.var)
 | pProg (_ : Prog_wf)
 | pCmd (_ : cmd)
 | pExpr (_ : dexpr)
@@ -193,33 +173,41 @@ Inductive java_func :=
 
 | pStar (_ : typ)
 | pLater (_ : typ)
-| pPointsto.
+| pPointsto
+
+| pZipSubst
+| pSubst
+| pTruncSubst
+| pSingleSubst
+
+| pConsVarList
+| pNilVarList
+| pConsExprList
+| pNilExprList
+
+| pLengthVarList
+| pLengthExprList.
 
 Definition func := (SymEnv.func + java_func + ilfunc typ)%type.
-Check substl .
-Check @apply_subst.
+
 Definition typeof_sym_java (f : java_func) : option typ :=
   match f with
-    | pVar _ => Some tyVar
     | pString _ => Some tyString
     | pVal _ => Some tyVal
-    | pList t _ => Some (tyList t)
+    | pVarList _ => Some tyVarList
     | pProg _ => Some tyProg
     | pCmd _ => Some tyCmd
     | pExpr _ => Some tyExpr
     | pEq t => Some (tyArr t (tyArr t tyProp))
     | pAp t u => Some (tyArr (tyArr tyStack (tyArr t u)) (tyArr (tyArr tyStack t) (tyArr tyStack u)))
     | pApplySubst t => Some (tyArr (tyArr tyStack t) (tyArr tySubst (tyArr tyStack t)))
-(*    | pSubst
-    | pUpdate t => Some (tyArr (tyArr tyStack tyStack)
-                               (tyArr (tyArr tyStack t)
-                                      (tyArr tyStack t)))*)
+
     | pConst t => Some (tyArr t (tyArr tyStack t))
     | pMethodSpec => Some (tyArr tyString (tyArr tyString (tyArr tyVarList
-    	 (tyArr tyVar (tyArr tySasn (tyArr tySasn tySpec))))))
+    	 (tyArr tyString (tyArr tySasn (tyArr tySasn tySpec))))))
     | pProgEq => Some (tyArr tyProg tySpec)
-    | pStackGet => Some (tyArr tyVar (tyArr tyStack tyVal))
-    | pStackSet => Some (tyArr tyVar (tyArr tyVal (tyArr tyStack tyStack)))
+    | pStackGet => Some (tyArr tyString (tyArr tyStack tyVal))
+    | pStackSet => Some (tyArr tyString (tyArr tyVal (tyArr tyStack tyStack)))
     | pTriple => Some (tyArr tySasn (tyArr tySasn (tyArr tyCmd tySpec)))
     | pEval => Some (tyArr tyExpr (tyArr tyStack tyVal))
     
@@ -238,11 +226,30 @@ Definition typeof_sym_java (f : java_func) : option typ :=
     | pSetFold => Some (tyArr (tyArr tyString (tyArr tySasn tySasn)) (tyArr tyFields (tyArr tySasn tySasn)))
     
     | pPointsto => Some (tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn)))
+    
+    | pZipSubst => Some (tyArr tyVarList (tyArr tyExprList tySubstList))
+    | pSubst => Some (tyArr tySubstList tySubst)
+    | pTruncSubst => Some (tyArr tySubstList tySubst)
+    | pSingleSubst => Some (tyArr (tyArr tyStack tyVal) (tyArr tyString tySubst))
+    
+    | pConsVarList => Some (tyArr tyString (tyArr tyVarList tyVarList))
+    | pNilVarList => Some tyVarList
+    | pConsExprList => Some (tyArr (tyArr tyStack tyVal) (tyArr tyExprList tyExprList))
+    | pNilExprList => Some tyExprList
+    
+    | pLengthVarList => Some (tyArr tyVarList tyNat)
+    | pLengthExprList => Some (tyArr tyExprList tyNat)
     end.
-
+    
+Fixpoint beq_list {A} (f : A -> A -> bool) (xs ys : list A) :=
+	match xs, ys with
+		| nil, nil => true
+		| x::xs, y :: ys => andb (f x y) (beq_list f xs ys)
+		| _, _ => false
+	end.
+	
 Definition java_func_eq (a b : java_func) : option bool :=
   match a , b with
-    | pVar a , pVar b => Some (a ?[ eq ] b)
     | pString a, pString b => Some (a ?[ eq ] b)
     | pCmd a, pCmd b => Some (beq_cmd a b)
     | pExpr e1, pExpr e2 => Some (beq_dexpr e1 e2)
@@ -263,19 +270,28 @@ Definition java_func_eq (a b : java_func) : option bool :=
     | pSetFold, pSetFold => Some true
     | pSetFoldFun, pSetFoldFun => Some true
     | pTypeOf, pTypeOf => Some true
+    
+    | pVarList a, pVarList b => Some (beq_list beq_string a b)
+    
+    | pApplySubst t, pApplySubst u => Some (t ?[ eq ] u)            
+    | pZipSubst, pZipSubst => Some true
+    | pSubst, pSubst => Some true
+    | pTruncSubst, pTruncSubst => Some true
+    | pSingleSubst, pSingleSubst => Some true
+    
+    | pConsVarList, pConsVarList => Some true
+    | pNilVarList, pNilVarList => Some true
+    | pConsExprList, pConsExprList => Some true
+    | pNilExprList, pNilExprList => Some true
+    
+    | pLengthVarList, pLengthVarList => Some true
+    | pLengthExprList, pLengthExprList => Some true
     | _, _ => None
   end.
 
-Let update {T} (f : stack -> stack) (m : stack -> T) (l : stack) : T :=
-  m (f l).
- 
 Definition set_fold_fun (x : var) (f : field) (P : sasn) :=
 	(`pointsto) (x/V) `f `null ** P.
-Print open.
-Eval vm_compute in (match typeof_sym_java (pApplySubst tyProp) with | None => unit | Some t => typD nil t end).
 
-Eval vm_compute in (@subst (@val SVal) SVal).
-Eval vm_compute in (@open var (SVal) Prop).
 Instance RSym_imp_func : SymI.RSym java_func :=
 { typeof_sym := typeof_sym_java
 ; symD := fun ts f =>
@@ -284,11 +300,10 @@ Instance RSym_imp_func : SymI.RSym java_func :=
                                   | Some t => typD ts t
                                 end
             with
-              | pVar v => v
               | pString s => s
               | pProg p => p
               | pVal v => v
-              | pList t lst => lst ts
+              | pVarList vs => vs
               | pCmd c => c
               | pExpr e => e
               | pEq t => @eq (typD ts t)
@@ -319,6 +334,19 @@ Instance RSym_imp_func : SymI.RSym java_func :=
               | pSetFoldFun => set_fold_fun
               
               | pPointsto => pointsto
+              
+              | pZipSubst => zip
+              | pSubst => @substl_aux  var _ SVal
+              | pTruncSubst => @substl_trunc_aux var _ SVal
+              | pSingleSubst => @subst1 var _ SVal
+              
+              | pConsVarList => @cons string
+              | pNilVarList => @nil string
+              | pConsExprList => @cons Open.expr
+              | pNilExprList => @nil Open.expr
+              
+              | pLengthVarList => @length string
+              | pLengthExprList => @length Open.expr
             end
 ; sym_eqb := java_func_eq
 }.
@@ -330,10 +358,10 @@ Local Existing Instance ILFun_ILogic.
 
 Definition fs : @SymEnv.functions typ _ :=
   SymEnv.from_list
-    (@SymEnv.F typ _ (tyArr tyVar (tyArr tyVarList  tyProp))
-               (fun _ => (@In (Lang.var))) ::
+    (@SymEnv.F typ _ (tyArr tyString (tyArr tyVarList  tyProp))
+               (fun _ => (@In string)) ::
      @SymEnv.F typ _ (tyArr tyVarList tyProp)
-               (fun _ => (@NoDup (Lang.var))) ::
+               (fun _ => (@NoDup string)) ::
      nil).
 
   Definition lops : logic_ops RType_typ :=
@@ -415,9 +443,12 @@ Notation "'fFieldLookup'" := (Inj (inl (inr pFieldLookup))).
 Notation "'fSetFold'" := (Inj (inl (inr pSetFold))).
 Notation "'fSetFoldFun'" := (Inj (inl (inr pSetFoldFun))).
 
+Notation "'fLengthVarList'" := (Inj (inl (inr pLengthVarList))).
+Notation "'fLengthExprList'" := (Inj (inl (inr pLengthExprList))).
+
 Notation "'fTypeOf'" := (Inj (inl (inr pTypeOf))).
 
-Definition fupdate t : expr typ func := Inj (inl (inr (pUpdate t))).
+Definition fApplySubst t : expr typ func := Inj (inl (inr (pApplySubst t))).
 Definition fPointsto : expr typ func := Inj (inl (inr (pPointsto))).
 
 Notation "'mkAp' '[' t ',' u ',' a ',' b ']'" := (App (App (fAp [t, u]) a) b) (at level 0).
@@ -427,18 +458,30 @@ Notation "'mkTriple' '[' P ',' c ',' Q ']'" := (App (App (App fTriple P) Q) c) (
 Notation "'mkFieldLookup' '[' P ',' C ',' f ']'" := (App (App (App fFieldLookup P) C) f) (at level 0).
 Notation "'mkSetFold' '[' x ',' f ',' P ']'" := (App (App (App fSetFold (App fSetFoldFun x)) f) P). 
 Notation "'mkTypeOf' '[' C ',' x ']'" := (App (App fTypeOf C) x) (at level 0).
+
+Notation "'mkNilVarList'" := (Inj (inl (inr pNilVarList))) (at level 0).
+Notation "'mkNilExprList'" := (Inj (inl (inr pNilExprList))) (at level 0).
+Notation "'mkConsVarList' '[' x ',' xs ']'" := (App (App (Inj (inl (inr pConsVarList))) x) xs) (at level 0).
+Notation "'mkConsExprList' '[' x ',' xs ']'" := (App (App (Inj (inl (inr pConsExprList))) x) xs) (at level 0).
 	
-Notation "'mkVar' '[' x ']'" := (Inj (inl (inr (pVar x)))) (at level 0).
 Notation "'mkVal' '[' v ']'" := (Inj (inl (inr (pVal v)))) (at level 0).
 Notation "'mkVarList' '[' lst ']'" := (Inj (inl (inr (pVarList lst)))) (at level 0).
+
 Notation "'mkString' '[' s ']'" := (Inj (inl (inr (pString s)))) (at level 0).
 Notation "'mkProg' '[' P ']'" := (Inj (inl (inr (pProg P)))) (at level 0).
 Notation "'mkProgEq' '[' P ']'" := (App fProgEq P) (at level 0).
 Notation "'mkCmd' '[' c ']'" := (Inj (inl (inr (pCmd c)))) (at level 0).
 Notation "'mkExpr' '[' e ']'" := (Inj (inl (inr (pExpr e)))) (at level 0).
 
+Notation "'mkExprList' '[' lst ']'" := (fold_right (fun e acc => mkConsExprList [App fEval (mkExpr [e]), acc]) mkNilExprList lst) (at level 0).
+
 Notation "'mkConst' '[' t ',' a ']'" := (App (fConst [t]) a) (at level 0).
 Notation "'mkEval' '[' e ',' s ']'" := (App (App fEval e) s) (at level 0).
+
+Notation "'mkLengthVarList' '[' lst ']'" := (App fLengthVarList lst).
+Notation "'mkLengthExprList' '[' lst ']'" := (App fLengthExprList lst).
+
+Notation "'mkEq' '[' t ',' a ',' b ']'" := (App (App (fEq [t]) a) b).
 	
 Definition lexists (l t : typ) (e : expr typ func) : expr typ func :=
   App (Inj (inr (ilf_exists t l))) (Abs t e).
@@ -456,16 +499,25 @@ Definition lor (l : typ) (e e' : expr typ func) : expr typ func :=
 Definition lembed (f t : typ) (e : expr typ func) : expr typ func :=
   App (Inj (inr (ilf_embed f t))) e.
 Definition lnot (t : typ) (e : expr typ func) : expr typ func := limpl t e (lfalse t).
-Definition lupdate (t : typ) (a b : expr typ func) : expr typ func :=
-  App (App (fupdate t) a) b.
 Definition lstackGet (x s : expr typ func) := App (App fstack_get x) s.
 Definition lstackSet (x v s : expr typ func) := App (App (App fstack_set x) v) s.
+
+Notation "'mkSingleSubst' '[' t ',' P ',' x ',' e ']'" := (App (App (Inj (inl (inr (pApplySubst t)))) P) 
+                                                               (App (App (Inj (inl (inr pSingleSubst))) e) x)) (at level 0).
+Notation "'mkSubst' '[' t ',' P ',' es ']'" := (App (App (Inj (inl (inr (pApplySubst t)))) P) 
+                                                    (App (Inj (inl (inr pSubst))) es)) (at level 0).
+Notation "'mkTruncSubst' '[' t ',' P ',' es ']'" := (App (App (Inj (inl (inr (pApplySubst t)))) P) 
+                                                         (App (Inj (inl (inr pTruncSubst))) es)) (at level 0).
+                                                         
+Notation "'mkSubstList' '[' vs ',' es ']'" := (App (App (Inj (inl (inr pZipSubst))) vs) es) (at level 0).
+
+Notation "'mkSubstExprList' '[' lst ',' x ',' v ']'" := (fold_right (fun e acc => mkConsExprList [mkSingleSubst[tyVal, App fEval (mkExpr [e]), x, v], acc]) mkNilExprList lst).
 
 Definition lstar (l : typ) (e e' : expr typ func) : expr typ func :=
   App (App (Inj (inl (inr (pStar l)))) e) e'.
 Definition lpointsto (v f v' : expr typ func) := 
 	App (App (App fPointsto v) f) v'.
-	
+
 Definition test_lemma :=
   @lemmaD typ RType_typ (expr typ func) Expr_expr (expr typ func)
           (fun tus tvs e => exprD' nil tus tvs tyProp e)
