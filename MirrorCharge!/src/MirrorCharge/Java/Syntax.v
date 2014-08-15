@@ -152,6 +152,7 @@ Inductive java_func :=
 | pCmd (_ : cmd)
 | pExpr (_ : dexpr)
 | pEq (_ : typ)
+| pFields (_ : SS.t)
 
 | pAp (_ _ : typ)
 | pConst (_ : typ)
@@ -198,6 +199,7 @@ Definition typeof_sym_java (f : java_func) : option typ :=
     | pProg _ => Some tyProg
     | pCmd _ => Some tyCmd
     | pExpr _ => Some tyExpr
+    | pFields _ => Some tyFields
     | pEq t => Some (tyArr t (tyArr t tyProp))
     | pAp t u => Some (tyArr (tyArr tyStack (tyArr t u)) (tyArr (tyArr tyStack t) (tyArr tyStack u)))
     | pApplySubst t => Some (tyArr (tyArr tyStack t) (tyArr tySubst (tyArr tyStack t)))
@@ -247,13 +249,14 @@ Fixpoint beq_list {A} (f : A -> A -> bool) (xs ys : list A) :=
 		| x::xs, y :: ys => andb (f x y) (beq_list f xs ys)
 		| _, _ => false
 	end.
-	
+
 Definition java_func_eq (a b : java_func) : option bool :=
   match a , b with
     | pString a, pString b => Some (a ?[ eq ] b)
     | pCmd a, pCmd b => Some (beq_cmd a b)
     | pExpr e1, pExpr e2 => Some (beq_dexpr e1 e2)
     | pProg a, pProg b => Some true (* THIS IS FALSE! We need an equivalence checker for programs. This should just be syntactic equality. *)
+    | pFields a, pFields b => Some (SS.equal a b)
     | pEq a , pEq b => Some (a ?[ eq ] b)
         
     | pAp t u , pAp t' u' => Some (t ?[ eq ] t' && u ?[ eq ] u')%bool
@@ -306,6 +309,7 @@ Instance RSym_imp_func : SymI.RSym java_func :=
               | pVarList vs => vs
               | pCmd c => c
               | pExpr e => e
+              | pFields fs => fs
               | pEq t => @eq (typD ts t)
               
               | pAp t u => @Applicative.ap (Fun stack) (Applicative_Fun _) (typD ts t) (typD ts u)
@@ -472,6 +476,7 @@ Notation "'mkProg' '[' P ']'" := (Inj (inl (inr (pProg P)))) (at level 0).
 Notation "'mkProgEq' '[' P ']'" := (App fProgEq P) (at level 0).
 Notation "'mkCmd' '[' c ']'" := (Inj (inl (inr (pCmd c)))) (at level 0).
 Notation "'mkExpr' '[' e ']'" := (Inj (inl (inr (pExpr e)))) (at level 0).
+Notation "'mkFields' '[' fs ']'" := (Inj (inl (inr (pFields fs)))) (at level 0).
 
 Notation "'mkExprList' '[' lst ']'" := (fold_right (fun e acc => mkConsExprList [App fEval (mkExpr [e]), acc]) mkNilExprList lst) (at level 0).
 

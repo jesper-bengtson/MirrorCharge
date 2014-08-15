@@ -61,7 +61,7 @@ Definition list_notin_set lst s :=
 Definition method_specI : stac typ (expr typ func) subst :=
   fun tus tvs s lst e =>
     match e with
-    	| mkEntails [l, mkProgEq [mkProg [P]], mkMethodSpec [C, m, mkVarList [args], r, p, q]] =>
+    	| mkEntails [l, mkProgEq [mkProg [P]], mkMethodSpec [C, m, mkVarList [args], mkString [r], p, q]] =>
     	      match C, m with
     	        | Inj (inl (inr (pString Cname))), Inj (inl (inr (pString Mname))) => 
     	          match SM.find Cname (p_classes P) with
@@ -75,8 +75,8 @@ Definition method_specI : stac typ (expr typ func) subst :=
 						  	      if list_notin_set args (modifies (m_body Method)) then
 						  	        More tus tvs s lst 
 						  	        mkEntails [l, mkProgEq [mkProg [P]], 
-						  	                      mkTriple [p, mkCmd [m_body Method], q]]
-						  	                      (* Must add substitutions for the arguments here *)
+						  	                      mkTriple [mkTruncSubst [tyAsn, p, mkSubstList [mkVarList [args], mkExprList [map E_var (m_params Method)]] ], mkCmd [m_body Method], 
+						  	                               mkTruncSubst [tyAsn, q, mkSubstList [mkVarList [r::args], mkConsExprList [App fEval (mkExpr [m_ret Method]), mkExprList[map E_var (m_params Method)]]] ]]]
 						  	      else
 						  	        @Fail _ _ _
 						  	    | right _ => @Fail _ _ _
@@ -204,6 +204,22 @@ Proof.
    admit.
 Qed.
 
+Definition fieldLookupTac : stac typ (expr typ func) subst :=
+	fun tus tvs s lst e =>
+		match e with
+		  | mkFieldLookup [mkProg [P], mkString [C], X] =>
+		  	match SM.find C (p_classes P) with
+    	      | Some Class =>
+    	        match @exprUnify subst typ func _ _ RS SS SU 3 nil
+                                 tus tvs 0 s X (mkFields[c_fields Class]) tyVarList with
+                  | Some s => Solved nil nil s
+                  | None   => Fail
+                end
+    	      | None => Fail 
+		    end
+		  | _ => Fail
+		end.
+
 Definition alloc_lemma x C : lemma typ (expr typ func) (expr typ func) :=
   {|
      vars := tySpec :: tySasn :: tyProg :: tyFields :: nil;
@@ -309,187 +325,4 @@ Definition symE : stac typ (expr typ func) subst :=
 			| mkEntails [tySpec, G, mkTriple [P, mkCmd [c], Q]] => 
 			  (tripleE c) tus tvs s lst e
 			| _ => Fail
-		end.
-	
-Definition test_skip :=
-  let uvars := nil in
-  let vars := tySasn :: tySpec :: nil in
-  let goal := mkEntails [tySpec, Var 1, mkTriple [Var 0, mkCmd [cskip], Var 0]]
-  in
-  let tac := symE in
-  @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
-Time Eval vm_compute in test_skip.
-
-Definition test_skip2 :=
-  let uvars := nil in
-  let vars := tySpec :: tySasn :: nil in
-  let goal := mkEntails [tySpec, Var 0, mkTriple [Var 1, mkCmd [cseq (cseq cskip cskip) (cseq cskip cskip)], Var 1]]
-  in
-  let tac := symE in
-  @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
-Time Eval vm_compute in test_skip2.
-
-
-Fixpoint tripleE tus tvs (G P Q : expr typ func) l (c : cmd) s args : Result typ (expr typ func) subst :=
-	match c with 
-	  | cskip =>
-	    match @exprUnify subst typ func _ _ RS SS SU 3 nil
-                              tus tvs 0 s P Q tyAsn with
-          | Some s => Solved _ tus tvs s
-          | None   => Fail _ _ _
-        end
-	  | cseq c1 c2 => 
-	    let i := S (length tus) in
-	    match tripleE (tySpec::tus) tvs G P (UVar i) l c1 s args with
-	      | Solved tus tvs s => 
-	        match UVarMap.MAP.find i s with
-	          | Some R => tripleE tus tvs G R Q l c2 s args
-	          | None => Fail _ _ _
-	        end
-	      | _ => More nil nil s args (mkEntails [l, G, mkTriple [P, mkCmd [c], Q]])
-	    end
-	  | _ => More nil nil s args (mkEntails [l, G, mkTriple [P, mkCmd [c], Q]])
-    end.
-    
-(** Sequence **)
-
-
-
-Definition symE : stac typ (expr typ func) subst :=
-	fun tus tvs s lst e => 
-		match e with 
-			| mkEntails [l, G, mkTriple [P, mkCmd [c], Q]] => 
-			  tripleE tus tvs G P Q l c s lst
-			| _ => Fail _ _ _
-		end.
-
-Require Import ExtLib.Tactics.
-Require Import Lambda.ExprTac.
-
-Local Existing Instance SS.
-Local Existing Instance SU.
-Local Existing Instance SO.
-Check @stac_sound.
-Check REC.
-
-
-
-Lemma symE_sound : @stac_sound typ (expr typ func) subst RType_typ Syntax.Expr_expr _ SS SO symE.
-Proof.
-  intros tus tvs s hs g WFs.
-  remember (symE tus tvs s hs g).
-  
-  destruct r; [apply I | |].
-  unfold symE in Heqr.
-  forward; inv_all; subst.
-  
-  Lemma tripleE_Solved_WellFormed_subst : tus tvs G P Q l c s args tus' tvs' s' (H : tripleE tus tvs G P Q l c s args = Solved (expr typ func) tus' tvs' s') 
-    (:
-    wellFormedSubst s'.
-
-  unfold goalD; simpl; red_exprD.
-  split; [admit|]. forward.
-  
-  unfold symE in Heqr.
-  forward; inv_all; subst.
-  split; [admit|].
-  unfold goalD. 
-  forward; inv_all; subst.
-  unfold typ0_cast. simpl.
-  match goal with
-	| |- match ?X with _ => _ end =>
-          consider X; intros
-  end.
-  match goal with
-	| |- match ?X with _ => _ end =>
-          consider X; intros
-  end.
-  match goal with
-	| |- match ?X with _ => _ end =>
-          consider X; intros
-  end.
-  forward; inv_all; subst.
-  simpl in WFs.
-  
-  Focus 3. generalize dependent l1.
-  forward_reason.
-  unfold SUBST.WellFormed in WFs.
-  unfold SUBST.normalized in WFs.
-simpl in *. 
-  
-  assert (ExprDsimul.ExprDenote.exprD' nil (tus ++ l) (tvs ++ l0) tyProp x = Some (fun _ _ => Prop)).
-  red_exprD.
-  assert (exists t, @exprD' typ RType_typ (expr typ func) Expr_expr (@app typ tus l)
-      (@app typ tvs l0) e (@typ0 typ RType_typ Prop Typ0_Prop) = Some t) by admit.
-  destruct H0 as [t' H0].    rewrite H0.
-  simpl. red_exprD.
-  assert (exists t, exprD' (tus ++ l) (tvs ++ l0) e (typ0 (F := Prop)) = Some t).
-  simpl in *.
-  induction c; simpl in H15; try (inversion H15; subst). 
-  Check @app_nil_r typ tvs.
-  Check @exprD'_weaken.
-  destruct (@ExprFacts.exprD'_weaken typ RType_typ Typ2_Fun func _ _ _ _ _ _ _ nil tus tvs _ tyProp t nil nil H) as [t' [H3 H4]].
-  simpl in *.
-  simpl in *.
-  rewrite H3.
-  forward_reason.
-  red.
-  unfold ilfunc.
-  rewrite H3.
-  destruct (@ExprFacts.exprD'_weaken typ RType_typ _ (expr typ func) _ _ _ Expr_expr Expr_ok tus tvs _ tyProp t H nil nil) as [t' [H3 H4]].
-  unfold ExprDsimul.ExprDenote.exprD'.
-  SearchAbout exprD' List.app List.nil.
-  pose
-  Check exprD'_weaken.
-  assert ( ExprDsimul.ExprDenote.exprD' nil (tus ++ nil) (tvs ++ nil) tyProp
-      mkEntails  [logic, e3, mkTriple  [e9, mkCmd  [cassign v d], e5]] = Some t).
-  forward_reason.
-  rewrite <- (@app_nil_r typ) in H.
-  replace tvs with (tvs ++ nil) in H by admit.
-  replace(tvs ++ nil) with tvs by (symmetry; apply app_nil_r).
-  rewrite app_nil_r.
-  SearchAbout nil List.app.
-  red_exprD; forward; inv_all; subst.
-  destruct g; inv_all; subst.
-  inversion Heqr; subst. simpl in *. red_exprD.
-  SearchAbout exprD' nth_error_get_hlist_nth.
-  unfold ExprDsimul.ExprDenote.exprD' in H.
-  unfold Open_GetVAs in H. simpl in H. forward; inv_all; subst.
-  red_exprD.
-  progress simpl in *.
-  
-  simpl.
-  
-  forward.
-  red_exprD.  
-  simpl. unfold goalD. simpl.
-  red_exprD. split. admit.
-  forward. split. admit. forward.
-  simp
-  admit.
-Qed.
-  forward.
-  
-  simpl in *.
-  unfold goalD.
-  red_exprD.
-  red_exprD.
-  unfold mk_entails.
-  SearchAbout stac.
-  simpl in *.
-  unfold symE. simpl.
-  forward.
-  forward_reason.
-  unfold symE.
-  forward_reason.
-  destruct g. simpl.
-  remember (goalD tus tvs (Var v)) as g.
-  destruct g; [|tauto]. simpl in *.
-  split; [tauto|].
-  
-  destruct (goalD tus tvs (Var v)); [|tauto].
-  
-  simpl.
-  forward.
-  unfold stac_sound.
-  
+		end.  
