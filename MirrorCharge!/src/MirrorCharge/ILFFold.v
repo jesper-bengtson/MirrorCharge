@@ -5,6 +5,7 @@ Require Import MirrorCore.TypesI.
 Require Import MirrorCore.Lambda.Expr.
 Require Import MirrorCore.Lambda.AppN.
 Require Import MirrorCharge.ILogicFunc.
+Require Import MirrorCore.Util.Forwardy.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -13,13 +14,15 @@ Section fold.
   Variable typ : Type.
   Variable RType_typ : RType typ.
   Variable T' : Type.
+  Variable sym : Type.
+  Variable as_ilfunc : sym -> option (ilfunc typ).
   Let T : Type := tenv typ -> tenv typ -> T'.
   (** This is a problem b/c ilfunc is not extensible anymore **)
-  Let expr := expr typ (ilfunc typ).
+  Let expr := expr typ sym.
 
   Variable do_var : var -> T.
   Variable do_uvar : uvar -> T.
-  Variable do_inj : ilfunc typ -> T.
+  Variable do_inj : sym -> T.
   Variable do_abs : typ -> expr -> T -> T.
   Variable do_app : expr -> T ->
                     list (expr * T) -> T.
@@ -33,29 +36,33 @@ Section fold.
       | Inj i => do_inj i
       | Abs t e =>
         @do_abs t e (app_fold e)
-      | App (Inj (ilf_exists t t')) (Abs _ e) =>
-        do_ex t t' e (app_fold e)
-      | App (Inj (ilf_forall t t')) (Abs _ e) =>
-        do_all t t' e (app_fold e)
       | App l r =>
-        (fix gather e (ls : list (expr * T)) :=
-           match e with
-             | App a b =>
-               gather a ((b, app_fold b) :: ls)
-             | e => do_app e (app_fold e) ls
-           end) l ((r,app_fold r) :: nil)
+        match l , r with
+          | Inj s , Abs t e =>
+            match as_ilfunc s with
+              | Some (ilf_exists t t') =>
+                do_ex t t' e (app_fold e)
+              | Some (ilf_forall t t') =>
+                do_all t t' e (app_fold e)
+              | _ =>
+                do_app (Inj s) (do_inj s) ((r, app_fold r)::nil)
+            end
+          | _ , _ =>
+            (fix gather e (ls : list (expr * T)) :=
+               match e with
+                 | App a b =>
+                   gather a ((b, app_fold b) :: ls)
+                 | e => do_app e (app_fold e) ls
+               end) l ((r,app_fold r) :: nil)
+        end
     end.
-
-(*
-  Local Instance RSym_ilfunc' : RSym (ilfunc typ) :=
-    RSym_ilfunc fs gs es.
-*)
 
   Variable R_t : typ -> expr -> T' -> tenv typ -> tenv typ -> Prop.
 
-  Check @typeof_expr.
-  Axiom Typ2_Fun : Typ2 _ Fun.
-  Axiom RSym_func : RSym (ilfunc typ).
+  Variable Typ2_Fun : Typ2 _ Fun.
+  Variable RSym_func : RSym sym.
+  Variable Typ2Ok_Fun : Typ2Ok _.
+  Variable RSymOk_func : RSymOk _.
 
   Hypothesis Hvar
   : forall ts tus tvs v t,
@@ -76,60 +83,66 @@ Section fold.
       R_t (typ2 t t') (Abs t e) (do_abs t e e_res tus tvs) tus tvs.
   Hypothesis Happ
   : forall tus tvs l l_res rs t ts,
-      typeof_expr tus tvs (apps l (map fst rs)) = Some t ->
-      let ft := fold_right typ2 t ts in
+      typeof_expr nil tus tvs (apps l (map fst rs)) = Some t ->
+      let ft := fold_right (@typ2 _ _ _ Typ2_Fun) t ts in
       R_t ft l (l_res tus tvs) tus tvs ->
       Forall2 (fun t x =>
-                    typeof_expr ts tus tvs (fst x) = Some t
+                    typeof_expr nil tus tvs (fst x) = Some t
                  /\ R_t t (fst x) (snd x tus tvs) tus tvs)
               ts rs ->
       R_t t (apps l (map fst rs)) (do_app l l_res rs tus tvs) tus tvs.
   Hypothesis Hex
-  : forall tus tvs t t_logic e e_res,
-      typeof_expr tus tvs (App (Inj (ilf_exists t t_logic)) (Abs t e)) = Some t_logic ->
+  : forall ts tus tvs t t_logic e e_res s,
+      as_ilfunc s = Some (ilf_exists t t_logic) ->
+      typeof_expr ts tus tvs (App (Inj s) (Abs t e)) = Some t_logic ->
       R_t t_logic e (e_res tus (t :: tvs)) tus (t :: tvs) ->
       R_t t_logic
-          (App (Inj (ilf_exists t t_logic)) (Abs t e))
+          (App (Inj s) (Abs t e))
           (do_ex t t_logic e e_res tus tvs) tus tvs.
   Hypothesis Hall
-  : forall tus tvs t t_logic e e_res,
-      typeof_expr tus tvs (App (Inj (ilf_forall t t_logic)) (Abs t e)) = Some t_logic ->
+  : forall ts tus tvs t t_logic e e_res s,
+      as_ilfunc s = Some (ilf_forall t t_logic) ->
+      typeof_expr ts tus tvs (App (Inj s) (Abs t e)) = Some t_logic ->
       R_t t_logic e (e_res tus (t :: tvs)) tus (t :: tvs) ->
       R_t t_logic
-          (App (Inj (ilf_forall t t_logic)) (Abs t e))
+          (App (Inj s) (Abs t e))
           (do_all t t_logic e e_res tus tvs) tus tvs.
 
+  Class SolveTypeClass (P : Prop) : Type := proof : P.
+  Hint Extern 0 (SolveTypeClass _) => (repeat constructor; try eassumption)
+                                      : typeclass_instances.
 
   Lemma app_fold_sound_do_app
   : forall e,
-    forall e2 tus tvs (t : typ),
-      match typeof_expr tus tvs e with
+    forall ts e2 tus tvs (t : typ),
+      match typeof_expr ts tus tvs e with
         | Some tf =>
-          match typeof_expr tus tvs e2 with
-            | Some tx => type_of_apply tf tx
+          match typeof_expr ts tus tvs e2 with
+            | Some tx => type_of_apply ts tf tx
             | None => None
           end
         | None => None
       end = Some t ->
-      (forall y : expr ilfunc,
+      (forall y : expr,
          SolveTypeClass
-           (TransitiveClosure.rightTrans (expr_acc (func:=ilfunc)) y (App e e2)) ->
+           (TransitiveClosure.leftTrans (@expr_acc _ _) y (App e e2)) ->
          forall (tus0 tvs0 : tenv typ) (t0 : typ) (result : T'),
            app_fold y tus0 tvs0 = result ->
-           typeof_expr tus0 tvs0 y = Some t0 -> R_t t0 y result tus0 tvs0) ->
+           typeof_expr ts tus0 tvs0 y = Some t0 -> R_t t0 y result tus0 tvs0) ->
       R_t t (App e e2)
           (do_app e (app_fold e) ((e2, app_fold e2) :: nil) tus tvs) tus tvs.
   Proof.
     intros. unfold type_of_apply in *.
-    forward; inv_all; subst.
+    forwardy; inv_all; subst.
     assert (Forall2 (fun t x =>
-                          typeof_expr tus tvs (fst x) = Some t
+                          typeof_expr ts tus tvs (fst x) = Some y0
                        /\ R_t t (fst x) (snd x tus tvs) tus tvs)
-                    (t1 :: nil)
+                    (y0 :: nil)
                     ((e2, app_fold e2) :: nil)).
     { constructor; [ simpl | constructor ].
       split; eauto.
       eapply H0; eauto with typeclass_instances. }
+    admit. (*
     generalize (H0 e _ tus tvs _ _ eq_refl H2).
     assert (forall y : expr ilfunc,
               SolveTypeClass
@@ -152,18 +165,34 @@ Section fold.
     generalize ((e2, app_fold e2) :: nil).
     generalize (t1 :: nil).
     clear - Happ. specialize (@Happ tus tvs).
-    induction e; simpl; intros; eauto.
+    induction e; simpl; intros; eauto. *)
   Qed.
 
 
   Theorem app_fold_sound
   : forall e tus tvs t result,
       app_fold e tus tvs = result ->
-      typeof_expr tus tvs e = Some t ->
+      typeof_expr nil tus tvs e = Some t ->
       R_t t e result tus tvs.
   Proof.
-    refine (expr_strong_ind _ _).
-    destruct e; simpl; intros; subst; eauto.
+(*
+    refine (expr_strong_ind _ _ _ _ _ _).
+    { simpl. intros. subst. eapply Hvar; eauto. }
+    { simpl. intros. subst. eapply Huvar; eauto. }
+    { simpl. intros. subst. eapply Hinj; eauto. }
+    { destruct a; simpl; intros; subst;
+      try solve [ eapply app_fold_sound_do_app; eauto ].
+      { destruct i; try solve [ eapply app_fold_sound_do_app; eauto ].
+        { destruct b; try solve [ eapply app_fold_sound_do_app; eauto ].
+          forwardy.
+          unfold type_of_apply in H2.
+          Require Import MirrorCore.Lambda.ExprTac.
+          Ltac arrow_case_any :=
+  match goal with
+    | H : appcontext [ @typ2_match _ _ _ _ _ ?X ?Y ] |- _ =>
+      arrow_case X Y
+  end.
+          arrow_case_any.
     { destruct e1; eauto using app_fold_sound_do_app.
       { destruct i; eauto using app_fold_sound_do_app.
         { destruct e2; eauto using app_fold_sound_do_app.
@@ -240,5 +269,6 @@ Section fold.
     { forward; inv_all; subst.
       specialize (H e _ tus (t :: tvs) _ _ eq_refl H0).
       eapply Habs; eauto. simpl. rewrite H0. auto. }
-  Qed.
+*)
+  Admitted.
 End fold.

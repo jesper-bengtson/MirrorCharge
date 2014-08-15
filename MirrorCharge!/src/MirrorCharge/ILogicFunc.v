@@ -79,7 +79,7 @@ Section typed.
   Definition embed_opsOk (ls : logic_ops) (es : embed_ops) : Prop :=
     forall t t',
       match ls t , ls t' , es t t' return Prop with
-        | Some a , Some b , Some T => forall ts, @Embed _ _ _ _ (T ts)
+        | Some a , Some b , Some T => forall ts, @Embed _ (a ts) _ _ (T ts)
         | _ , _ , _ => True
       end.
 
