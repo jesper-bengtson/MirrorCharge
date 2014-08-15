@@ -14,11 +14,10 @@ bin/%.vo: src/%.v
 override COQFLAGS += -R src ""
 override COQFLAGS += -R bin ""
 override COQFLAGS += $(DK_ITU_SDG_KOPITIAM_LP_COQ_8_4_FLAGS)
-override COQFLAGS += -R $(EXTERNAL_PATH) ""
-override COQFLAGS += -R $(MIRRORCORE_PATH) MirrorCore
-override COQFLAGS += -R $(EXTLIB_PATH) ExtLib
 override COQFLAGS += $(CHARGE_FLAGS)
-override COQFLAGS += -R $(EXTERNAL_PATH_0) ""
+override COQFLAGS += -R $(EXTLIB_PATH) ExtLib
+override COQFLAGS += -R $(MIRRORCORE_PATH) MirrorCore
+override COQFLAGS += $(JAVA_FLAGS)
 OBJECTS = \
 	bin/MirrorCharge/BILNormalize.vo \
 	bin/MirrorCharge/BILNormalizeEx.vo \
@@ -30,6 +29,7 @@ OBJECTS = \
 	bin/MirrorCharge/Imp/Imp.vo \
 	bin/MirrorCharge/Imp/STacCancel.vo \
 	bin/MirrorCharge/Imp/STacCancelEx.vo \
+	bin/MirrorCharge/Imp/STacGetFunc.vo \
 	bin/MirrorCharge/Imp/STacSimplify.vo \
 	bin/MirrorCharge/Imp/SymEval.vo \
 	bin/MirrorCharge/Imp/SymEval2.vo \
@@ -68,6 +68,7 @@ bin/MirrorCharge/ILogicFunc.vo: src/MirrorCharge/ILogicFunc.v
 bin/MirrorCharge/Imp/Imp.vo: src/MirrorCharge/Imp/Imp.v
 bin/MirrorCharge/Imp/STacCancel.vo: src/MirrorCharge/Imp/STacCancel.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Imp/Syntax.vo
 bin/MirrorCharge/Imp/STacCancelEx.vo: src/MirrorCharge/Imp/STacCancelEx.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalizeEx.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Imp/Syntax.vo
+bin/MirrorCharge/Imp/STacGetFunc.vo: src/MirrorCharge/Imp/STacGetFunc.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Imp/Syntax.vo
 bin/MirrorCharge/Imp/STacSimplify.vo: src/MirrorCharge/Imp/STacSimplify.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/Imp/Syntax.vo
 bin/MirrorCharge/Imp/SymEval.vo: src/MirrorCharge/Imp/SymEval.v bin/MirrorCharge/Imp/Imp.vo bin/MirrorCharge/ILogicFunc.vo
 bin/MirrorCharge/Imp/SymEval2.vo: src/MirrorCharge/Imp/SymEval2.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Imp/Imp.vo bin/MirrorCharge/Imp/Syntax.vo bin/MirrorCharge/Imp/STacSimplify.vo bin/MirrorCharge/Imp/STacCancelEx.vo
