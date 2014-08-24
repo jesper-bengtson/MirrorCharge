@@ -45,6 +45,8 @@ Local Instance BILOps : BILOperators lprop :=
 Local Instance EmbedOp_Prop_HProp : EmbedOp Prop HProp. Admitted.
 Local Instance EmbedOp_HProp_lprop : EmbedOp HProp lprop :=
   @EmbedILFunDropOp HProp _ (@EmbedOpId _) _.
+Local Instance EmbedOp_Prop_SProp : EmbedOp Prop SProp. Admitted.
+
 
 Parameter eval_iexpr : iexpr -> locals -> value.
 
@@ -66,7 +68,7 @@ Parameter Skip : icmd.
 
 Axiom Skip_rule
 : forall G P Q,
-    P |-- Q ->
+    G |-- embed (P |-- Q) ->
     G |-- triple P Skip Q.
 
 (** Sequence **)
@@ -101,7 +103,7 @@ Parameter PtsTo : value -> value -> HProp.
 
 Axiom Read_rule
 : forall G (P : lprop) x e (v : locals -> value),
-    (P |-- ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr e)) v ** ltrue) ->
+    (G |-- embed (P |-- ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr e)) v ** ltrue)) ->
     G |-- triple P
                  (Read x e)
                  (fun l =>
@@ -127,10 +129,10 @@ Axiom function_spec : function_name -> (nat -> lprop) -> (nat -> lprop) -> SProp
 
 Axiom Call_rule
 : forall G (P Q : lprop) (P' Q' : nat -> lprop) F f e v,
-    (P |-- ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr e)) v ** ltrue) ->
+    G |-- embed (P |-- ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr e)) v ** ltrue) ->
     G |-- function_spec f P' Q' -> (** Get the method spec **)
-    P |-- ap (T := Fun locals) (fun l v => P' v l) v ** F -> (* P |- P' ** F *)
-    ap (T := Fun locals) (fun l v => Q' v l) v ** F |-- Q -> (* Q' ** F |- Q *)
+    G |-- embed (P |-- ap (T := Fun locals) (fun l v => P' v l) v ** F) -> (* P |- P' ** F *)
+    G |-- embed (ap (T := Fun locals) (fun l v => Q' v l) v ** F |-- Q) -> (* Q' ** F |- Q *)
     G |-- triple P
                  (Call f e)
                  Q.

@@ -204,6 +204,7 @@ Definition tyLProp := tyArr tyLocals tyHProp.
 
 Local Notation "a >> b" := (tyArr a b) (at level 31,right associativity).
 
+(** TODO: Note that this needs to be extensible! **)
 Definition fs : @SymEnv.functions typ _ :=
   SymEnv.from_list
     (@SymEnv.F typ _ (tyArr tyLProp (tyArr tyCmd (tyArr tyLProp tySProp)))
@@ -232,6 +233,7 @@ Definition lops : logic_ops _ :=
       | tyProp => Some _
       | tyHProp => Some _
       | tyArr tyLocals tyHProp => Some (fun _ => ILogicOps_lprop)
+      | tySProp => Some _
       | _ => None
     end.
 
@@ -248,6 +250,8 @@ Definition eops : embed_ops _ :=
         Some (fun ts => EmbedOp_HProp_lprop)
       | tyProp , tyArr tyLocals tyHProp =>
         Some (fun _ => @ILInsts.EmbedILFunDropOp _ _ EmbedOp_Prop_HProp _)
+      | tyProp , tySProp =>
+        Some (fun _ => EmbedOp_Prop_SProp)
       | _ , _ => None
     end.
 
@@ -258,7 +262,7 @@ Definition RS : SymI.RSym func :=
   SymSum.RSym_sum (SymSum.RSym_sum (SymEnv.RSym_func fs) _) _.
 Local Existing Instance RS.
 
-Let Expr_expr : ExprI.Expr _ (expr typ func) := Expr_expr _ _.
+Let Expr_expr : ExprI.Expr _ (expr typ func) := @Expr_expr typ func _ _ _.
 Local Existing Instance Expr_expr.
 
 Definition subst : Type :=

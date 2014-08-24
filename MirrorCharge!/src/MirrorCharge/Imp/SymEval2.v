@@ -36,15 +36,6 @@ Local Existing Instance RSym_ilfunc.
 Local Existing Instance RS.
 Local Existing Instance Expr_expr.
 
-Local Notation "a @ b" := (@App typ _ a b) (at level 30).
-Local Notation "'Ap' '[' x , y ']'" := (Inj (inl (inr (pAp x y)))) (at level 0).
-Local Notation "'Pure' '[' x ']'" := (Inj (inl (inr (pPure x)))) (at level 0).
-Local Notation "x '|-' y" :=
-  (App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) x) y) (at level 10).
-Local Notation "'{{'  P  '}}'  c  '{{'  Q  '}}'" :=
-  (Inj (inl (inl 1%positive)) @ P @ c @ Q) (at level 20).
-Local Notation "c1 ;; c2" := (Inj (inl (inl 2%positive)) @ c1 @ c2) (at level 30).
-
 Let EAPPLY lem tac :=
   @EAPPLY typ (expr typ func) subst _ _ ExprLift.vars_to_uvars
                 (fun tus tvs n e1 e2 t s =>
@@ -53,27 +44,88 @@ Let EAPPLY lem tac :=
                 (@ExprSubst.instantiate typ func) SS SU
                 lem (apply_to_all tac).
 
+Definition texp (t : typ) : Type :=
+  expr typ func.
+
+(*
+Class SILogic (T : typ) :=
+{ sentails : texp T -> texp T -> texp tyProp
+; strue    : texp T
+; sfalse   : texp T
+; sand     : texp T -> texp T -> texp T
+; sor      : texp T -> texp T -> texp T
+; simp     : texp T -> texp T -> texp T
+; sstar    : texp T -> texp T -> texp T
+}.
+
+Instance SILogic_any t : SILogic t :=
+{ sentails := fun x y => (App (App (Inj (inr (ilf_entails t))) x) y)
+; strue    := (Inj (inr (ilf_true t)))
+; sfalse   := (Inj (inr (ilf_false t)))
+; sand     := fun x y => (App (App (Inj (inr (ilf_and t))) x) y)
+; sor      := fun x y => (App (App (Inj (inr (ilf_or t))) x) y)
+; simp     := fun x y => (App (App (Inj (inr (ilf_impl t))) x) y)
+; sstar    := fun x y => (App (App (fStar t) x) y)
+}.
+
+Local Notation "a @ b" := (@App typ _ a b) (at level 30).
+Local Notation "'Ap' '[' x , y ']'" := (Inj (inl (inr (pAp x y)))) (at level 0).
+Local Notation "'Pure' '[' x ']'" := (Inj (inl (inr (pPure x)))) (at level 0).
+(*
+Local Notation "x '|-' y" :=
+  (@sand _ _ x y App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) x) y) (at level 10).
+*)
+Local Notation "x '|-' y" :=
+  (@sentails _ _ x y) (at level 10).
+Local Notation "'{{'  P  '}}'  c  '{{'  Q  '}}'" :=
+  ((Inj (inl (inl 1%positive)) @ (P : texp (tyArr tyLocals tyHProp))
+                               @ (c : texp tyCmd)
+                               @ (Q : texp (tyArr tyLocals tyHProp))) : texp tySProp) (at level 20, only parsing).
+Local Notation "c1 ;; c2" := (Inj (inl (inl 2%positive)) @ c1 @ c2) (at level 30, only parsing).
+
+Instance EmbedOp_texp T U : EmbedOp (texp T) (texp U) :=
+{ embed := (Inj (inr (ilf_embed T U))) }.
+*)
+
+
 (** NOTE: Manual lemma reification for the time being **)
+(** This is starting to get annoying... **)
 (** Pull Ex **)
+(*
 Definition pull_nat_lemma : lemma typ (expr typ func) (expr typ func) :=
 {| vars := tyArr tyNat tyLProp :: tyLProp :: tyCmd :: nil
  ; premises := App (Inj (inr (ilf_forall tyNat tyProp))) (Abs tyNat (mkTriple (App (Var 1) (Var 0)) (Var 3) (Var 2))) :: nil
  ; concl := mkTriple (App (Inj (inr (ilf_exists tyNat tyLProp))) (Var 0)) (Var 2) (Var 1)
  |}.
+*)
+
+Set Printing All.
+
+Print Skip_rule.
+Ltac reify e :=
+  match e with
+    | forall x : ?T , 
+
+
+
 
 Definition to_skip : lemma typ (expr typ func) (expr typ func) :=
-{| vars := tyLProp :: tyCmd :: tyLProp :: tyLProp :: nil
- ; premises := mkTriple (Var 0) (Var 1) (Var 3) ::
-               lentails tyLProp (Var 2) (Var 3) :: nil
- ; concl := mkTriple (Var 0) (Var 1) (Var 2)
+{| vars     := tyLProp :: tyCmd :: tyLProp :: tyLProp :: tySProp :: nil
+ ; premises := (Var 4 |- {{ Var 0 }} (Var 1) {{ Var 3 }}) ::
+               (Var 4 |- embed ((Var 2 : texp tyLProp) |- (Var 3))) :: nil
+ ; concl    := (Var 4 |- {{ Var 0 }} (Var 1) {{ Var 2 }}) : expr _ _
  |}.
+
+Eval hnf in test_lemma to_skip.
 
 (** Skip **)
 Definition skip_lemma : lemma typ (expr typ func) (expr typ func) :=
-{| vars := tyLProp :: tyLProp :: nil
+{| vars     := tyLProp :: tyLProp :: tySProp :: nil
  ; premises := lentails tyLProp (Var 0) (Var 1) :: nil
- ; concl := mkTriple (Var 0) mkSkip (Var 1)
+ ; concl    := Var 2 |- {{ Var 0 }} mkSkip {{ Var 1 }}
  |}.
+
+Eval hn
 
 Definition skip_lemma2 : lemma typ (expr typ func) (expr typ func) :=
 {| vars := tyLProp :: nil
@@ -161,6 +213,12 @@ Definition write_lemma : lemma typ (expr typ func) (expr typ func) :=
                      (lap tyNat tyHProp (lap tyNat (tyArr tyNat tyHProp) (lpure (tyArr tyNat (tyArr tyNat tyHProp)) fPtsTo) (feval_iexpr @ Var 2)) (feval_iexpr @ Var 3))
                      (Var 1))
  |}.
+
+(** Call **)
+Definition call_lemma : lemma typ (expr typ func) (expr typ func) :=
+{| vars := 
+
+Definition solve_find_spec : stac typ (expr typ func) subst := FAIL.
 
 Definition solve_entailment :=
   THEN (SIMPLIFY (fun _ _ _ => beta_all simplify nil nil))
