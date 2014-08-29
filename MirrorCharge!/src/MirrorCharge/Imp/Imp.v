@@ -17,6 +17,8 @@ Parameter iexpr : Type.
 Parameter iConst : value -> iexpr.
 Parameter iVar : var -> iexpr.
 Parameter iPlus : iexpr -> iexpr -> iexpr.
+Parameter iEq : iexpr -> iexpr -> iexpr.
+Parameter iLt : iexpr -> iexpr -> iexpr.
 
 Parameter icmd : Type.
 
@@ -123,7 +125,7 @@ Axiom Write_rule
            (ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr p)) (eval_iexpr v) ** Q).
 
 (** If **)
-Parameter If_zero : var -> icmd -> icmd -> icmd.
+Parameter If : iexpr -> icmd -> icmd -> icmd.
 
 Definition local_Prop_lprop (P : Fun locals Prop) : lprop :=
   fun l => embed (P l).
@@ -133,21 +135,19 @@ Definition exprProp (P : value -> Prop) (e : locals -> value) : lprop :=
 
 Axiom If_rule
 : forall G (P Q : lprop) x c1 c2,
-    G |-- triple (P //\\ exprProp (fun v => v = 0) (eval_iexpr (iVar x))) c1 Q ->
-    G |-- triple (P //\\ exprProp (fun v => v <> 0) (eval_iexpr (iVar x))) c2 Q ->
-    G |-- triple P (If_zero x c1 c2) Q.
+    G |-- triple (P //\\ exprProp (fun v => v <> 0) (eval_iexpr x)) c1 Q ->
+    G |-- triple (P //\\ exprProp (fun v => v = 0) (eval_iexpr x)) c2 Q ->
+    G |-- triple P (If x c1 c2) Q.
 
 (** While **)
-Parameter While_zero : var -> icmd -> icmd.
+Parameter While : iexpr -> icmd -> icmd.
 
 Axiom While_rule
 : forall G (P Q I : lprop) t c,
     G |-- embed (P |-- I) ->
-    G |-- triple (I //\\ exprProp (fun v => v = 0) (eval_iexpr (iVar t))) c I ->
-    G |-- embed (I //\\ exprProp (fun v => v <> 0) (eval_iexpr (iVar t)) |-- Q) ->
-    G |-- triple P (While_zero t c) Q.
-
-
+    G |-- triple (I //\\ exprProp (fun v => v <> 0) (eval_iexpr t)) c I ->
+    G |-- embed (I //\\ exprProp (fun v => v = 0) (eval_iexpr t) |-- Q) ->
+    G |-- triple P (While t c) Q.
 
 (** Function Calls **)
 
