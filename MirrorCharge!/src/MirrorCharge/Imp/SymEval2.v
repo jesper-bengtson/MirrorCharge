@@ -21,6 +21,7 @@ Require Import MirrorCharge.OrderedCanceller.
 Require Import MirrorCharge.BILNormalize.
 Require Import MirrorCharge.SynSepLog.
 Require Import MirrorCharge.SepLogFold.
+Require MirrorCharge.Imp.Reify.
 Require Import MirrorCharge.Imp.Imp.
 Require Import MirrorCharge.Imp.Syntax.
 Require Import MirrorCharge.Imp.STacSimplify.
@@ -36,15 +37,6 @@ Local Existing Instance RSym_ilfunc.
 Local Existing Instance RS.
 Local Existing Instance Expr_expr.
 
-Local Notation "a @ b" := (@App typ _ a b) (at level 30).
-Local Notation "'Ap' '[' x , y ']'" := (Inj (inl (inr (pAp x y)))) (at level 0).
-Local Notation "'Pure' '[' x ']'" := (Inj (inl (inr (pPure x)))) (at level 0).
-Local Notation "x '|-' y" :=
-  (App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) x) y) (at level 10).
-Local Notation "'{{'  P  '}}'  c  '{{'  Q  '}}'" :=
-  (Inj (inl (inl 1%positive)) @ P @ c @ Q) (at level 20).
-Local Notation "c1 ;; c2" := (Inj (inl (inl 2%positive)) @ c1 @ c2) (at level 30).
-
 Let EAPPLY lem tac :=
   @EAPPLY typ (expr typ func) subst _ _ ExprLift.vars_to_uvars
                 (fun tus tvs n e1 e2 t s =>
@@ -53,52 +45,94 @@ Let EAPPLY lem tac :=
                 (@ExprSubst.instantiate typ func) SS SU
                 lem (apply_to_all tac).
 
-(** NOTE: Manual lemma reification for the time being **)
-(** Pull Ex **)
-Definition pull_nat_lemma : lemma typ (expr typ func) (expr typ func) :=
-{| vars := tyArr tyNat tyLProp :: tyLProp :: tyCmd :: nil
- ; premises := App (Inj (inr (ilf_forall tyNat tyProp))) (Abs tyNat (mkTriple (App (Var 1) (Var 0)) (Var 3) (Var 2))) :: nil
- ; concl := mkTriple (App (Inj (inr (ilf_exists tyNat tyLProp))) (Var 0)) (Var 2) (Var 1)
+(*
+Definition texp (t : typ) : Type :=
+  expr typ func.
+*)
+
+Fixpoint get_alls (e : expr typ func) : list typ * expr typ func :=
+  match e with
+    | ExprCore.App (@ExprCore.Inj (inr (ILogicFunc.ilf_forall t tyProp)))
+                   (ExprCore.Abs _ e) =>
+      let (alls,e) := get_alls e in
+      (t :: alls, e)
+    | _ => (nil, e)
+  end.
+
+Fixpoint get_impls (e : expr typ func) : list (expr typ func) * expr typ func :=
+  match e with
+    | ExprCore.App (ExprCore.App (Inj (inr (ILogicFunc.ilf_impl tyProp))) P) Q =>
+      let (impls,e) := get_impls Q in
+      (P :: impls,e)
+    | _ => (nil, e)
+  end.
+
+Definition convert_to_lemma (e : expr typ func)
+: lemma typ (expr typ func) (expr typ func) :=
+  let (alls, e) := get_alls e in
+  let (impls, e) := get_impls e in
+  {| vars := rev alls
+   ; premises := impls
+   ; concl := e |}.
+
+Ltac reify_lemma e :=
+  match type of e with
+    | ?T =>
+      (let k e :=
+           let e := constr:(convert_to_lemma e) in
+           let e := eval unfold convert_to_lemma in e in
+           let e := eval simpl in e in
+           refine e
+       in
+       reify_expr Reify.reify_imp k [ True ] [ T ])
+  end.
+
+(*
+Definition to_skip : lemma typ (expr typ func) (expr typ func) :=
+{| vars     := tyLProp :: tyCmd :: tyLProp :: tyLProp :: tySProp :: nil
+ ; premises := (Var 4 |- {{ Var 0 }} (Var 1) {{ Var 3 }}) ::
+               (Var 4 |- embed ((Var 2 : texp tyLProp) |- (Var 3))) :: nil
+ ; concl    := (Var 4 |- {{ Var 0 }} (Var 1) {{ Var 2 }}) : expr _ _
  |}.
 
-Definition to_skip : lemma typ (expr typ func) (expr typ func) :=
-{| vars := tyLProp :: tyCmd :: tyLProp :: tyLProp :: nil
- ; premises := mkTriple (Var 0) (Var 1) (Var 3) ::
-               lentails tyLProp (Var 2) (Var 3) :: nil
- ; concl := mkTriple (Var 0) (Var 1) (Var 2)
- |}.
+Eval hnf in test_lemma to_skip.
+*)
 
 (** Skip **)
-Definition skip_lemma : lemma typ (expr typ func) (expr typ func) :=
-{| vars := tyLProp :: tyLProp :: nil
- ; premises := lentails tyLProp (Var 0) (Var 1) :: nil
- ; concl := mkTriple (Var 0) mkSkip (Var 1)
- |}.
+Definition Skip_lemma : lemma typ (expr typ func) (expr typ func).
+reify_lemma Skip_rule.
+Defined.
+Print Skip_lemma.
 
-Definition skip_lemma2 : lemma typ (expr typ func) (expr typ func) :=
-{| vars := tyLProp :: nil
- ; premises := nil
- ; concl := mkTriple (Var 0) mkSkip (Var 0)
- |}.
+Theorem Skip_rule2
+: forall (G : SProp) P,
+    ILogic.lentails G (triple P Skip P).
+Proof.
+  intros. eapply Skip_rule.
+  (** TODO: How do I solve this? **)
+Admitted.
+
+Definition Skip_lemma2 : lemma typ (expr typ func) (expr typ func).
+reify_lemma Skip_rule2.
+Defined.
+Print Skip_lemma2.
 
 (** Sequence **)
-Definition seq_lemma : lemma typ (expr typ func) (expr typ func) :=
-{| vars := tyLProp :: tyLProp :: tyLProp :: tyCmd :: tyCmd :: nil
- ; premises := mkTriple (Var 0) (Var 3) (Var 1) ::
-               mkTriple (Var 1) (Var 4) (Var 2) :: nil
- ; concl := mkTriple (Var 0) (mkSeq (Var 3) (Var 4)) (Var 2)
- |}.
+Definition Seq_lemma : lemma typ (expr typ func) (expr typ func).
+reify_lemma Seq_rule.
+Defined.
+Print Seq_lemma.
 
-Definition seq_assoc_lemma : lemma typ (expr typ func) (expr typ func) :=
-{| vars := tyLProp :: tyLProp :: tyCmd :: tyCmd :: tyCmd :: nil
- ; premises :=
-     mkTriple (Var 0) (mkSeq (Var 2) (mkSeq (Var 3) (Var 4))) (Var 1) :: nil
- ; concl :=
-     mkTriple (Var 0) (mkSeq (mkSeq (Var 2) (Var 3)) (Var 4)) (Var 1)
- |}.
+Definition SeqA_lemma : lemma typ (expr typ func) (expr typ func).
+reify_lemma SeqA_rule.
+Defined.
 
 (** Assignment **)
-Definition assign_lemma : lemma typ (expr typ func) (expr typ func) :=
+Definition Assign_lemma : lemma typ (expr typ func) (expr typ func).
+reify_lemma Assign_rule.
+Defined.
+Print Assign_lemma.
+(*
 {| vars := tyLProp :: tyVariable :: tyExpr :: nil
  ; premises := nil
  ; concl :=
@@ -114,9 +148,14 @@ Definition assign_lemma : lemma typ (expr typ func) (expr typ func) :=
                                    (lupdate tyNat (App (App flocals_upd (Var 2)) (Var 0)) (App feval_iexpr (Var 3)))))
                          (lupdate tyHProp (App (App flocals_upd (Var 2)) (Var 0)) (Var 1))))
  |}.
+*)
 
 (** Read **)
-Definition read_lemma : lemma typ (expr typ func) (expr typ func) :=
+Definition Read_lemma : lemma typ (expr typ func) (expr typ func).
+reify_lemma Read_rule.
+Defined.
+Print Read_lemma.
+(*
 {| vars := tyLProp :: tyVariable :: tyExpr ::
                    tyArr tyLocals tyNat :: nil
  ; premises :=
@@ -139,9 +178,14 @@ Definition read_lemma : lemma typ (expr typ func) (expr typ func) :=
                                    (lupdate tyNat (App (App flocals_upd (Var 2)) (Var 0)) (Var 4))))
                          (lupdate tyHProp (App (App flocals_upd (Var 2)) (Var 0)) (Var 1))))
  |}.
+*)
 
 (** Write **)
-Definition write_lemma : lemma typ (expr typ func) (expr typ func) :=
+Definition Write_lemma : lemma typ (expr typ func) (expr typ func).
+reify_lemma Write_rule.
+Defined.
+Print Write_lemma.
+(*
 {| vars := tyLProp :: tyLProp :: tyExpr :: tyExpr :: nil
  ; premises :=
      lentails tyLProp
@@ -161,6 +205,13 @@ Definition write_lemma : lemma typ (expr typ func) (expr typ func) :=
                      (lap tyNat tyHProp (lap tyNat (tyArr tyNat tyHProp) (lpure (tyArr tyNat (tyArr tyNat tyHProp)) fPtsTo) (feval_iexpr @ Var 2)) (feval_iexpr @ Var 3))
                      (Var 1))
  |}.
+*)
+
+(** Call **)
+Definition Call_lemma : lemma typ (expr typ func) (expr typ func).
+Abort.
+
+Definition solve_find_spec : stac typ (expr typ func) subst := FAIL.
 
 Definition solve_entailment :=
   THEN (SIMPLIFY (fun _ _ _ => beta_all simplify nil nil))
@@ -170,24 +221,23 @@ Definition all_cases : stac typ (expr typ func) subst :=
   REC 2 (fun rec =>
             let rec := rec in
             REPEAT 5
-                   (FIRST (   EAPPLY seq_assoc_lemma rec
-                           :: EAPPLY seq_lemma rec
-                           :: EAPPLY assign_lemma rec
-                           :: EAPPLY read_lemma solve_entailment
-                           :: EAPPLY write_lemma solve_entailment
-                           :: EAPPLY skip_lemma solve_entailment
-                           :: EAPPLY to_skip rec
+                   (FIRST (   EAPPLY SeqA_lemma rec
+                           :: EAPPLY Seq_lemma rec
+                           :: EAPPLY Assign_lemma rec
+                           :: EAPPLY Read_lemma solve_entailment
+                           :: EAPPLY Write_lemma solve_entailment
+                           :: EAPPLY Skip_lemma solve_entailment
+(*                           :: EAPPLY to_skip rec *)
                            :: nil)))
       (@FAIL _ _ _).
-      
-Print Result.
 
 Definition test :=
-  let vars := tyLProp :: tyCmd :: tyCmd :: tyCmd :: tyLProp :: nil in
+  let vars := tyLProp :: tyCmd :: tyCmd :: tyCmd :: tyLProp :: tySProp :: nil in
   let goal :=
-      mkTriple (Var 0)
-               (mkSeq (mkSeq (Var 1) (Var 2)) (Var 3))
-               (Var 4)
+      Syntax.lentails tySProp
+                      (Var 5) (mkTriple (Var 0)
+                                        (mkSeq (mkSeq (Var 1) (Var 2)) (Var 3))
+                                        (Var 4))
   in
   @all_cases nil vars (SubstI.empty (expr :=expr typ func)) nil goal.
 
@@ -204,6 +254,12 @@ Definition test' :=
   @all_cases uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
 
 Time Eval vm_compute in test'.
+
+Definition test_read_goal : expr typ func.
+
+Local Notation "a @ b" := (@App typ _ a b) (at level 30).
+Local Notation "'Ap' '[' x , y ']'" := (Inj (inl (inr (pAp x y)))) (at level 0).
+Local Notation "'Pure' '[' x ']'" := (Inj (inl (inr (pPure x)))) (at level 0).
 
 Definition test_read :=
   let uvars := tyLProp :: nil in
@@ -261,7 +317,7 @@ Definition test_swap :=
   let tac := all_cases in
   @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
 
-Time Eval vm_compute in test_swap.
+Eval vm_compute in test_swap.
 (** This is not the strongest post condition because we forgot the pure facts.
  ** This is likely a problem with the cancellation algorithm.
  **)

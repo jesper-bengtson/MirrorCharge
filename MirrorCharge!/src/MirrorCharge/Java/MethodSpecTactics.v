@@ -324,6 +324,9 @@ Fixpoint tripleE (c : cmd) : stac typ (expr typ func) subst :=
 	match c with
 	    | cskip => APPLY skip_lemma (apply_to_all (@IDTAC _ _ _))
 		| cseq c1 c2 => EAPPLY (seq_lemma c1 c2) (apply_to_all (FIRST (tripleE c1::tripleE c2::nil)))
+		| cassign x e => EAPPLY (assign_lemma x e) (apply_to_all (@IDTAC _ _ _))
+		| cread x y f => EAPPLY (read_lemma x y f) (apply_to_all (@IDTAC _ _ _))
+		| cwrite x f e => EAPPLY (write_lemma x f e) (apply_to_all (@IDTAC _ _ _))
 		| _ => @IDTAC _ _ _
 	end.
 

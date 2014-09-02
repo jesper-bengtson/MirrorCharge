@@ -16,6 +16,9 @@ Definition value := nat.
 Parameter iexpr : Type.
 Parameter iConst : value -> iexpr.
 Parameter iVar : var -> iexpr.
+Parameter iPlus : iexpr -> iexpr -> iexpr.
+Parameter iEq : iexpr -> iexpr -> iexpr.
+Parameter iLt : iexpr -> iexpr -> iexpr.
 
 Parameter icmd : Type.
 
@@ -45,6 +48,8 @@ Local Instance BILOps : BILOperators lprop :=
 Local Instance EmbedOp_Prop_HProp : EmbedOp Prop HProp. Admitted.
 Local Instance EmbedOp_HProp_lprop : EmbedOp HProp lprop :=
   @EmbedILFunDropOp HProp _ (@EmbedOpId _) _.
+Local Instance EmbedOp_Prop_SProp : EmbedOp Prop SProp. Admitted.
+
 
 Parameter eval_iexpr : iexpr -> locals -> value.
 
@@ -66,7 +71,7 @@ Parameter Skip : icmd.
 
 Axiom Skip_rule
 : forall G P Q,
-    P |-- Q ->
+    G |-- embed (P |-- Q) ->
     G |-- triple P Skip Q.
 
 (** Sequence **)
@@ -101,7 +106,7 @@ Parameter PtsTo : value -> value -> HProp.
 
 Axiom Read_rule
 : forall G (P : lprop) x e (v : locals -> value),
-    (P |-- ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr e)) v ** ltrue) ->
+    (G |-- embed (P |-- ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr e)) v ** ltrue)) ->
     G |-- triple P
                  (Read x e)
                  (fun l =>
@@ -119,6 +124,33 @@ Axiom Write_rule
            (Write p v)
            (ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr p)) (eval_iexpr v) ** Q).
 
+(** If **)
+Parameter If : iexpr -> icmd -> icmd -> icmd.
+
+Definition local_Prop_lprop (P : Fun locals Prop) : lprop :=
+  fun l => embed (P l).
+
+Definition exprProp (P : value -> Prop) (e : locals -> value) : lprop :=
+  local_Prop_lprop (fun l => P (e l)).
+
+Axiom If_rule
+: forall G (P Q : lprop) x c1 c2,
+    G |-- triple (P //\\ exprProp (fun v => v <> 0) (eval_iexpr x)) c1 Q ->
+    G |-- triple (P //\\ exprProp (fun v => v = 0) (eval_iexpr x)) c2 Q ->
+    G |-- triple P (If x c1 c2) Q.
+
+(** While **)
+Parameter While : iexpr -> icmd -> icmd.
+
+Axiom While_rule
+: forall G (P Q I : lprop) t c,
+    G |-- embed (P |-- I) ->
+    G |-- triple (I //\\ exprProp (fun v => v <> 0) (eval_iexpr t)) c I ->
+    G |-- embed (I //\\ exprProp (fun v => v = 0) (eval_iexpr t) |-- Q) ->
+    G |-- triple P (While t c) Q.
+
+(** Function Calls **)
+
 Definition function_name := string.
 
 Parameter Call : function_name -> iexpr -> icmd.
@@ -127,10 +159,10 @@ Axiom function_spec : function_name -> (nat -> lprop) -> (nat -> lprop) -> SProp
 
 Axiom Call_rule
 : forall G (P Q : lprop) (P' Q' : nat -> lprop) F f e v,
-    (P |-- ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr e)) v ** ltrue) ->
+    G |-- embed (P |-- ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr e)) v ** ltrue) ->
     G |-- function_spec f P' Q' -> (** Get the method spec **)
-    P |-- ap (T := Fun locals) (fun l v => P' v l) v ** F -> (* P |- P' ** F *)
-    ap (T := Fun locals) (fun l v => Q' v l) v ** F |-- Q -> (* Q' ** F |- Q *)
+    G |-- embed (P |-- ap (T := Fun locals) (fun l v => P' v l) v ** F) -> (* P |- P' ** F *)
+    G |-- embed (ap (T := Fun locals) (fun l v => Q' v l) v ** F |-- Q) -> (* Q' ** F |- Q *)
     G |-- triple P
                  (Call f e)
                  Q.
