@@ -258,7 +258,7 @@ Definition RS : SymI.RSym func :=
   SymSum.RSym_sum (SymSum.RSym_sum (SymEnv.RSym_func fs) _) _.
 Local Existing Instance RS.
 
-Let Expr_expr : ExprI.Expr _ (expr typ func) := Expr_expr _ _.
+Let Expr_expr : ExprI.Expr _ (expr typ func) := Expr_expr.
 Local Existing Instance Expr_expr.
 
 Definition subst : Type :=

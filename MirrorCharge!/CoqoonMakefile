@@ -35,11 +35,13 @@ OBJECTS = \
 	bin/MirrorCharge/Imp/SymEval2.vo \
 	bin/MirrorCharge/Imp/Syntax.vo \
 	bin/MirrorCharge/Iterated.vo \
+	bin/MirrorCharge/Java/Cancelation.vo \
 	bin/MirrorCharge/Java/EqTactics.vo \
 	bin/MirrorCharge/Java/ListTactics.vo \
 	bin/MirrorCharge/Java/MapTactics.vo \
 	bin/MirrorCharge/Java/MethodSpecTactics.vo \
 	bin/MirrorCharge/Java/ProgramTactics.vo \
+	bin/MirrorCharge/Java/Subst.vo \
 	bin/MirrorCharge/Java/Syntax.vo \
 	bin/MirrorCharge/MonadicCanceller.vo \
 	bin/MirrorCharge/OrderedCanceller.vo \
@@ -74,11 +76,13 @@ bin/MirrorCharge/Imp/SymEval.vo: src/MirrorCharge/Imp/SymEval.v bin/MirrorCharge
 bin/MirrorCharge/Imp/SymEval2.vo: src/MirrorCharge/Imp/SymEval2.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Imp/Imp.vo bin/MirrorCharge/Imp/Syntax.vo bin/MirrorCharge/Imp/STacSimplify.vo bin/MirrorCharge/Imp/STacCancelEx.vo
 bin/MirrorCharge/Imp/Syntax.vo: src/MirrorCharge/Imp/Syntax.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/Imp/Imp.vo
 bin/MirrorCharge/Iterated.vo: src/MirrorCharge/Iterated.v
+bin/MirrorCharge/Java/Cancelation.vo: src/MirrorCharge/Java/Cancelation.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalizeEx.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Java/Syntax.vo
 bin/MirrorCharge/Java/EqTactics.vo: src/MirrorCharge/Java/EqTactics.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Java/Syntax.vo
 bin/MirrorCharge/Java/ListTactics.vo: src/MirrorCharge/Java/ListTactics.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Java/EqTactics.vo bin/MirrorCharge/Java/Syntax.vo
 bin/MirrorCharge/Java/MapTactics.vo: src/MirrorCharge/Java/MapTactics.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Java/Syntax.vo
-bin/MirrorCharge/Java/MethodSpecTactics.vo: src/MirrorCharge/Java/MethodSpecTactics.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Java/Syntax.vo
+bin/MirrorCharge/Java/MethodSpecTactics.vo: src/MirrorCharge/Java/MethodSpecTactics.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Java/Cancelation.vo bin/MirrorCharge/Java/Syntax.vo bin/MirrorCharge/Java/Subst.vo
 bin/MirrorCharge/Java/ProgramTactics.vo: src/MirrorCharge/Java/ProgramTactics.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Java/Syntax.vo bin/MirrorCharge/Java/MapTactics.vo
+bin/MirrorCharge/Java/Subst.vo: src/MirrorCharge/Java/Subst.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/Java/Syntax.vo
 bin/MirrorCharge/Java/Syntax.vo: src/MirrorCharge/Java/Syntax.v bin/MirrorCharge/ILogicFunc.vo
 bin/MirrorCharge/MonadicCanceller.vo: src/MirrorCharge/MonadicCanceller.v bin/MirrorCharge/BILNormalize.vo
 bin/MirrorCharge/OrderedCanceller.vo: src/MirrorCharge/OrderedCanceller.v bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/Iterated.vo bin/MirrorCharge/SynSepLog.vo

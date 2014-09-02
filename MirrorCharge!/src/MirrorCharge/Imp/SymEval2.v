@@ -179,6 +179,8 @@ Definition all_cases : stac typ (expr typ func) subst :=
                            :: EAPPLY to_skip rec
                            :: nil)))
       (@FAIL _ _ _).
+      
+Print Result.
 
 Definition test :=
   let vars := tyLProp :: tyCmd :: tyCmd :: tyCmd :: tyLProp :: nil in
@@ -259,7 +261,7 @@ Definition test_swap :=
   let tac := all_cases in
   @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
 
-Eval vm_compute in test_swap.
+Time Eval vm_compute in test_swap.
 (** This is not the strongest post condition because we forgot the pure facts.
  ** This is likely a problem with the cancellation algorithm.
  **)
