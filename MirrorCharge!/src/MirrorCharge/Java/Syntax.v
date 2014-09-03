@@ -173,6 +173,7 @@ Inductive java_func :=
 | pSetFoldFun 
 
 | pStar (_ : typ)
+| pEmp (_ : typ)
 | pLater (_ : typ)
 | pPointsto
 
@@ -187,7 +188,9 @@ Inductive java_func :=
 | pNilExprList
 
 | pLengthVarList
-| pLengthExprList.
+| pLengthExprList
+
+| pNull.
 
 Definition func := (SymEnv.func + java_func + ilfunc typ)%type.
 
@@ -217,6 +220,10 @@ Definition typeof_sym_java (f : java_func) : option typ :=
     | pStar tyAsn => Some (tyArr tyAsn (tyArr tyAsn tyAsn))
     | pStar _ => None
     
+    | pEmp tySasn => Some tySasn
+    | pEmp tyAsn => Some tyAsn
+    | pEmp _ => None
+
     | pLater tySpec => Some (tyArr tySpec tySpec)
     | pLater _ => None
     
@@ -241,6 +248,7 @@ Definition typeof_sym_java (f : java_func) : option typ :=
     
     | pLengthVarList => Some (tyArr tyVarList tyNat)
     | pLengthExprList => Some (tyArr tyExprList tyNat)
+    | pNull => Some tyVal
     end.
     
 Fixpoint beq_list {A} (f : A -> A -> bool) (xs ys : list A) :=
@@ -267,6 +275,7 @@ Definition java_func_eq (a b : java_func) : option bool :=
     | pStackSet, pStackSet => Some true
     | pTriple, pTriple => Some true
     | pStar t, pStar u => Some (t ?[ eq ] u)
+    | pEmp t, pEmp u => Some (t ?[ eq ] u)
     | pLater t, pLater u => Some (t ?[ eq ] u)
     | pPointsto, pPointsto => Some true
     | pFieldLookup, pFieldLookup => Some true
@@ -289,6 +298,8 @@ Definition java_func_eq (a b : java_func) : option bool :=
     
     | pLengthVarList, pLengthVarList => Some true
     | pLengthExprList, pLengthExprList => Some true
+    
+    | pNull, pNull => Some true
     | _, _ => None
   end.
 
@@ -330,6 +341,10 @@ Instance RSym_imp_func : SymI.RSym java_func :=
               | pStar tyAsn => @sepSP _ BILOperatorsAsn
               | pStar _ => tt
               
+              | pEmp tySasn => @empSP _ BILOperatorsSAsn
+              | pEmp tyAsn => @empSP _ BILOperatorsAsn
+              | pEmp _ => tt
+              
               | pLater tySpec => @illater _ _
               | pLater _ => tt
               
@@ -351,6 +366,8 @@ Instance RSym_imp_func : SymI.RSym java_func :=
               
               | pLengthVarList => @length string
               | pLengthExprList => @length Open.expr
+              
+              | pNull => null
             end
 ; sym_eqb := java_func_eq
 }.
@@ -414,7 +431,7 @@ Proof.
 	admit.
 Qed.
 
-Let Expr_expr : ExprI.Expr _ (expr typ func) := Expr_expr _ _.
+Let Expr_expr : ExprI.Expr _ (expr typ func) := Expr_expr.
 Let Expr_ok : @ExprI.ExprOk typ RType_typ (expr typ func) Expr_expr := ExprOk_expr nil.
 Local Existing Instance Expr_expr.
 Local Existing Instance Expr_ok.
@@ -454,6 +471,7 @@ Notation "'fTypeOf'" := (Inj (inl (inr pTypeOf))).
 
 Definition fApplySubst t : expr typ func := Inj (inl (inr (pApplySubst t))).
 Definition fPointsto : expr typ func := Inj (inl (inr (pPointsto))).
+Definition fNull : expr typ func := Inj (inl (inr pNull)).
 
 Notation "'mkAp' '[' t ',' u ',' a ',' b ']'" := (App (App (fAp [t, u]) a) b) (at level 0).
 Notation "'mkMethodSpec' '[' C ',' m ',' args ',' r ',' p ',' q ']'" := 
@@ -487,25 +505,23 @@ Notation "'mkLengthVarList' '[' lst ']'" := (App fLengthVarList lst).
 Notation "'mkLengthExprList' '[' lst ']'" := (App fLengthExprList lst).
 
 Notation "'mkEq' '[' t ',' a ',' b ']'" := (App (App (fEq [t]) a) b).
-	
-Definition lexists (l t : typ) (e : expr typ func) : expr typ func :=
-  App (Inj (inr (ilf_exists t l))) (Abs t e).
-Definition land (l : typ) (e e' : expr typ func) : expr typ func :=
-  App (App (Inj (inr (ilf_and l))) e) e'.
-Definition ltrue (l : typ) : expr typ func :=
-  Inj (inr (ilf_true l)).
-Definition lfalse (l : typ) : expr typ func :=
-  Inj (inr (ilf_false l)).
-Notation "'mkEntails' '[' l ',' a ',' b ']'" := (App (App (Inj (inr (ilf_entails l))) a) b) (at level 0).
-Definition limpl (l : typ) (e e' : expr typ func) : expr typ func :=
-  App (App (Inj (inr (ilf_impl l))) e) e'.
-Definition lor (l : typ) (e e' : expr typ func) : expr typ func :=
-  App (App (Inj (inr (ilf_or l))) e) e'.
+
+Notation "'mkExists' '[' l ',' t ',' e ']'" := (App (Inj (inr (ilf_exists t l))) (Abs t e)).
+Notation "'mkForall' '[' l ',' t ',' e ']'" := (App (Inj (inr (ilf_forall t l))) (Abs t e)).
+Notation "'mkAnd' '[' t ',' p ',' q ']'" := (App (App (Inj (inr (ilf_and t))) p) q).
+Notation "'mkOr' '[' t ',' p ',' q ']'" := (App (App (Inj (inr (ilf_or t))) p) q).
+Notation "'mkImpl' '[' t ',' p ',' q ']'" := (App (App (Inj (inr (ilf_impl t))) p) q).
+Notation "'mkTrue' '[' t ']'" := (Inj (inr (ilf_true t))).
+Notation "'mkFalse' '[' t ']'" := (Inj (inr (ilf_false t))).
+Notation "'mkNot' '[' t ',' p ']'" := (mkImpl [t, p, mkFalse [t]]).
+Notation "'mkEntails' '[' t ',' p ',' q ']'" := (App (App (Inj (inr (ilf_entails t))) p) q).
+
 Definition lembed (f t : typ) (e : expr typ func) : expr typ func :=
   App (Inj (inr (ilf_embed f t))) e.
-Definition lnot (t : typ) (e : expr typ func) : expr typ func := limpl t e (lfalse t).
-Definition lstackGet (x s : expr typ func) := App (App fstack_get x) s.
+Notation "'mkStackGet' '[' x ',' s ']'"  := (App (App fstack_get x) s).
 Definition lstackSet (x v s : expr typ func) := App (App (App fstack_set x) v) s.
+
+Notation "'mkApplySubst' '[' t ',' P ',' s ']'" := (App (App (Inj (inl (inr (pApplySubst t)))) P) s).
 
 Notation "'mkSingleSubst' '[' t ',' P ',' x ',' e ']'" := (App (App (Inj (inl (inr (pApplySubst t)))) P) 
                                                                (App (App (Inj (inl (inr pSingleSubst))) e) x)) (at level 0).
@@ -518,8 +534,10 @@ Notation "'mkSubstList' '[' vs ',' es ']'" := (App (App (Inj (inl (inr pZipSubst
 
 Notation "'mkSubstExprList' '[' lst ',' x ',' v ']'" := (fold_right (fun e acc => mkConsExprList [mkSingleSubst[tyVal, App fEval (mkExpr [e]), x, v], acc]) mkNilExprList lst).
 
-Definition lstar (l : typ) (e e' : expr typ func) : expr typ func :=
-  App (App (Inj (inl (inr (pStar l)))) e) e'.
+Notation "'mkNull'" := (Inj (inl (inr pnull))).
+
+Notation "'mkStar' '[' l ',' p ',' q ']'" := (App (App (Inj (inl (inr (pStar l)))) p) q).
+Notation "'mkEmp' '[' l ']'" := (Inj (inl (inr (pEmp l)))).
 Definition lpointsto (v f v' : expr typ func) := 
 	App (App (App fPointsto v) f) v'.
 
