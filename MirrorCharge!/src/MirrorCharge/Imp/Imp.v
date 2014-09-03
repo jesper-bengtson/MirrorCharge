@@ -63,7 +63,7 @@ Axiom triple_exL
 
 Axiom triple_pureL
 : forall (P : Prop) G c Q R,
-    (P -> G |-- triple Q c R) ->
+    (G //\\ embed P |-- triple Q c R) ->
     G |-- triple (land (embed (embed P)) Q) c R.
 
 (** Skip **)

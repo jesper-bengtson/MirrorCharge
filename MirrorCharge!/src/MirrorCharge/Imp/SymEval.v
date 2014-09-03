@@ -128,6 +128,17 @@ Definition SeqA_lemma : lemma typ (expr typ func) (expr typ func).
 reify_lemma SeqA_rule.
 Defined.
 
+(** Pull Existential **)
+Definition triple_exL_lemma : lemma typ (expr typ func) (expr typ func).
+reify_lemma triple_exL.
+Defined.
+Print triple_exL_lemma.
+
+Definition triple_pureL_lemma : lemma typ (expr typ func) (expr typ func).
+reify_lemma triple_pureL.
+Defined.
+Print triple_pureL_lemma.
+
 (** Assignment **)
 Definition Assign_lemma : lemma typ (expr typ func) (expr typ func).
 reify_lemma Assign_rule.
