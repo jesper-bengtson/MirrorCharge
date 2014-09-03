@@ -1,8 +1,11 @@
+(* Commented out until Ext works again *)
+(* 
+ 
 Require Import ExtLib.Core.RelDec.
 Require Import ExtLib.Tactics.
 Require Import MirrorCore.SymI.
 Require Import MirrorCore.EnvI.
-Require Import MirrorCore.Subst.RawSubst2.
+Require Import MirrorCore.Subst.RawSubst.
 Require Import MirrorCore.Ext.Expr.
 Require Import MirrorCore.Ext.ExprUnifySyntactic.
 Require Import MirrorCore.Subst.FMapSubst.
@@ -636,3 +639,5 @@ Proof.
   Grab Existential Variables.
   eapply CSLok.
 Qed.
+
+*)

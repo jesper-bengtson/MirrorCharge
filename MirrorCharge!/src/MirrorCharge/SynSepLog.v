@@ -5,23 +5,30 @@ Require Import ExtLib.Tactics.
 Require Import BILogic ILogic Pure.
 Require Import MirrorCore.EnvI.
 Require Import MirrorCore.SymI.
+Require Import MirrorCore.TypesI.
+Require Import MirrorCore.ExprI.
+Require Import MirrorCore.Lambda.Expr.
+(*
 Require Import MirrorCore.Ext.Expr.
 Require Import MirrorCore.ExprSem.
+*)
 Require Import SepLogFold.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
 Section syn_sep_log.
-  Variable ts : types.
+  Variable typ : Type.
+  Variable RType_typ : RType typ.
+  Variable Typ2_Fun : Typ2 _ Fun.
   Variable sym : Type.
-  Variable RSym_sym : RSym (typD ts) sym.
+  Variable RSym_sym : RSym sym.
 
   Variable SL : typ.
 
-  Variable SLS : SepLogSpec sym.
-  Variable ILO : ILogicOps (typD ts nil SL).
-  Variable BILO : BILOperators (typD ts nil SL).
+  Variable SLS : SepLogSpec typ sym.
+  Variable ILO : ILogicOps (typD nil SL).
+  Variable BILO : BILOperators (typD nil SL).
   Variable IL : @ILogic _ ILO.
   Variable BIL : @BILogic _ ILO BILO.
 
@@ -29,13 +36,13 @@ Section syn_sep_log.
    ** It is the only piece here that requires that I be in [Ext.expr] rather
    ** than an arbitrary [expr].
    **)
-  Variable slsok : SepLogSpecOk RSym_sym SL SLS ILO BILO.
+  Variable slsok : SepLogSpecOk _ RSym_sym SL SLS ILO BILO.
 
   Record SynSepLog : Type :=
-  { e_star : expr sym -> expr sym -> expr sym
-  ; e_and : expr sym -> expr sym -> expr sym
-  ; e_emp : expr sym
-  ; e_true : expr sym
+  { e_star : expr typ sym -> expr typ sym -> expr typ sym
+  ; e_and : expr typ sym -> expr typ sym -> expr typ sym
+  ; e_emp : expr typ sym
+  ; e_true : expr typ sym
   }.
 
   Variable SSL : SynSepLog.
@@ -43,35 +50,35 @@ Section syn_sep_log.
   Record SynSepLogOk : Type :=
   { e_empOk : forall tus tvs,
               exists val,
-                exprD' tus tvs SSL.(e_emp) SL = Some val /\
+                exprD' nil tus tvs SL SSL.(e_emp) = Some val /\
                 forall us vs, val us vs -|- empSP
   ; e_trueOk : forall tus tvs,
                exists val,
-                 exprD' tus tvs SSL.(e_true) SL = Some val /\
+                 exprD' nil tus tvs SL SSL.(e_true) = Some val /\
                  forall us vs, val us vs -|- ltrue
   ; e_starOk : forall tus tvs x y valx valy,
-                 exprD' tus tvs x SL = Some valx ->
-                 exprD' tus tvs y SL = Some valy ->
+                 exprD' nil tus tvs SL x = Some valx ->
+                 exprD' nil tus tvs SL y = Some valy ->
                  exists val,
-                   exprD' tus tvs (SSL.(e_star) x y) SL = Some val /\
+                   exprD' nil tus tvs SL (SSL.(e_star) x y) = Some val /\
                    forall us vs, val us vs -|- valx us vs ** valy us vs
   ; e_starValid : forall tus tvs x y val,
-                    exprD' tus tvs (SSL.(e_star) x y) SL = Some val ->
+                    exprD' nil tus tvs SL (SSL.(e_star) x y) = Some val ->
                     exists valx valy,
-                      exprD' tus tvs x SL = Some valx /\
-                      exprD' tus tvs y SL = Some valy /\
+                      exprD' nil tus tvs SL x = Some valx /\
+                      exprD' nil tus tvs SL y = Some valy /\
                       forall us vs, val us vs -|- valx us vs ** valy us vs
   ; e_andOk : forall tus tvs x y valx valy,
-                exprD' tus tvs x SL = Some valx ->
-                exprD' tus tvs y SL = Some valy ->
+                exprD' nil tus tvs SL x = Some valx ->
+                exprD' nil tus tvs SL y = Some valy ->
                 exists val,
-                  exprD' tus tvs (SSL.(e_and) x y) SL = Some val /\
+                  exprD' nil tus tvs SL (SSL.(e_and) x y) = Some val /\
                   forall us vs, val us vs -|- valx us vs //\\ valy us vs
   ; e_andValid : forall tus tvs x y val,
-                   exprD' tus tvs (SSL.(e_and) x y) SL = Some val ->
+                   exprD' nil tus tvs SL (SSL.(e_and) x y) = Some val ->
                    exists valx valy,
-                     exprD' tus tvs x SL = Some valx /\
-                     exprD' tus tvs y SL = Some valy /\
+                     exprD' nil tus tvs SL x = Some valx /\
+                     exprD' nil tus tvs SL y = Some valy /\
                      forall us vs, val us vs -|- valx us vs //\\ valy us vs
   }.
 
@@ -90,6 +97,7 @@ Section syn_sep_log.
              | H : _ /\ _ |- _ => destruct H
            end.
 
+(*
   (** Primed versions **)
   Lemma exprD'_e_andOk_None1
   : forall us tvs x y,
@@ -609,9 +617,10 @@ Section syn_sep_log.
     Cases.rewrite_all_goal.
     rewrite empSPR. reflexivity.
   Qed.
-
+*)
 End syn_sep_log.
 
+(*
 (** Ltac's local to a section are not re-introduced **)
 Ltac go_crazy SSL SSLO :=
   match goal with
@@ -690,3 +699,4 @@ Ltac go_crazy SSL SSLO :=
             | apply (@exprD_e_star_None _ _ _ _ _ _ _ _ SSLO) in H; destruct H; try congruence
             | apply (@exprD_e_and_None _ _ _ _ _ _ _ _ SSLO) in H; destruct H; try congruence ]
   end.
+*)
