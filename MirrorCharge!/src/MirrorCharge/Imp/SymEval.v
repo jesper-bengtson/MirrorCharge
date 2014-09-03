@@ -22,6 +22,7 @@ Require Import MirrorCharge.BILNormalize.
 Require Import MirrorCharge.SynSepLog.
 Require Import MirrorCharge.SepLogFold.
 Require MirrorCharge.Imp.Reify.
+Require Import MirrorCharge.Imp.Reify.
 Require Import MirrorCharge.Imp.Imp.
 Require Import MirrorCharge.Imp.Syntax.
 Require Import MirrorCharge.Imp.STacSimplify.
@@ -256,6 +257,9 @@ Definition test' :=
 Time Eval vm_compute in test'.
 
 Definition test_read_goal : expr typ func.
+  Print Ltac reify_imp.
+  reify_imp (True).
+
 
 Local Notation "a @ b" := (@App typ _ a b) (at level 30).
 Local Notation "'Ap' '[' x , y ']'" := (Inj (inl (inr (pAp x y)))) (at level 0).

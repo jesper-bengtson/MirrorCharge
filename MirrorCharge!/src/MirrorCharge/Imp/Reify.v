@@ -7,8 +7,8 @@ Reify Declare Patterns patterns_imp_typ := Syntax.typ.
 Reify Declare Patterns patterns_imp := (ExprCore.expr Syntax.typ Syntax.func).
 
 Reify Declare Syntax reify_imp_typ :=
-  { (@Patterns Syntax.typ patterns_imp_typ
-     (@Fail Syntax.typ))
+  { (@Patterns.CPatterns Syntax.typ patterns_imp_typ
+     (@Patterns.CFail Syntax.typ))
   }.
 
 
@@ -17,12 +17,12 @@ Reify Declare Typed Table term_table : BinNums.positive => reify_imp_typ.
 Let Ext x := @ExprCore.Inj Syntax.typ Syntax.func (inl (inl x)).
 
 Reify Declare Syntax reify_imp :=
-  { (@Patterns _ patterns_imp
-    (@App _ (@ExprCore.App Syntax.typ Syntax.func)
-    (@Abs _ reify_imp_typ (@ExprCore.Abs Syntax.typ Syntax.func)
-    (@Var _ (@ExprCore.Var Syntax.typ Syntax.func)
-    (@TypedTable _ _ _ term_table Ext
-    (@Fail (ExprCore.expr Syntax.typ Syntax.func)))))))
+  { (@Patterns.CPatterns _ patterns_imp
+    (@Patterns.CApp _ (@ExprCore.App Syntax.typ Syntax.func)
+    (@Patterns.CAbs _ reify_imp_typ (@ExprCore.Abs Syntax.typ Syntax.func)
+    (@Patterns.CVar _ (@ExprCore.Var Syntax.typ Syntax.func)
+    (@Patterns.CTypedTable _ _ _ term_table Ext
+    (@Patterns.CFail (ExprCore.expr Syntax.typ Syntax.func)))))))
   }.
 
 Let _Inj := @ExprCore.Inj Syntax.typ Syntax.func.
@@ -32,7 +32,6 @@ Local Notation "'!!' x" := (@RExact _ x) (only parsing, at level 25).
 Local Notation "'?' n" := (@RGet n RIgnore) (only parsing, at level 25).
 Local Notation "'?!' n" := (@RGet n RConst) (only parsing, at level 25).
 Local Notation "'#'" := RIgnore (only parsing, at level 0).
-
 
 Reify Pattern patterns_imp_typ += (@RImpl (?0) (?1)) => (fun (a b : function reify_imp_typ) => tyArr a b).
 Reify Pattern patterns_imp_typ += (!! locals)  => tyLocals.
