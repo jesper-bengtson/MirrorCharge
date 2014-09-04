@@ -1,9 +1,18 @@
+Require Import Coq.Strings.String.
+
+Require Import Charge.Open.Stack.
+Require Import Charge.Open.Subst.
 Require Import Charge.Open.Open.
 Require Import Charge.Logics.Later.
 Require Import Charge.Logics.BILogic.
+
 Require Import Java.Language.Lang.
 Require Import Java.Logic.AssertionLogic.
-Require Import Coq.Strings.String.
+Require Import Java.Logic.SpecLogic.
+Require Import Java.Logic.AssertionLogic.
+Require Import Java.Semantics.OperationalSemantics.
+Require Import Java.Language.Program.
+Require Import Java.Language.Lang.
 
 Require Import ExtLib.Core.RelDec.
 Require Import ExtLib.Data.String.
@@ -17,16 +26,6 @@ Require Import MirrorCore.Lambda.ExprSubst.
 Require Import MirrorCore.Lambda.ExprUnify_simul.
 Require Import MirrorCharge.ILogicFunc.
 Require Import ExtLib.Structures.Applicative.
-
-Require Import Charge.Open.Stack.
-
-Require Import Java.Logic.SpecLogic.
-Require Import Java.Logic.AssertionLogic.
-Require Import Java.Semantics.OperationalSemantics.
-Require Import Java.Language.Program.
-Require Import Java.Language.Lang.
-
-Require Import Charge.Open.Subst.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -87,6 +86,16 @@ Fixpoint type_cast_typ (a b : typ) : option (a = b) :=
 	| tyExprList, tyExprList => Some eq_refl
     | _, _ => None
   end.
+  
+Lemma type_cast_typ_sound (a b : typ) :
+	(exists pf, type_cast_typ a b = Some pf) <->
+	a = b.
+Proof.
+  split; intros H.
+  + destruct a, b; destruct H as [x _]; inversion x; subst; reflexivity.
+  + subst. exists eq_refl. induction b; try reflexivity.
+    simpl. rewrite IHb1, IHb2. reflexivity.
+Qed.
 
 Instance RelDec_eq_typ : RelDec (@eq typ) :=
 { rel_dec := fun a b => match type_cast_typ a b with
@@ -94,12 +103,28 @@ Instance RelDec_eq_typ : RelDec (@eq typ) :=
                           | Some _ => true
                         end }.
 
+Lemma type_cast_typ_refl (a : typ) : type_cast_typ a a = Some eq_refl.
+Proof.
+  induction a; simpl; try reflexivity.
+  rewrite IHa1, IHa2; reflexivity.
+Qed.
+
+Instance RelDec_correct_typ : RelDec_Correct RelDec_eq_typ.
+Proof.
+	split; intros x y.
+	destruct x, y; simpl; split; intro H; inversion H; subst; try reflexivity.
+	+ remember (type_cast_typ x1 y1); destruct o; subst; [|inversion H].
+	  remember (type_cast_typ x2 y2); destruct o; subst; [|inversion H].
+	  reflexivity.
+	+ do 2 rewrite type_cast_typ_refl; reflexivity.
+Qed.
+
 Fixpoint typD (ls : list Type) (t : typ) : Type :=
   match t with
     | tyArr a b => typD ls a -> typD ls b
     | tyVarList => @list string
-    | tyExprList => @list (@Open.expr var SVal)
-    | tySubstList => @list (Lang.var * (@Open.expr var SVal))
+    | tyExprList => @list (@Open.expr (Lang.var) SVal)
+    | tySubstList => @list (Lang.var * (@Open.expr (Lang.var) SVal))
     | tyProp => Prop
     | tyNat => nat
     | tySpec => spec
@@ -111,7 +136,7 @@ Fixpoint typD (ls : list Type) (t : typ) : Type :=
     | tyCmd => cmd
     | tyFields => SS.t
     | tyExpr => dexpr
-    | tySubst => @Subst.subst var SVal
+    | tySubst => @Subst.subst (Lang.var) SVal
   end.
    
 Inductive tyAcc_typ : typ -> typ -> Prop :=
@@ -261,19 +286,27 @@ Fixpoint beq_list {A} (f : A -> A -> bool) (xs ys : list A) :=
 Definition java_func_eq (a b : java_func) : option bool :=
   match a , b with
     | pString a, pString b => Some (a ?[ eq ] b)
+	| pVal a, pVal b => Some (beq_val a b)
+    | pVarList a, pVarList b => Some (beq_list beq_string a b)
+    | pProg a, pProg b => Some true (* THIS IS FALSE! We need an equivalence checker for programs. This should just be syntactic equality. *)
     | pCmd a, pCmd b => Some (beq_cmd a b)
     | pExpr e1, pExpr e2 => Some (beq_dexpr e1 e2)
-    | pProg a, pProg b => Some true (* THIS IS FALSE! We need an equivalence checker for programs. This should just be syntactic equality. *)
-    | pFields a, pFields b => Some (SS.equal a b)
     | pEq a , pEq b => Some (a ?[ eq ] b)
+    | pFields a, pFields b => Some (SS.equal a b)
         
     | pAp t u , pAp t' u' => Some (t ?[ eq ] t' && u ?[ eq ] u')%bool
     | pConst t, pConst u => Some (t ?[ eq ] u)
+    | pApplySubst t, pApplySubst u => Some (t ?[ eq ] u)            
     | pMethodSpec, pMethodSpec => Some true
     | pProgEq, pProgEq => Some true
+	| pTriple, pTriple => Some true
+
+    | pTypeOf, pTypeOf => Some true
+
     | pStackGet, pStackGet => Some true
     | pStackSet, pStackSet => Some true
-    | pTriple, pTriple => Some true
+	| pEval, pEval => Some true
+
     | pStar t, pStar u => Some (t ?[ eq ] u)
     | pEmp t, pEmp u => Some (t ?[ eq ] u)
     | pLater t, pLater u => Some (t ?[ eq ] u)
@@ -281,11 +314,7 @@ Definition java_func_eq (a b : java_func) : option bool :=
     | pFieldLookup, pFieldLookup => Some true
     | pSetFold, pSetFold => Some true
     | pSetFoldFun, pSetFoldFun => Some true
-    | pTypeOf, pTypeOf => Some true
-    
-    | pVarList a, pVarList b => Some (beq_list beq_string a b)
-    
-    | pApplySubst t, pApplySubst u => Some (t ?[ eq ] u)            
+        
     | pZipSubst, pZipSubst => Some true
     | pSubst, pSubst => Some true
     | pTruncSubst, pTruncSubst => Some true
@@ -303,8 +332,21 @@ Definition java_func_eq (a b : java_func) : option bool :=
     | _, _ => None
   end.
 
-Definition set_fold_fun (x : var) (f : field) (P : sasn) :=
+Definition java_func_eq_sound a b :
+	java_func_eq a b = Some true <-> a = b.
+Proof.
+  split; intros H.
+  + destruct a, b; simpl in *; inversion H; subst; clear H;
+  	(try rewrite rel_dec_correct in H1); subst; try reflexivity; admit.
+  + subst.
+  	destruct b; simpl; try reflexivity; f_equal; 
+  		try (apply rel_dec_eq_true; [apply _ | reflexivity]); admit.
+Qed.
+
+Definition set_fold_fun (x : Lang.var) (f : field) (P : sasn) :=
 	(`pointsto) (x/V) `f `null ** P.
+
+Definition stack_get (x : string) (s : stack) := s x.
 
 Instance RSym_imp_func : SymI.RSym java_func :=
 { typeof_sym := typeof_sym_java
@@ -327,22 +369,22 @@ Instance RSym_imp_func : SymI.RSym java_func :=
               | pConst t => @Applicative.pure (Fun stack) (Applicative_Fun _) (typD ts t)
               | pMethodSpec => method_spec
               | pProgEq => prog_eq
-              | pStackGet => fun x s => s x
+              | pStackGet => stack_get
               | pStackSet => stack_add
               
-              | pApplySubst t => @apply_subst var SVal (typD ts t)
+              | pApplySubst t => @apply_subst (Lang.var) SVal (typD ts t)
               
               | pTriple => triple
               | pEval => eval
               
               | pTypeOf => typeof
               
-              | pStar tySasn => @sepSP _ BILOperatorsSAsn
-              | pStar tyAsn => @sepSP _ BILOperatorsAsn
+              | pStar tySasn => @sepSP _ _
+              | pStar tyAsn => @sepSP _ _
               | pStar _ => tt
               
-              | pEmp tySasn => @empSP _ BILOperatorsSAsn
-              | pEmp tyAsn => @empSP _ BILOperatorsAsn
+              | pEmp tySasn => @empSP _ _
+              | pEmp tyAsn => @empSP _ _
               | pEmp _ => tt
               
               | pLater tySpec => @illater _ _
@@ -355,9 +397,9 @@ Instance RSym_imp_func : SymI.RSym java_func :=
               | pPointsto => pointsto
               
               | pZipSubst => zip
-              | pSubst => @substl_aux  var _ SVal
-              | pTruncSubst => @substl_trunc_aux var _ SVal
-              | pSingleSubst => @subst1 var _ SVal
+              | pSubst => @substl_aux  Lang.var _ SVal
+              | pTruncSubst => @substl_trunc_aux Lang.var _ SVal
+              | pSingleSubst => @subst1 Lang.var _ SVal
               
               | pConsVarList => @cons string
               | pNilVarList => @nil string
@@ -431,7 +473,7 @@ Proof.
 	admit.
 Qed.
 
-Let Expr_expr : ExprI.Expr _ (expr typ func) := Expr_expr.
+Let Expr_expr : ExprI.Expr _ (expr typ func) := @Expr_expr typ func _ _ _.
 Let Expr_ok : @ExprI.ExprOk typ RType_typ (expr typ func) Expr_expr := ExprOk_expr nil.
 Local Existing Instance Expr_expr.
 Local Existing Instance Expr_ok.
@@ -449,6 +491,66 @@ Local Existing Instance SS.
 Local Existing Instance SU.
 Local Existing Instance SO.
 
+Definition fMethodSpec : expr typ func := Inj (inl (inr pMethodSpec)).
+Definition fProgEq : expr typ func := Inj (inl (inr pProgEq)).
+Definition fTriple : expr typ func := Inj (inl (inr pTriple)).
+Definition fEval : expr typ func := Inj (inl (inr pEval)).
+
+Definition fEq t : expr typ func := Inj (inl (inr (pEq t))).
+Definition fAp t u : expr typ func := Inj (inl (inr (pAp t u))).
+Definition fConst t : expr typ func := Inj (inl (inr (pConst t))).
+Definition fStackGet : expr typ func := Inj (inl (inr pStackGet)).
+Definition fStackSet : expr typ func := Inj (inl (inr pStackSet)).
+
+Definition fFieldLookup : expr typ func := Inj (inl (inr pFieldLookup)).
+Definition fSetFold : expr typ func := Inj (inl (inr pSetFold)).
+Definition fSetFoldFun : expr typ func := Inj (inl (inr pSetFoldFun)).
+
+Definition fLengthVarList : expr typ func := Inj (inl (inr pLengthVarList)).
+Definition fLengthExprList : expr typ func := Inj (inl (inr pLengthExprList)).
+
+Definition fTypeOf : expr typ func := Inj (inl (inr pTypeOf)).
+
+Definition fApplySubst t : expr typ func := Inj (inl (inr (pApplySubst t))).
+Definition fPointsto : expr typ func := Inj (inl (inr (pPointsto))).
+Definition fNull : expr typ func := Inj (inl (inr pNull)).
+
+Definition fNilVarList : expr typ func := Inj (inl (inr pNilVarList)).
+Definition fNilExprList : expr typ func := Inj (inl (inr pNilExprList)).
+Definition fConsVarList : expr typ func:= Inj (inl (inr pConsVarList)).
+Definition fConsExprList : expr typ func:= Inj (inl (inr pConsExprList)).
+	
+Definition fVal v : expr typ func := Inj (inl (inr (pVal v))).
+Definition fVarList lst : expr typ func := Inj (inl (inr (pVarList lst))).
+
+Definition fString s : expr typ func:= Inj (inl (inr (pString s))).
+Definition fProg P : expr typ func:= Inj (inl (inr (pProg P))).
+
+Definition fCmd c : expr typ func := Inj (inl (inr (pCmd c))).
+Definition fExpr e : expr typ func := Inj (inl (inr (pExpr e))).
+Definition fFields fs : expr typ func := Inj (inl (inr (pFields fs))).
+
+Definition fExprList lst : expr typ func := fold_right (fun e acc => App (App fConsExprList (App fEval (fExpr e))) acc) fNilExprList lst.
+
+Definition fExists l t : expr typ func := Inj (inr (ilf_exists l t)).
+Definition fForall l t : expr typ func := Inj (inr (ilf_forall l t)).
+Definition fAnd l : expr typ func := Inj (inr (ilf_and l)).
+Definition fOr l : expr typ func := Inj (inr (ilf_or l)).
+Definition fImpl l : expr typ func := Inj (inr (ilf_impl l)).
+Definition fTrue l : expr typ func := Inj (inr (ilf_true l)).
+Definition fFalse l : expr typ func := Inj (inr (ilf_false l)).
+Definition fEntails l : expr typ func := Inj (inr (ilf_entails l)).
+
+Definition fEmbed (f t : typ) : expr typ func := Inj (inr (ilf_embed f t)).
+
+Definition fSingleSubst : expr typ func := Inj (inl (inr pSingleSubst)).
+Definition fSubst : expr typ func := Inj (inl (inr pSubst)).
+Definition fTruncSubst : expr typ func := Inj (inl (inr pTruncSubst)).
+                                                         
+Definition fStar l : expr typ func := Inj (inl (inr (pStar l))).
+Definition fEmp l : expr typ func:= Inj (inl (inr (pEmp l))).
+	
+	(*
 Notation "'fMethodSpec'" := (Inj (inl (inr pMethodSpec))) (at level 0).
 Notation "'fProgEq'" := (Inj (inl (inr pProgEq))) (at level 0).
 Notation "'fTriple'" := (Inj (inl (inr pTriple))) (at level 0).
@@ -540,7 +642,7 @@ Notation "'mkStar' '[' l ',' p ',' q ']'" := (App (App (Inj (inl (inr (pStar l))
 Notation "'mkEmp' '[' l ']'" := (Inj (inl (inr (pEmp l)))).
 Definition lpointsto (v f v' : expr typ func) := 
 	App (App (App fPointsto v) f) v'.
-
+*)
 Definition test_lemma :=
   @lemmaD typ RType_typ (expr typ func) Expr_expr (expr typ func)
           (fun tus tvs e => exprD' nil tus tvs tyProp e)

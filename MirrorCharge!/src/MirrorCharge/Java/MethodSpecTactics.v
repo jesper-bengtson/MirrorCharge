@@ -4,11 +4,11 @@ Require Import ExtLib.Core.RelDec.
 Require Import ExtLib.Data.String.
 Require Import ExtLib.Data.Nat.
 Require Import ExtLib.Data.HList.
-Require Import MirrorCore.Lemma.  
-Require Import MirrorCore.TypesI. 
+Require Import MirrorCore.Lemma.
+Require Import MirrorCore.TypesI.
 Require Import MirrorCore.Lambda.Expr.
 Require Import MirrorCore.STac.STac.
-Require Import MirrorCore.provers.DefaultProver. 
+Require Import MirrorCore.provers.DefaultProver.
 Require MirrorCore.syms.SymEnv.
 Require MirrorCore.syms.SymSum.
 Require Import MirrorCore.Subst.FMapSubst.
@@ -25,8 +25,15 @@ Require Import MirrorCharge.SynSepLog.
 Require Import MirrorCharge.SepLogFold.
 Require Import MirrorCharge.Java.Cancelation.
 Require Import MirrorCharge.Java.Syntax.
+
+Require Import MirrorCore.Reify.Reify.
+
+Require Import MirrorCharge.Java.Reify.
+
+(*
 Require Import MirrorCharge.Java.Subst.
- 
+*)
+
 Require Import Java.Language.Lang.
 Require Import Java.Language.Program.
  
@@ -60,6 +67,7 @@ Fixpoint search_NoDup
 Definition list_notin_set lst s :=
   	fold_right (fun a acc => andb (SS.for_all (fun b => negb (string_dec a b)) s) acc) true lst.
 
+(*
 Definition method_specI : stac typ (expr typ func) subst :=
   fun tus tvs s lst e =>
     match e with
@@ -93,6 +101,70 @@ Definition method_specI : stac typ (expr typ func) subst :=
     	      end
       	| _ => @Fail _ _ _
     end.
+*)
+
+Fixpoint get_alls (e : expr typ func) : list typ * expr typ func :=
+  match e with
+    | ExprCore.App (@ExprCore.Inj (inr (ILogicFunc.ilf_forall t tyProp)))
+                   (ExprCore.Abs _ e) =>
+      let (alls,e) := get_alls e in
+      (t :: alls, e)
+    | _ => (nil, e)
+  end.
+
+Fixpoint get_impls (e : expr typ func) : list (expr typ func) * expr typ func :=
+  match e with
+    | ExprCore.App (ExprCore.App (Inj (inr (ILogicFunc.ilf_impl tyProp))) P) Q =>
+      let (impls,e) := get_impls Q in
+      (P :: impls,e)
+    | _ => (nil, e)
+  end.
+
+Definition convert_to_lemma (e : expr typ func)
+: lemma typ (expr typ func) (expr typ func) :=
+  let (alls, e) := get_alls e in
+  let (impls, e) := get_impls e in
+  {| vars := rev alls
+   ; premises := impls
+   ; concl := e |}.
+
+Ltac reify_lemma e :=
+  match type of e with
+    | ?T =>
+      (let k e :=
+           let e := constr:(convert_to_lemma e) in
+           let e := eval unfold convert_to_lemma in e in
+           let e := eval simpl in e in
+           refine e
+       in
+       reify_expr Reify.reify_imp k [ True ] [ T ])
+  end.
+
+Require Import Semantics.
+  
+(** Skip **)
+Definition Skip_lemma : lemma typ (expr typ func) (expr typ func).
+reify_lemma rule_skip.
+Defined.
+Print Skip_lemma.
+
+Definition If_lemma (e : dexpr) (c1 c2 : cmd) : lemma typ (expr typ func) (expr typ func).
+Check @rule_if e c1 c2.
+reify_lemma (@rule_if e c1 c2).
+Defined.
+
+Print If_lemma.
+
+Check @eval.
+Check Skip_fwd.
+
+Definition pull_exists_lemma : lemma typ (expr typ func) (expr typ func) :=
+{|
+   vars := tySpec :: tyArr tyVal tySasn :: tyCmd :: tySasn :: nil
+ ; premises :=  mkEntails [tySpec, Var 0, mkForall [tySpec, tyVal, mkTriple [App (Var 2) (Var 0), Var 3, Var 4]]] :: nil 
+ ; concl := mkEntails [tySpec, Var 0, mkTriple [mkExists [tySasn, tyVal, App (Var 2) (Var 0)], Var 2, Var 3]]
+|}.
+
 
 Definition skip_lemma : lemma typ (expr typ func) (expr typ func) :=
 {| vars := tySpec :: tySasn ::  nil
@@ -115,12 +187,38 @@ Eval vm_compute in (test_lemma skip_lemma2).
 Definition seq_lemma c1 c2 : lemma typ (expr typ func) (expr typ func) :=
 	{| vars := tySpec :: tySasn :: tySasn :: tySasn :: nil;
 	   premises := mkEntails [tySpec, Var 0, mkTriple [Var 1, mkCmd [c1], Var 2]] ::
-                   mkEntails [tySpec, Var 0, mkTriple [Var 2, mkCmd [c2] , Var 3]] :: nil;
+                   mkEntails [tySpec, Var 0, mkTriple [Var 2, mkCmd [c2], Var 3]] :: nil;
        concl := mkEntails [tySpec, Var 0, mkTriple [Var 1, mkCmd [cseq c1 c2], Var 3]]
     |}.
 
-Example skip_test c1 c2 : test_lemma (seq_lemma c1 c2). admit.
+Example seq_test c1 c2 : test_lemma (seq_lemma c1 c2).
 
+Definition liftVarEq (x : string) (e : expr typ func) := 
+           mkAp [tyVal, tyProp, 
+                 mkAp [tyVal, tyArr tyVal tyProp,
+                       mkConst [tyArr tyVal (tyArr tyVal tyProp), fEq [tyVal]],
+                       App fstack_get (mkString [x])],
+                 e].
+                 
+Definition singleSubst t e x v : expr typ func := 
+            mkSingleSubst [t, e, 
+                           mkString [x], mkConst[tyVal, v]].
+                           
+Definition liftPointsto x f e : expr typ func := 
+	mkAp [tyVal, tyAsn,
+	     mkAp [tyString, tyArr tyVal tyAsn,
+	           mkAp [tyVal, tyArr tyString (tyArr tyVal tyAsn),
+	                 mkConst [tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn)), fPointsto],
+	                 App fstack_get (mkString [x])],
+	           mkConst [tyString, mkString [f]]],
+	    e].
+
+Open Scope string.
+Check @Applicative.ap (Fun stack) (Applicative_Fun _) sval Prop
+	(@Applicative.ap (Fun stack) (Applicative_Fun _) sval (sval -> Prop)
+		(@Applicative.pure (Fun stack) (Applicative_Fun _) (sval -> sval -> Prop) (@eq sval))
+			((fun x s => s x) "a"))
+				((fun x s => s x) "a").
 Definition assign_lemma x e : lemma typ (expr typ func) (expr typ func) :=
 {| vars := tySpec :: tySasn :: (tyArr (tyArr tyString tyVal) tyVal) :: tyString :: nil
  ; premises := nil
@@ -129,13 +227,8 @@ Definition assign_lemma x e : lemma typ (expr typ func) (expr typ func) :=
                                  mkCmd [cassign x e], 
                                  mkExists [tySasn, tyVal, 
                                          mkAnd [tySasn,
-                                               lembed tyPure tySasn 
-                                                       (mkAp [tyVal, tyProp, 
-                                                             mkAp [tyVal, tyArr tyVal tyProp,
-                                                                  mkConst [tyArr tyVal (tyArr tyVal tyProp), fEq [tyVal]],
-                                                                  App fstack_get (mkString [x])],
-                                                             mkSingleSubst [tyVal, App fEval (mkExpr [e]), mkString [x], mkConst[tyVal, Var 0]]]),
-                                               mkSingleSubst [tyAsn, Var 2, mkString [x], mkConst[tyVal, Var 0]]]]]]
+                                               lembed tyPure tySasn (liftVarEq x (singleSubst tyVal (App fEval (mkExpr [e])) x (Var 0))),
+                                               singleSubst tyAsn (Var 2) x (Var 0)]]]]
 |}.
 
 Example assign_test x e : test_lemma (assign_lemma x e).
@@ -148,26 +241,14 @@ Definition write_lemma x f e : lemma typ (expr typ func) (expr typ func) :=
  ; premises := mkEntails [tySasn, Var 1, mkExists [tySasn, tyVal, 
       											   mkStar [tySasn, 
       											           Var 3, 
-                                                           mkAp [tyVal, tyAsn,
-                                                                 mkAp [tyString, tyArr tyVal tyAsn,
-                                                                       mkAp [tyVal, tyArr tyString (tyArr tyVal tyAsn),
-                                                                             mkConst [tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn)), fPointsto],
-                                                                             App fstack_get (mkString [x])],
-                                                                      mkConst [tyString, mkString [f]]],
-                                                                mkConst [tyVal, Var 0]]]]] :: nil
+      											           liftPointsto x f (mkConst [tyVal, Var 0])]]] :: nil
+
  ; concl := mkEntails [tySpec, Var 0, 
                        mkTriple [Var 1, 
                                  mkCmd [cwrite x f e], 
                                  mkStar [tySasn, Var 2, 
-                                       mkAp [tyVal, tyAsn,
-                                              mkAp [tyString, tyArr tyVal tyAsn,
-                                                    mkAp [tyVal, tyArr tyString (tyArr tyVal tyAsn),
-                                                          mkConst [tyArr tyVal 
-                                                                         (tyArr tyString (tyArr tyVal tyAsn)), 
-                                                                   fPointsto],
-                                                          App fstack_get (mkString [x])],
-                                                    mkConst [tyString, mkString [f]]],
-                                              App fEval (mkExpr [e])]]]]
+                                         liftPointsto x f (App fEval (mkExpr [e]))]]]
+
      
  |}.
 
@@ -176,33 +257,39 @@ Proof.
   admit.
 Qed.
 
-Definition read_lemma x y f : lemma typ (expr typ func) (expr typ func) :=
-{| vars := tySpec :: tySasn :: tyExpr :: nil
+Definition read_lemma (x y f : string) : lemma typ (expr typ func) (expr typ func) :=
+{| vars :=  tySpec :: tySasn (*:: tyExpr*) :: nil
  ; premises :=
      mkEntails [tySasn,
                Var 1,
-               (mkAp [tyVal, tyAsn, 
-                      mkAp [tyString, tyArr tyVal tyAsn,
-                            mkAp [tyVal, tyArr tyString (tyArr tyVal tyAsn),
-                                  mkConst [tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn)), fPointsto],
-                                  App fstack_get (mkString [y])],
-                            mkConst [tyString, mkString [f]]],
-                      App fEval (Var 2)])] :: nil
- ; concl := mkEntails [tySpec,
+               liftPointsto y f (App fEval (Var 2))] :: nil
+ ; concl := 
+ mkEntails [tySpec, Var 0,
+ mkTriple [Var 1, mkCmd [cread x y f],
+ mkExists [tySasn, tyVal,
+ mkAnd [tySasn, mkTrue [tySasn],
+     (*   lembed tyPure tySasn (liftVarEq x (App fstack_get (mkString [x])))*) mkTrue [tySasn]
+     (*   singleSubst tyAsn (Var 2) x (Var 0) *)]]]]
+
+ 
+ 
+ (*mkEntails [tySpec,
                        Var 0,
-                       mkTriple [Var 1, mkCmd [cread x y f], 
-                       mkExists [tySasn, tyVal, mkAnd [tySasn, lembed tyPure tySasn
-                                                                 (mkAp [tyVal, tyProp, 
-                                                                        mkAp [tyVal, tyArr tyVal tyProp,
-                                                                              mkConst [tyArr tyVal (tyArr tyVal tyProp), fEq [tyVal]],
-                                                                              (App fstack_get (mkString [x]))],
-                                                                        mkSingleSubst[tyVal, App fEval (Var 3), mkString [x], mkConst[tyVal, Var 0]]]),
-														 mkSingleSubst[tyAsn, Var 2, mkString [x], mkConst[tyVal, Var 0]]]]]]
-                                 
+                       mkTriple [Var 1, mkCmd [cread x y f],
+                       mkExists [tySasn, tyVal, 
+                                 mkAnd [tySasn, 
+                                        lembed tyPure tySasn
+                                           (*    (liftVarEq x (singleSubst tyVal (App fEval (Var 3)) x (Var 0)))*)
+(           mkAp [tyVal, tyProp, 
+                 mkAp [tyVal, tyArr tyVal tyProp,
+                       mkConst [tyArr tyVal (tyArr tyVal tyProp), fEq [tyVal]],
+                       App fstack_get (mkString [x])],
+                 App fstack_get (mkString [x])]),
+                                        singleSubst tyAsn (Var 2) x (Var 0)]]]]*)
  |}.
 
-Example read_test x y e : test_lemma (read_lemma x y e).
-Proof.
+Example read_test x y f : test_lemma (read_lemma x y f).
+Proof. cbv.
    admit.
 Qed.
 
@@ -298,10 +385,6 @@ Proof.
    admit.
 Qed.
 
-Definition solve_entailment :=
-  THEN (SIMPLIFY (fun _ _ _ => beta_all simplify nil nil))
-       stac_cancel.
-
 Let EAPPLY lem tac :=
   @EAPPLY typ (expr typ func) subst _ _ ExprLift.vars_to_uvars
                 (fun tus tvs n e1 e2 t s =>
@@ -310,23 +393,27 @@ Let EAPPLY lem tac :=
                 (@ExprSubst.instantiate typ func) SS SU
                 lem (apply_to_all tac).
 
-  Let APPLY :=
+  Let APPLY lem tac :=
     @APPLY typ (expr typ func) subst _ Typ0_Prop
            ExprLift.vars_to_uvars
            (fun tus tvs n e1 e2 t s =>
               @exprUnify subst typ func _ _ RS SS SU 3 nil
                          tus tvs n s e1 e2 t)
-           (@ExprSubst.instantiate typ func) SS SU.
-Locate apply_to_all.
-Check EAPPLY.
-Check APPLY.
+           (@ExprSubst.instantiate typ func) SS SU
+           lem (apply_to_all tac).
+
+Definition solve_entailment :=
+  REPEAT 5 (APPLY pull_exists_lemma
+  (THEN (SIMPLIFY (fun _ _ _ => beta_all simplify nil nil))
+       stac_cancel)).
+
 Fixpoint tripleE (c : cmd) : stac typ (expr typ func) subst :=
 	match c with
-	    | cskip => APPLY skip_lemma (apply_to_all (@IDTAC _ _ _))
-		| cseq c1 c2 => EAPPLY (seq_lemma c1 c2) (apply_to_all (FIRST (tripleE c1::tripleE c2::nil)))
-		| cassign x e => EAPPLY (assign_lemma x e) (apply_to_all (@IDTAC _ _ _))
-		| cread x y f => EAPPLY (read_lemma x y f) (apply_to_all (@IDTAC _ _ _))
-		| cwrite x f e => EAPPLY (write_lemma x f e) (apply_to_all (@IDTAC _ _ _))
+	    | cskip => EAPPLY skip_lemma solve_entailment
+		| cseq c1 c2 => EAPPLY (seq_lemma c1 c2) (FIRST (tripleE c1::tripleE c2::nil))
+		| cassign x e => EAPPLY (assign_lemma x e) solve_entailment
+		| cread x y f => EAPPLY (read_lemma x y f) (@IDTAC _ _ _)
+		| cwrite x f e => EAPPLY (write_lemma x f e) solve_entailment
 		| _ => @IDTAC _ _ _
 	end.
 
@@ -334,7 +421,7 @@ Definition symE : stac typ (expr typ func) subst :=
 	fun tus tvs s lst e => 
 		match e with 
 			| mkEntails [tySpec, G, mkTriple [P, mkCmd [c], Q]] => 
-			  (tripleE c) tus tvs s lst e
+			  (tripleE c) tus tvs s lst e 
 			| _ => Fail
 		end.  
 
@@ -342,9 +429,44 @@ Definition testSkip :=
   let vars := tySpec :: tySasn :: nil in
   let goal :=
       mkEntails [tySpec, Var 0,
-                 mkTriple [Var 0, mkCmd [cseq cskip (cseq cskip cskip)], Var 0]]
+                 mkTriple [Var 1, mkCmd [cseq cskip (cseq cskip cskip)], Var 1]]
   in
   @symE nil vars (SubstI.empty (expr :=expr typ func)) nil goal.
-  
+ 
 Time Eval vm_compute in testSkip.
 
+Open Scope string.
+
+Definition test_read :=
+  let uvars := tySasn :: nil in
+  let vars := nil in
+  let goal :=
+  	mkEntails [tySpec, mkTrue [tySpec], 
+  	           mkTriple [(*liftPointsto "o" "f" (App fEval (Var 1))*) mkTrue [tySasn],
+  	                     mkCmd [cread "x" "o" "f"],
+  	                     (UVar 0)]]
+  in
+  let tac := symE in
+  @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
+
+Time Eval vm_compute  in test_read.
+
+Definition testSwap :=
+  let uvars := nil in
+  let vars := tyExpr :: tyExpr :: nil in
+  let goal := mkEntails [tySpec, mkTrue [tySpec],
+  	                     mkTriple [mkStar [tySasn,
+  		                                   liftPointsto "o" "f1" (App fEval (Var 0)),
+	  	                                   liftPointsto "o" "f2" (App fEval (Var 1))],                                           	                      
+  	                               mkCmd [cseq (cread "x1" "o" "f1")
+  	                                      (cseq (cread "x2" "o" "f2")
+  	                                      (cseq (cwrite "o" "f1" (E_var "x2"))
+  	                                            (cwrite "o" "f2" (E_var "x1"))))], 
+			                       mkStar [tySasn,
+			                               liftPointsto "o" "f1" (App fEval (Var 1)),
+			                               liftPointsto "o" "f2" (App fEval (Var 0))]]]                                     
+  in
+  let tac := symE in
+  @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
+  
+Time Eval vm_compute in testSwap.

@@ -95,28 +95,28 @@ Let doUnifySepLog (tus tvs : EnvI.tenv typ) (s : CascadeSubst subst subst) (e1 e
 Let ssl : SynSepLog typ func :=
 {| e_star := fun l r =>
                match l with
-                 | mkEmp [_] => r
+                 | Inj (inl (inr (pEmp _))) => r
                  | _ => match r with
-                          | mkEmp [_] => l
-                          | _ => mkStar [tySasn, l, r]
+                          | Inj (inl (inr (pEmp _))) => l
+                          | _ => App (App (fStar tySasn) l) r
                         end
                end
- ; e_emp := mkEmp [tySasn]
+ ; e_emp := fEmp tySasn
  ; e_and := fun l r =>
               match l with
-                | mkTrue [_] => r
+                | Inj (inr (ilf_true _)) => r
                 | _ => match r with
-                         | mkTrue [_] => l
-                         | _ => mkAnd [tySasn, l, r]
+                         | Inj (inr (ilf_true _)) => l
+                         | _ => App (App (fAnd tySasn) l) r
                        end
               end
- ; e_true := mkTrue [tySasn]
+ ; e_true := fTrue tySasn
  |}.
 
 Definition eproveTrue (s : CascadeSubst subst subst) (e : expr typ func)
 : option (CascadeSubst subst subst) :=
   match e with
-    | mkTrue [_] => Some s
+    | Inj (inr (ilf_true _)) => Some s
     | _ => None
   end.
 

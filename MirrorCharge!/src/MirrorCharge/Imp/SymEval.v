@@ -322,6 +322,8 @@ Definition test_swap :=
   @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
 
 Eval vm_compute in test_swap.
+Check @EAPPLY.
+Check @APPLY.
 (** This is not the strongest post condition because we forgot the pure facts.
  ** This is likely a problem with the cancellation algorithm.
  **)
