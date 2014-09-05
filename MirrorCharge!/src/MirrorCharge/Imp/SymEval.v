@@ -280,9 +280,11 @@ Local Notation "'Pure' '[' x ']'" := (Inj (inl (inr (pPure x)))) (at level 0).
 
 Definition test_read :=
   let uvars := tyLProp :: nil in
-  let vars := nil in
+  let vars := tySProp :: nil in
   let goal :=
-      mkTriple (lap tyNat tyHProp (lap tyNat (tyArr tyNat tyHProp) (lpure (tyArr tyNat (tyArr tyNat tyHProp)) fPtsTo)
+      (Inj (inr (ilf_entails tySProp)))
+      @ Var 0
+      @ mkTriple (lap tyNat tyHProp (lap tyNat (tyArr tyNat tyHProp) (lpure (tyArr tyNat (tyArr tyNat tyHProp)) fPtsTo)
                                        (flocals_get @ fVar "p"))%string
                     (lpure tyNat (fConst 1)))
                (mkRead (fVar "x") (Inj (inl (inr eVar)) @ (fVar "p")))%string
