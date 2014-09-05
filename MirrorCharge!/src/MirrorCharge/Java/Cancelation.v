@@ -98,19 +98,19 @@ Let ssl : SynSepLog typ func :=
                  | Inj (inl (inr (pEmp _))) => r
                  | _ => match r with
                           | Inj (inl (inr (pEmp _))) => l
-                          | _ => App (App (fStar tySasn) l) r
+                          | _ => App (App (fStar [tySasn]) l) r
                         end
                end
- ; e_emp := fEmp tySasn
+ ; e_emp := mkEmp [tySasn]
  ; e_and := fun l r =>
               match l with
                 | Inj (inr (ilf_true _)) => r
                 | _ => match r with
                          | Inj (inr (ilf_true _)) => l
-                         | _ => App (App (fAnd tySasn) l) r
+                         | _ => App (App (fAnd [tySasn]) l) r
                        end
               end
- ; e_true := fTrue tySasn
+ ; e_true := mkTrue [tySasn]
  |}.
 
 Definition eproveTrue (s : CascadeSubst subst subst) (e : expr typ func)

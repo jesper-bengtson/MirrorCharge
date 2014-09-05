@@ -490,7 +490,7 @@ Definition SO : SubstI.SubstOk Expr_expr SS :=
 Local Existing Instance SS.
 Local Existing Instance SU.
 Local Existing Instance SO.
-
+(*
 Definition fMethodSpec : expr typ func := Inj (inl (inr pMethodSpec)).
 Definition fProgEq : expr typ func := Inj (inl (inr pProgEq)).
 Definition fTriple : expr typ func := Inj (inl (inr pTriple)).
@@ -549,8 +549,8 @@ Definition fTruncSubst : expr typ func := Inj (inl (inr pTruncSubst)).
                                                          
 Definition fStar l : expr typ func := Inj (inl (inr (pStar l))).
 Definition fEmp l : expr typ func:= Inj (inl (inr (pEmp l))).
+	*)
 	
-	(*
 Notation "'fMethodSpec'" := (Inj (inl (inr pMethodSpec))) (at level 0).
 Notation "'fProgEq'" := (Inj (inl (inr pProgEq))) (at level 0).
 Notation "'fTriple'" := (Inj (inl (inr pTriple))) (at level 0).
@@ -559,8 +559,8 @@ Notation "'fEval'" := (Inj (inl (inr pEval))) (at level 0).
 Notation "'fEq' '[' t ']'" := (Inj (inl (inr (pEq t)))) (at level 0).
 Notation "'fAp' '[' t ',' u ']'" := (Inj (inl (inr (pAp t u)))) (at level 0).
 Notation "'fConst' '[' t ']'" := (Inj (inl (inr (pConst t)))) (at level 0).
-Notation "'fstack_get'" := (Inj (inl (inr pStackGet))).
-Notation "'fstack_set'" := (Inj (inl (inr pStackSet))).
+Notation "'fStackGet'" := (Inj (inl (inr pStackGet))).
+Notation "'fStackSet'" := (Inj (inl (inr pStackSet))).
 
 Notation "'fFieldLookup'" := (Inj (inl (inr pFieldLookup))).
 Notation "'fSetFold'" := (Inj (inl (inr pSetFold))).
@@ -608,20 +608,28 @@ Notation "'mkLengthExprList' '[' lst ']'" := (App fLengthExprList lst).
 
 Notation "'mkEq' '[' t ',' a ',' b ']'" := (App (App (fEq [t]) a) b).
 
-Notation "'mkExists' '[' l ',' t ',' e ']'" := (App (Inj (inr (ilf_exists t l))) (Abs t e)).
-Notation "'mkForall' '[' l ',' t ',' e ']'" := (App (Inj (inr (ilf_forall t l))) (Abs t e)).
-Notation "'mkAnd' '[' t ',' p ',' q ']'" := (App (App (Inj (inr (ilf_and t))) p) q).
-Notation "'mkOr' '[' t ',' p ',' q ']'" := (App (App (Inj (inr (ilf_or t))) p) q).
-Notation "'mkImpl' '[' t ',' p ',' q ']'" := (App (App (Inj (inr (ilf_impl t))) p) q).
-Notation "'mkTrue' '[' t ']'" := (Inj (inr (ilf_true t))).
-Notation "'mkFalse' '[' t ']'" := (Inj (inr (ilf_false t))).
-Notation "'mkNot' '[' t ',' p ']'" := (mkImpl [t, p, mkFalse [t]]).
-Notation "'mkEntails' '[' t ',' p ',' q ']'" := (App (App (Inj (inr (ilf_entails t))) p) q).
+Notation "'fExists' '[' l ',' t ']'" := (Inj (inr (ilf_exists t l))).
+Notation "'fForall' '[' l ',' t ']'" := (Inj (inr (ilf_forall t l))).
+Notation "'fAnd' '[' l ']'" := (Inj (inr (ilf_and l))).
+Notation "'fOr' '[' l ']'" := (Inj (inr (ilf_or l))).
+Notation "'fImpl' '[' l ']'" := (Inj (inr (ilf_impl l))).
+Notation "'fEntails' '[' l ']'" := (Inj (inr (ilf_entails l))).
 
-Definition lembed (f t : typ) (e : expr typ func) : expr typ func :=
-  App (Inj (inr (ilf_embed f t))) e.
-Notation "'mkStackGet' '[' x ',' s ']'"  := (App (App fstack_get x) s).
-Definition lstackSet (x v s : expr typ func) := App (App (App fstack_set x) v) s.
+Notation "'mkExists' '[' l ',' t ',' e ']'" := (App (fExists [l, t]) (Abs t e)).
+Notation "'mkForall' '[' l ',' t ',' e ']'" := (App (fForall [l, t]) (Abs t e)).
+Notation "'mkAnd' '[' l ',' p ',' q ']'" := (App (App (fAnd [l]) p) q).
+Notation "'mkOr' '[' l ',' p ',' q ']'" := (App (App (fOr [l]) p) q).
+Notation "'mkImpl' '[' l ',' p ',' q ']'" := (App (App (fImpl [l]) p) q).
+Notation "'mkTrue' '[' l ']'" := (Inj (inr (ilf_true l))).
+Notation "'mkFalse' '[' l ']'" := (Inj (inr (ilf_false l))).
+Notation "'mkNot' '[' l ',' p ']'" := (mkImpl [l, p, mkFalse [l]]).
+Notation "'mkEntails' '[' l ',' p ',' q ']'" := (App (App (fEntails [l]) p) q).
+
+Notation "'fEmbed' '[' l1 ',' l2 ']'" := (Inj (inr (ilf_embed l1 l2))).
+Notation "'mkEmbed' '[' l1 ',' l2 ',' p ']'" := (App (fEmbed [l1, l2]) p).
+
+Notation "'mkStackGet' '[' x ',' s ']'"  := (App (App fStackGet x) s).
+Notation "'mkStackSet' '[' x ',' v ',' s ']'" := (App (App (App fStackSet x) v) s).
 
 Notation "'mkApplySubst' '[' t ',' P ',' s ']'" := (App (App (Inj (inl (inr (pApplySubst t)))) P) s).
 
@@ -638,11 +646,13 @@ Notation "'mkSubstExprList' '[' lst ',' x ',' v ']'" := (fold_right (fun e acc =
 
 Notation "'mkNull'" := (Inj (inl (inr pnull))).
 
-Notation "'mkStar' '[' l ',' p ',' q ']'" := (App (App (Inj (inl (inr (pStar l)))) p) q).
+Notation "'fStar' '[' l ']'" := (Inj (inl (inr (pStar l)))).
+
+Notation "'mkStar' '[' l ',' p ',' q ']'" := (App (App (fStar [l]) p) q).
 Notation "'mkEmp' '[' l ']'" := (Inj (inl (inr (pEmp l)))).
 Definition lpointsto (v f v' : expr typ func) := 
 	App (App (App fPointsto v) f) v'.
-*)
+
 Definition test_lemma :=
   @lemmaD typ RType_typ (expr typ func) Expr_expr (expr typ func)
           (fun tus tvs e => exprD' nil tus tvs tyProp e)

@@ -67,7 +67,7 @@ Fixpoint search_NoDup
 Definition list_notin_set lst s :=
   	fold_right (fun a acc => andb (SS.for_all (fun b => negb (string_dec a b)) s) acc) true lst.
 
-(*
+
 Definition method_specI : stac typ (expr typ func) subst :=
   fun tus tvs s lst e =>
     match e with
@@ -101,7 +101,7 @@ Definition method_specI : stac typ (expr typ func) subst :=
     	      end
       	| _ => @Fail _ _ _
     end.
-*)
+
 
 Fixpoint get_alls (e : expr typ func) : list typ * expr typ func :=
   match e with
@@ -147,6 +147,12 @@ Definition Skip_lemma : lemma typ (expr typ func) (expr typ func).
 reify_lemma rule_skip.
 Defined.
 Print Skip_lemma.
+
+Definition Seq_lemma (c1 c2 : cmd) : lemma typ (expr typ func) (expr typ func).
+Proof.
+  reify_lemma (@rule_seq c1 c2).
+Qed.
+Print Seq_lemma.
 
 Definition If_lemma (e : dexpr) (c1 c2 : cmd) : lemma typ (expr typ func) (expr typ func).
 Check @rule_if e c1 c2.
