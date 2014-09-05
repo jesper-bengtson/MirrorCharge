@@ -85,8 +85,8 @@ Definition method_specI : stac typ (expr typ func) subst :=
 						  	      if list_notin_set args (modifies (m_body Method)) then
 						  	        More tus tvs s lst 
 						  	        mkEntails [l, mkProgEq [mkProg [P]], 
-						  	                      mkTriple [mkTruncSubst [tyAsn, p, mkSubstList [mkVarList [args], mkExprList [map E_var (m_params Method)]] ], mkCmd [m_body Method], 
-						  	                               mkTruncSubst [tyAsn, q, mkSubstList [mkVarList [r::args], mkConsExprList [App fEval (mkExpr [m_ret Method]), mkExprList[map E_var (m_params Method)]]] ]]]
+						  	                      mkTriple [mkApplyTruncSubst [tyAsn, p, mkSubstList [mkVarList [args], mkExprList [map E_var (m_params Method)]] ], mkCmd [m_body Method], 
+						  	                               mkApplyTruncSubst [tyAsn, q, mkSubstList [mkVarList [r::args], mkConsExprList [App fEval (mkExpr [m_ret Method]), mkExprList[map E_var (m_params Method)]]] ]]]
 						  	      else
 						  	        @Fail _ _ _
 						  	    | right _ => @Fail _ _ _
@@ -161,8 +161,13 @@ Defined.
 
 Print If_lemma.
 
-Check @eval.
-Check Skip_fwd.
+Definition read_lemma (x y f : String.string) (e : dexpr) : lemma typ (expr typ func) (expr typ func).
+Proof.
+  reify_lemma (@rule_read_fwd x y f e).
+Defined.
+
+Print read_lemma.
+Print Skip_lemma.
 
 Definition pull_exists_lemma : lemma typ (expr typ func) (expr typ func) :=
 {|

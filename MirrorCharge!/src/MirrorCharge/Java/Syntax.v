@@ -571,9 +571,13 @@ Notation "'fLengthExprList'" := (Inj (inl (inr pLengthExprList))).
 
 Notation "'fTypeOf'" := (Inj (inl (inr pTypeOf))).
 
-Definition fApplySubst t : expr typ func := Inj (inl (inr (pApplySubst t))).
-Definition fPointsto : expr typ func := Inj (inl (inr (pPointsto))).
-Definition fNull : expr typ func := Inj (inl (inr pNull)).
+Notation "'fApplySubst' '[' t ']'" := (Inj (inl (inr (pApplySubst t)))).
+Notation "'fPointsto'" := (Inj (inl (inr (pPointsto)))).
+Notation "'fNull'" := (Inj (inl (inr pNull))).
+
+Notation "'fSingleSubst'" := (Inj (inl (inr pSingleSubst))).
+Notation "'fSubst'" := (Inj (inl (inr pSubst))).
+Notation "'fTruncSubst'" := (Inj (inl (inr pTruncSubst))).
 
 Notation "'mkAp' '[' t ',' u ',' a ',' b ']'" := (App (App (fAp [t, u]) a) b) (at level 0).
 Notation "'mkMethodSpec' '[' C ',' m ',' args ',' r ',' p ',' q ']'" := 
@@ -631,18 +635,22 @@ Notation "'mkEmbed' '[' l1 ',' l2 ',' p ']'" := (App (fEmbed [l1, l2]) p).
 Notation "'mkStackGet' '[' x ',' s ']'"  := (App (App fStackGet x) s).
 Notation "'mkStackSet' '[' x ',' v ',' s ']'" := (App (App (App fStackSet x) v) s).
 
-Notation "'mkApplySubst' '[' t ',' P ',' s ']'" := (App (App (Inj (inl (inr (pApplySubst t)))) P) s).
+Notation "'fApply' '[' t ']'" := ((Inj (inl (inr (pApplySubst t))))).
 
-Notation "'mkSingleSubst' '[' t ',' P ',' x ',' e ']'" := (App (App (Inj (inl (inr (pApplySubst t)))) P) 
-                                                               (App (App (Inj (inl (inr pSingleSubst))) e) x)) (at level 0).
-Notation "'mkSubst' '[' t ',' P ',' es ']'" := (App (App (Inj (inl (inr (pApplySubst t)))) P) 
-                                                    (App (Inj (inl (inr pSubst))) es)) (at level 0).
-Notation "'mkTruncSubst' '[' t ',' P ',' es ']'" := (App (App (Inj (inl (inr (pApplySubst t)))) P) 
-                                                         (App (Inj (inl (inr pTruncSubst))) es)) (at level 0).
+Notation "'mkApplySubst' '[' t ',' P ',' s ']'" := (App (App (fApplySubst [t]) P) s).
+
+Notation "'mkSingleSubst' '[' x ',' e ']'" := (App (App fSingleSubst e) x).
+Notation "'mkApplySingleSubst' '[' t ',' P ',' x ',' e ']'" := (mkApplySubst [t, P, mkSingleSubst [e, x]]).
+
+Notation "'mkSubst' '[' es ']'" := (App fSubst es).
+Notation "'mkApplySubst' '[' t ',' P ',' es ']'" := (mkApplySubst [t, P, mkSubst [es]]).
+
+Notation "'mkTruncSubst' '[' es ']'" := (App fTruncSubst es).
+Notation "'mkApplyTruncSubst' '[' t ',' P ',' es ']'" := (mkApplySubst [t, P, mkTruncSubst [es]]).
                                                          
 Notation "'mkSubstList' '[' vs ',' es ']'" := (App (App (Inj (inl (inr pZipSubst))) vs) es) (at level 0).
 
-Notation "'mkSubstExprList' '[' lst ',' x ',' v ']'" := (fold_right (fun e acc => mkConsExprList [mkSingleSubst[tyVal, App fEval (mkExpr [e]), x, v], acc]) mkNilExprList lst).
+Notation "'mkSubstExprList' '[' lst ',' x ',' v ']'" := (fold_right (fun e acc => mkConsExprList [mkApplySingleSubst[tyVal, App fEval (mkExpr [e]), x, v], acc]) mkNilExprList lst).
 
 Notation "'mkNull'" := (Inj (inl (inr pnull))).
 
