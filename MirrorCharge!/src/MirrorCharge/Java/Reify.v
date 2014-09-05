@@ -17,12 +17,18 @@ Reify Declare Patterns patterns_imp_typ := Syntax.typ.
 
 Reify Declare Patterns patterns_imp := (ExprCore.expr Syntax.typ Syntax.func).
 
+(*
+Reify Declare Patterns const_for_cmd += ((RHasType cmd ?0) => (fun (c : id cmd) => mkCmd [c] : expr typ func)).
+*)
 Reify Declare Syntax reify_imp_typ :=
   { (@Patterns.CPatterns Syntax.typ patterns_imp_typ
      (@Patterns.CFail Syntax.typ))
   }.
 
-Definition eval2 (e : dexpr) : stack -> val := eval e.
+Definition eval2 : dexpr -> stack -> val := eval.
+Definition pointsto2 : sval -> String.string -> sval -> asn := pointsto.
+Definition subst2 : (stack -> sval) -> String.string -> @subst String.string _ := subst1.
+Definition apply_subst2 (A : Type) : (stack -> A) -> @Subst.subst String.string SVal -> (stack -> A) := @apply_subst String.string _ A.
 
 Reify Declare Typed Table term_table : BinNums.positive => reify_imp_typ.
 
@@ -64,16 +70,18 @@ Reify Pattern patterns_imp_typ += (!! stack) => tyStack.
 Reify Pattern patterns_imp_typ += (!! cmd) => tyCmd.
 Reify Pattern patterns_imp_typ += (!! SS.t) => tyFields.
 Reify Pattern patterns_imp_typ += (!! dexpr) => tyExpr.
-Reify Pattern patterns_imp_typ += (!! @Subst.subst (Lang.var) SVal) => tySubst.
+Reify Pattern patterns_imp_typ += (!! @Subst.subst (String.string) SVal) => tySubst.
 
 Reify Pattern patterns_imp_typ += (!! Fun @ ?0 @ ?1) => (fun (a b : function reify_imp_typ) => tyArr a b).
 
-Reify Pattern patterns_imp += (RHasType String.string (?!0)) => (fun (s : id String.string) => mkString [s] : expr typ func).
-Reify Pattern patterns_imp += (RHasType field (?!0)) => (fun (f : id field) => mkString [f] : expr typ func).
-Reify Pattern patterns_imp += (RHasType Lang.var (?!0)) => (fun (f : id Lang.var) => mkString [f] : expr typ func).
-Reify Pattern patterns_imp += (RHasType sval (?!0)) => (fun (v : id sval) => mkVal [v] : expr typ func).
-Reify Pattern patterns_imp += (RHasType cmd (?!0)) => (fun (c : id cmd) => mkCmd [c] : expr typ func).
-Reify Pattern patterns_imp += (RHasType dexpr (?!0)) => (fun (e : id dexpr) => mkExpr [e] : expr typ func).
+Reify Pattern patterns_imp += (RHasType String.string (?0)) => (fun (s : id String.string) => mkString [s] : expr typ func).
+Reify Pattern patterns_imp += (RHasType field (?0)) => (fun (f : id field) => mkString [f] : expr typ func).
+Reify Pattern patterns_imp += (RHasType Lang.var (?0)) => (fun (f : id Lang.var) => mkString [f] : expr typ func).
+Reify Pattern patterns_imp += (RHasType sval (?0)) => (fun (v : id sval) => mkVal [v] : expr typ func).
+Reify Pattern patterns_imp += (RHasType Stack.val (?0)) => (fun (v : id Stack.val) => mkVal [v] : expr typ func).
+Reify Pattern patterns_imp += (RHasType (@val SVal) (?0)) => (fun (v : id (@val SVal)) => mkVal [v] : expr typ func).
+Reify Pattern patterns_imp += (RHasType cmd (?0)) => (fun (c : id cmd) => mkCmd [c] : expr typ func).
+Reify Pattern patterns_imp += (RHasType dexpr (?0)) => (fun (e : id dexpr) => mkExpr [e] : expr typ func).
 
 Reify Pattern patterns_imp += (!! (@eq) @ ?0) => (fun (x : function reify_imp_typ) => fEq [x] : expr typ func).
 
@@ -110,10 +118,10 @@ Reify Pattern patterns_imp += (!! eval2) => (fEval : expr typ func).
 Reify Pattern patterns_imp += (!! stack_get) => (fStackGet : expr typ func).
 Reify Pattern patterns_imp += (!! stack_add) => (fStackSet : expr typ func).
 
-Reify Pattern patterns_imp += (!! pointsto) => (fPointsto : expr typ func).
-Check @pointsto.
-Reify Pattern patterns_imp += (!! @apply_subst @ (RHasType String.string (#)) @ # @ ?0) => (fun (x : function reify_imp_typ) => (fApplySubst [x]) : expr typ func).
-Reify Pattern patterns_imp += (!! @subst1 @(RHasType String.string (#)) @ # @ #) => (fSingleSubst : expr typ func).
+Reify Pattern patterns_imp += (!! pointsto2) => (fPointsto : expr typ func).
+
+Reify Pattern patterns_imp += (!! @apply_subst2 @ ?0) => (fun (x : function reify_imp_typ) => fApplySubst [x] : expr typ func).
+Reify Pattern patterns_imp += (!! @subst2) => (fSingleSubst : expr typ func).
 
 (** Applicative **)
 Reify Pattern patterns_imp += (!! @Applicative.ap @ !! (Fun stack) @ # @ ?0 @ ?1) => (fun (x y : function reify_imp_typ) => fAp [x, y] : expr typ func).
@@ -140,9 +148,15 @@ Ltac reify_imp e :=
   reify_expr reify_imp k
              [ (fun (y : @mk_dvar_map_abs _ _ _ (list Type) _ term_table elem_ctor) => True) ]
              [ e ].
+Check @pointsto.
+
+Local Instance Applicative_Fun A : Applicative.Applicative (Fun A) :=
+{ pure := fun _ x _ => x
+; ap := fun _ _ f x y => (f y) (x y)
+}.
 
 Goal True.
-  reify_imp 1.
+  reify_imp subst2.
   reify_imp (cseq cskip cskip).
   reify_imp (ILogic.lentails True True).
   reify_imp ((True -> False) -> True).
@@ -151,6 +165,7 @@ Goal True.
   reify_imp (forall (G : spec) (P Q : sasn), ILogic.lentails G (triple P Q cskip)).
   generalize (String.EmptyString : String.string).
   intro x.
+  reify_imp (stack_get x).
   reify_imp (x = x).
   exact I.
 Defined.

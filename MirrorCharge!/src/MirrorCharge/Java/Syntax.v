@@ -123,8 +123,8 @@ Fixpoint typD (ls : list Type) (t : typ) : Type :=
   match t with
     | tyArr a b => typD ls a -> typD ls b
     | tyVarList => @list string
-    | tyExprList => @list (@Open.expr (Lang.var) SVal)
-    | tySubstList => @list (Lang.var * (@Open.expr (Lang.var) SVal))
+    | tyExprList => @list (@Open.expr (String.string) SVal)
+    | tySubstList => @list (String.string * (@Open.expr (String.string) SVal))
     | tyProp => Prop
     | tyNat => nat
     | tySpec => spec
@@ -136,7 +136,7 @@ Fixpoint typD (ls : list Type) (t : typ) : Type :=
     | tyCmd => cmd
     | tyFields => SS.t
     | tyExpr => dexpr
-    | tySubst => @Subst.subst (Lang.var) SVal
+    | tySubst => @Subst.subst (String.string) SVal
   end.
    
 Inductive tyAcc_typ : typ -> typ -> Prop :=
@@ -172,7 +172,7 @@ Instance Typ0_Prop : Typ0 _ Prop :=
 Inductive java_func :=
 | pString (_ : string)
 | pVal (_ : sval)
-| pVarList (_ : @list Lang.var)
+| pVarList (_ : @list String.string)
 | pProg (_ : Prog_wf)
 | pCmd (_ : cmd)
 | pExpr (_ : dexpr)
@@ -343,7 +343,7 @@ Proof.
   		try (apply rel_dec_eq_true; [apply _ | reflexivity]); admit.
 Qed.
 
-Definition set_fold_fun (x : Lang.var) (f : field) (P : sasn) :=
+Definition set_fold_fun (x : String.string) (f : field) (P : sasn) :=
 	(`pointsto) (x/V) `f `null ** P.
 
 Definition stack_get (x : string) (s : stack) := s x.
@@ -372,7 +372,7 @@ Instance RSym_imp_func : SymI.RSym java_func :=
               | pStackGet => stack_get
               | pStackSet => stack_add
               
-              | pApplySubst t => @apply_subst (Lang.var) SVal (typD ts t)
+              | pApplySubst t => @apply_subst (String.string) SVal (typD ts t)
               
               | pTriple => triple
               | pEval => eval
@@ -397,9 +397,9 @@ Instance RSym_imp_func : SymI.RSym java_func :=
               | pPointsto => pointsto
               
               | pZipSubst => zip
-              | pSubst => @substl_aux  Lang.var _ SVal
-              | pTruncSubst => @substl_trunc_aux Lang.var _ SVal
-              | pSingleSubst => @subst1 Lang.var _ SVal
+              | pSubst => @substl_aux  String.string _ SVal
+              | pTruncSubst => @substl_trunc_aux String.string _ SVal
+              | pSingleSubst => @subst1 String.string _ SVal
               
               | pConsVarList => @cons string
               | pNilVarList => @nil string

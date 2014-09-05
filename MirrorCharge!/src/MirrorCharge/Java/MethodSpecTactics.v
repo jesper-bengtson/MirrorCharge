@@ -67,7 +67,6 @@ Fixpoint search_NoDup
 Definition list_notin_set lst s :=
   	fold_right (fun a acc => andb (SS.for_all (fun b => negb (string_dec a b)) s) acc) true lst.
 
-
 Definition method_specI : stac typ (expr typ func) subst :=
   fun tus tvs s lst e =>
     match e with
@@ -154,20 +153,43 @@ Proof.
 Qed.
 Print Seq_lemma.
 
-Definition If_lemma (e : dexpr) (c1 c2 : cmd) : lemma typ (expr typ func) (expr typ func).
-Check @rule_if e c1 c2.
-reify_lemma (@rule_if e c1 c2).
-Defined.
 
+Ltac reify_lemma2 e :=
+  match type of e with
+    | ?T =>
+      (let k e :=
+           let e := constr:(convert_to_lemma e) in
+           let e := eval unfold convert_to_lemma in e in
+           let e := eval simpl in e in
+           refine e
+       in
+       reify_imp T)
+ (*     reify_expr Reify.reify_imp k [ True ] [ T ])*)
+  end.
+
+Definition If_lemma (e : dexpr) (c1 c2 : cmd) : lemma typ (expr typ func) (expr typ func).
+Proof.
+  reify_lemma (@rule_if e c1 c2).
+Defined.
 Print If_lemma.
 
-Definition read_lemma (x y f : String.string) (e : dexpr) : lemma typ (expr typ func) (expr typ func).
-Proof.
-  reify_lemma (@rule_read_fwd x y f e).
-Defined.
+Definition read_lemma (x y f : String.string) : lemma typ (expr typ func) (expr typ func).
+Proof.  
+  reify_lemma (@rule_read_fwd x y f).
+  (* Does not work *)
+Admitted.
 
-Print read_lemma.
-Print Skip_lemma.
+Definition write_lemma (x f : String.string) (e : dexpr) : lemma typ (expr typ func) (expr typ func).
+Proof.
+  reify_lemma (@rule_write_fwd x f e).
+Defined.
+Print write_lemma.
+
+Definition assign_lemma (x : String.string) (e : dexpr) : lemma typ (expr typ func) (expr typ func).
+Proof.
+  reify_lemma2 (@rule_assign_fwd x e).
+  (* Does not work *)
+Admitted.
 
 Definition pull_exists_lemma : lemma typ (expr typ func) (expr typ func) :=
 {|

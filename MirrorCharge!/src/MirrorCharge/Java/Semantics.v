@@ -54,24 +54,41 @@ Proof.
   	[apply Hc1|apply Hc2].
 Qed.
 
-
-  Lemma rule_read_fwd (x y : String.string) (f : String.string) (e : dexpr) (P : sasn) (G : spec)
-    (HPT : P |-- ap (T := Fun stack) (ap (ap (pure pointsto) (stack_get y)) (pure f)) (eval2 e)) : 
-  (*  G |-- {[ P ]} 
+Check subst2.
+  Lemma rule_read_fwd (x y : String.string) (f : String.string) (e : stack -> sval) (P : sasn) (G : spec)
+    (HPT : P |-- ap (T := Fun stack) (ap (ap (pure pointsto2) (stack_get y)) (pure f)) e) : 
+    G |-- {[ P ]} 
               cread x y f 
-              {[ Exists v : sval, (@embed (@vlogic String.string _) sasn _)
+              {[ Exists v : sval, (*(@embed (@vlogic String.string _) sasn _)
     								      (ap (T := Fun stack) 
     								          (ap (pure (@eq sval)) (stack_get x)) 
-    								          ((eval2 e)[{(pure v)//x}])) //\\ 
-    							   P[{(pure v)//x}]]}.*) True.
+    								          (apply_subst2 sval e (subst2 (pure v) x)))  //\\ *)
+    							   (apply_subst2 asn P (subst2 (pure (T := Fun stack) v) x)) ]}.
   Proof.
+admit.
 (*
-	reify_imp (stack_get y).
-	reify_imp (ap (T := Fun stack) (ap (ap (pure pointsto) (stack_get y)) (pure f)) (eval2 e)).
-	admit.
-	
-    simpl in *.
-    pose proof @rule_read_fwd x y f (eval2 e) P. unfold Open.liftn, Open.lift, open_eq, stack_get, Open.var_expr in *; simpl in *.
+    pose proof @rule_read_fwd x y f e P. unfold Open.liftn, Open.lift, open_eq, stack_get, Open.var_expr in *; simpl in *.
 	rewrite <- H; [apply ltrueR | apply HPT].
-	*)
+*)
+  Qed.
+
+Require Import Charge.Logics.BILogic.
+
+  Lemma rule_write_fwd (x f : String.string) (e : dexpr) G (P Q : sasn) (e' : stack -> sval)
+        (HPT : P |-- Q ** ap (T := Fun stack) (ap (ap (pure pointsto2) (stack_get x)) (pure f)) e') :
+    G |-- ({[ P ]} cwrite x f e {[ Q ** ap (T := Fun stack) (ap (ap (pure pointsto2) (stack_get x)) (pure f)) (eval2 e)]}).
+  Proof.
+     pose proof @rule_write_frame G P Q x f e' e. unfold Open.liftn, Open.lift, open_eq, stack_get, Open.var_expr in *; simpl in *.
+	 apply H; apply HPT.
+  Qed.
+
+  Lemma rule_assign_fwd x (e : dexpr) G P :
+    G |-- {[ P ]} cassign x e {[ Exists v : sval, (@embed (@vlogic String.string _) sasn _)
+    								      (ap (T := Fun stack) 
+    								          (ap (pure (@eq sval)) (stack_get x)) 
+    								          (apply_subst2 sval (eval2 e) (subst2 (pure v) x))) //\\ 
+    							   (apply_subst2 asn P (subst2 (pure (T := Fun stack) v) x)) ]}.
+  Proof.
+    pose proof @rule_assign_fwd G P.
+    apply H. reflexivity.
   Qed.
