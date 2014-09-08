@@ -119,8 +119,9 @@ Proof.
     reify_imp (P |-- apply_subst2 asn Pm (substl_trunc (zip ps (@map _ (stack -> sval) eval2 es))) ** F).
     reify_imp (apply_subst2 asn Pm (substl_trunc (@nil ((String.string * (stack -> sval)%type))))).
 *)
+
 	reify_imp (Exists x : asn, (pure (T := Fun stack) x)).
-	reify_imp (fun x : sval => ap_eq [pure (T := Fun stack) x, pure (T := Fun stack) x]).
+	reify_imp (fun x => ap_eq [pure (T := Fun stack) x), pure (T := Fun stack) x]).
 	reify_imp (Exists x : sval, ap_eq [(pure (T := Fun stack) x), pure (T := Fun stack) (vint 2)]).
 
 reify_imp (Exists v:sval, apply_subst2 asn Qm (substl_trunc (zip (@cons String.string r ps) 

@@ -134,6 +134,5 @@ Goal True.
   reify_imp (forall G P Q, ILogic.lentails G (triple P Skip Q)).
   generalize (String.EmptyString).
   intro x.
-  reify_imp (x = x).
   exact I.
 Defined.
