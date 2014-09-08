@@ -153,7 +153,6 @@ Proof.
 Qed.
 Print Seq_lemma.
 
-
 Ltac reify_lemma2 e :=
   match type of e with
     | ?T =>

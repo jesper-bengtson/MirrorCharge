@@ -7,15 +7,26 @@ Require Import Charge.Open.Stack.
 Require Import Charge.Open.Subst.
 Require Import Charge.Open.OpenILogic.
 
+Require Import Charge.Logics.BILogic.
+Require Import Charge.Logics.Later.
+
 Require Import Java.Logic.AssertionLogic.
 Require Import Java.Logic.SpecLogic.
 Require Import Java.Language.Program.
 Require Import Java.Language.Lang.
 Require Import Java.Semantics.OperationalSemantics.
 
+Require Import ExtLib.Structures.Applicative.
+
 Reify Declare Patterns patterns_imp_typ := Syntax.typ.
 
 Reify Declare Patterns patterns_imp := (ExprCore.expr Syntax.typ Syntax.func).
+
+Local Instance Applicative_Fun A : Applicative (Fun A) :=
+{ pure := fun _ x _ => x
+; ap := fun _ _ f x y => (f y) (x y)
+}.
+
 
 (*
 Reify Declare Patterns const_for_cmd += ((RHasType cmd ?0) => (fun (c : id cmd) => mkCmd [c] : expr typ func)).
@@ -29,6 +40,22 @@ Definition eval2 : dexpr -> stack -> val := eval.
 Definition pointsto2 : sval -> String.string -> sval -> asn := pointsto.
 Definition subst2 : (stack -> sval) -> String.string -> @subst String.string _ := subst1.
 Definition apply_subst2 (A : Type) : (stack -> A) -> @Subst.subst String.string SVal -> (stack -> A) := @apply_subst String.string _ A.
+Definition field_lookup2 : Program -> String.string -> SS.t -> Prop := field_lookup.
+Definition typeof2 (C : String.string) (x : sval) := typeof C x.
+Definition method_spec2 : String.string -> String.string -> list String.string -> String.string -> sasn -> sasn -> spec := method_spec.
+
+Notation "'ap_eq' '[' x ',' y ']'" := (ap (T := Fun stack) (ap (pure (@eq _)) x) y).
+Notation "'ap_pointsto' '[' x ',' f ',' e ']'" := 
+	(ap (T := Fun stack) (ap (ap (pure pointsto2) (stack_get x)) (pure f)) e).
+Notation "'ap_typeof' '[' x ',' C ']'" :=
+	(ap (T := Fun stack) 
+	    (ap (T := Fun stack) 
+	        (pure (T := Fun stack) typeof2) 
+	        (pure (T := Fun stack) C))
+	    (stack_get x)).
+
+Definition set_fold_fun (x f : String.string) (P : sasn) :=
+	ap_pointsto [x, f, pure null] ** P.
 
 Reify Declare Typed Table term_table : BinNums.positive => reify_imp_typ.
 
@@ -59,6 +86,7 @@ Reify Pattern patterns_imp_typ += (!! (@vlogic String.string _)) => tyPure.
 Reify Pattern patterns_imp_typ += (!! Prop) => tyProp.
 Reify Pattern patterns_imp_typ += (!! spec) => tySpec.
 
+Reify Pattern patterns_imp_typ += (!! @prod @ ?0 @ ?1) => (fun (x y : function reify_imp_typ) => tyPair x y).
 Reify Pattern patterns_imp_typ += (!! (@list String.string)) => tyVarList.
 Reify Pattern patterns_imp_typ += (!! (@list (@Open.expr (Lang.var) SVal))) => tyVarList.
 Reify Pattern patterns_imp_typ += (!! (@list (Lang.var * @Open.expr (Lang.var) SVal))) => tySubstList.
@@ -82,7 +110,11 @@ Reify Pattern patterns_imp += (RHasType Stack.val (?0)) => (fun (v : id Stack.va
 Reify Pattern patterns_imp += (RHasType (@val SVal) (?0)) => (fun (v : id (@val SVal)) => mkVal [v] : expr typ func).
 Reify Pattern patterns_imp += (RHasType cmd (?0)) => (fun (c : id cmd) => mkCmd [c] : expr typ func).
 Reify Pattern patterns_imp += (RHasType dexpr (?0)) => (fun (e : id dexpr) => mkExpr [e] : expr typ func).
-
+Reify Pattern patterns_imp += (RHasType Prog_wf (?0)) => (fun (P : id Prog_wf) => mkProg [P] : expr typ func).
+Reify Pattern patterns_imp += (RHasType SS.t (?0)) => (fun (fs : id SS.t) => mkFields [fs] : expr typ func).
+Reify Pattern patterns_imp += (RHasType class (?0)) => (fun (c : id class) => mkString [c] : expr typ func).
+Reify Pattern patterns_imp += (RHasType (@list dexpr) (?0)) => (fun (es : id (@list dexpr)) => mkExprList [es] : expr typ func).
+Reify Pattern patterns_imp += (RHasType (@list String.string) (?0)) => (fun (vs : id (@list String.string)) => mkVarList [vs] : expr typ func).
 Reify Pattern patterns_imp += (!! (@eq) @ ?0) => (fun (x : function reify_imp_typ) => fEq [x] : expr typ func).
 
 (** Intuitionistic Operators **)
@@ -102,7 +134,9 @@ Reify Pattern patterns_imp += (!! @ILEmbed.embed @ ?0 @ ?1 @ #) => (fun (x y : f
 Reify Pattern patterns_imp += (!! True) => (mkTrue [tyProp] : expr typ func).
 Reify Pattern patterns_imp += (!! False) => (mkFalse [tyProp] : expr typ func).
 Reify Pattern patterns_imp += (!! and) => (fAnd [tyProp] : expr typ func).
+
 Reify Pattern patterns_imp += (!! or) => (fOr [tyProp] : expr typ func).
+Reify Pattern patterns_imp += (!! ex @?0 ) => (fun (x : function reify_imp_typ) => fExists [tyProp, x] : expr typ func).
 Reify Pattern patterns_imp += (RPi (?0) (?1)) => (fun (x : function reify_imp_typ) (y : function reify_imp) =>
                                                    ExprCore.App (fForall [tyProp, x]) (ExprCore.Abs x y)).
 Reify Pattern patterns_imp += (RImpl (?0) (?1)) => (fun (x y : function reify_imp) => ExprCore.App (ExprCore.App (fImpl [tyProp]) x) y).
@@ -110,6 +144,10 @@ Reify Pattern patterns_imp += (RImpl (?0) (?1)) => (fun (x y : function reify_im
 (** Separation Logic Operators **)
 Reify Pattern patterns_imp += (!! @BILogic.sepSP @ ?0 @ #) => (fun (x : function reify_imp_typ) => (fStar [x] : expr typ func)).
 Reify Pattern patterns_imp += (!! @BILogic.empSP @ ?0 @ #) => (fun (x : function reify_imp_typ) => (mkEmp [x] : expr typ func)).
+
+Reify Pattern patterns_imp += (!! @Later.illater @ ?0 @ #) => (fun (x : function reify_imp_typ) => (fLater [x] : expr typ func)).
+
+Reify Pattern patterns_imp += (!! method_spec2) => (fMethodSpec : expr typ func).
 
 (** Program Logic **)
 
@@ -119,10 +157,23 @@ Reify Pattern patterns_imp += (!! stack_get) => (fStackGet : expr typ func).
 Reify Pattern patterns_imp += (!! stack_add) => (fStackSet : expr typ func).
 
 Reify Pattern patterns_imp += (!! pointsto2) => (fPointsto : expr typ func).
+Reify Pattern patterns_imp += (!! set_fold_fun) => (fSetFoldFun : expr typ func).
+Reify Pattern patterns_imp += (!! SS.fold @ ?0) => (fun (x : function reify_imp_typ) => (fSetFold [x] : expr typ func)).
+Reify Pattern patterns_imp += (!! prog_eq) => (fProgEq : expr typ func).
+Reify Pattern patterns_imp += (!! typeof2) => (fTypeOf : expr typ func).
+
+Reify Pattern patterns_imp += (!! substl_trunc) => (fTruncSubst : expr typ func).
+Reify Pattern patterns_imp += (!! substl) => (fSubst : expr typ func).
+
+Reify Pattern patterns_imp += (!! @nil @ ?0) => (fun (x : function reify_imp_typ) => (fNil [x] : expr typ func)).
+Reify Pattern patterns_imp += (!! @cons @ ?0) => (fun (x : function reify_imp_typ) => (fCons [x] : expr typ func)).
+Reify Pattern patterns_imp += (!! @length @ ?0) => (fun (x : function reify_imp_typ) => (fLength [x] : expr typ func)).
+Reify Pattern patterns_imp += (!! @zip @ ?0 @ ?1) => (fun (x y : function reify_imp_typ) => (fZip [x, y] : expr typ func)).
+Reify Pattern patterns_imp += (!! @map @ ?0 @ ?1) => (fun (x y : function reify_imp_typ) => (fMap [x, y] : expr typ func)).
 
 Reify Pattern patterns_imp += (!! @apply_subst2 @ ?0) => (fun (x : function reify_imp_typ) => fApplySubst [x] : expr typ func).
 Reify Pattern patterns_imp += (!! @subst2) => (fSingleSubst : expr typ func).
-
+Reify Pattern patterns_imp += (!! @field_lookup2) => (fFieldLookup : expr typ func).
 (** Applicative **)
 Reify Pattern patterns_imp += (!! @Applicative.ap @ !! (Fun stack) @ # @ ?0 @ ?1) => (fun (x y : function reify_imp_typ) => fAp [x, y] : expr typ func).
 Reify Pattern patterns_imp += (!! @Applicative.pure @ !! (Fun stack) @ # @ ?0) => (fun (x : function reify_imp_typ) => fConst [x] : expr typ func).
@@ -150,12 +201,9 @@ Ltac reify_imp e :=
              [ e ].
 Check @pointsto.
 
-Local Instance Applicative_Fun A : Applicative.Applicative (Fun A) :=
-{ pure := fun _ x _ => x
-; ap := fun _ _ f x y => (f y) (x y)
-}.
-
 Goal True.
+  reify_imp (exists x : nat, x = x).
+  reify_imp (@map nat nat).
   reify_imp subst2.
   reify_imp (cseq cskip cskip).
   reify_imp (ILogic.lentails True True).
