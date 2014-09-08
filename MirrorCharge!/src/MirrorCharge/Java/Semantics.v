@@ -113,7 +113,6 @@ Require Import List.
           G |-- {[ P ]} cscall x C m es {[ Q ]}.
 Proof.
 
-    
 (*
     reify_imp (G |-- |> method_spec2 C m ps r Pm Qm).
     reify_imp (P |-- apply_subst2 asn Pm (substl_trunc (zip ps (@map _ (stack -> sval) eval2 es))) ** F).
@@ -123,25 +122,24 @@ Proof.
 	reify_imp (Exists x : asn, (pure (T := Fun stack) x)).
 	reify_imp (fun x => ap_eq [pure (T := Fun stack) x), pure (T := Fun stack) x]).
 	reify_imp (Exists x : sval, ap_eq [(pure (T := Fun stack) x), pure (T := Fun stack) (vint 2)]).
-
+x
 reify_imp (Exists v:sval, apply_subst2 asn Qm (substl_trunc (zip (@cons String.string r ps) 
                                      (@cons (stack -> sval) (stack_get x)
                                       (@map (stack -> sval) _ (fun e => apply_subst2 sval e (subst2 (pure (T := Fun stack) v) x)) 
                                           (@map dexpr (stack -> sval) eval2 es))))) ** 
                            apply_subst2 asn F (subst2 (pure (T := Fun stack) v) x) |-- Q).
                            (reify_imp (fun (x y : nat) => x)).
-                           
-    reify_imp (exists x : nat, x = x).                     
-	reify_imp (Exists x : nat, ap_eq [(pure (T := Fun stack) x), pure (T := Fun stack) (vint 2)]).
+    reify_imp (exists x : nat, x = x).
+    reify_imp (Exists x : sval, ap_eq [(pure (T := Fun stack) x), pure (T := Fun stack) (vint 2)]).
     reify_imp (@map (stack -> sval) _ (fun e => apply_subst2 sval e (subst2 (pure (T := Fun stack) (vint 0)) x))
     	 		(@map _ (stack -> sval) eval2 es)).
     reify_imp (@cons String.string r ps).
-    reify_imp (@zip String.string (stack -> sval) (@cons String.string r ps) 
+    reify_imp (@zip String.string (stack -> sval) (@cons String.string r ps)
     	(@cons (stack -> sval) (stack_get x)
         (@map (stack -> sval) _ (fun e => apply_subst2 sval e (subst2 (pure (T := Fun stack) (vint 0)) x)) 
         (@map dexpr (stack -> sval) eval2 es)))).
     reify_imp (Exists v:sval, apply_subst2 asn Qm  (substl_trunc (zip (r :: ps) ((stack_get x) ::
-                                      map (fun e => apply_subst2 sval e (subst2 (pure (T := Fun stack) v) x)) 
+                                      map (fun e => apply_subst2 sval e (subst2 (cpure (T := Fun stack) v) x)) 
                                           (@map dexpr (stack -> sval) eval2 es)))) ** 
                            apply_subst2 asn F (subst2 (pure (T := Fun stack) v) x) |-- Q).
     reify_imp (map (fun e => apply_subst2 sval e (subst2 (pure (T := Fun stack) (vint 0)) x)) 

@@ -62,10 +62,10 @@ Reify Declare Typed Table term_table : BinNums.positive => reify_imp_typ.
 Let Ext x := @ExprCore.Inj Syntax.typ Syntax.func (inl (inl x)).
 
 Reify Declare Syntax reify_imp :=
-  { (@Patterns.CPatterns _ patterns_imp
+  { (@Patterns.CVar _ (@ExprCore.Var Syntax.typ Syntax.func)
+    (@Patterns.CPatterns _ patterns_imp
     (@Patterns.CApp _ (@ExprCore.App Syntax.typ Syntax.func)
     (@Patterns.CAbs _ reify_imp_typ (@ExprCore.Abs Syntax.typ Syntax.func)
-    (@Patterns.CVar _ (@ExprCore.Var Syntax.typ Syntax.func)
     (@Patterns.CTypedTable _ _ _ term_table Ext
     (@Patterns.CFail (ExprCore.expr Syntax.typ Syntax.func)))))))
   }.
@@ -105,7 +105,7 @@ Reify Pattern patterns_imp_typ += (!! Fun @ ?0 @ ?1) => (fun (a b : function rei
 Reify Pattern patterns_imp += (RHasType String.string (?0)) => (fun (s : id String.string) => mkString [s] : expr typ func).
 Reify Pattern patterns_imp += (RHasType field (?0)) => (fun (f : id field) => mkString [f] : expr typ func).
 Reify Pattern patterns_imp += (RHasType Lang.var (?0)) => (fun (f : id Lang.var) => mkString [f] : expr typ func).
-Reify Pattern patterns_imp += (RHasType sval (?0)) => (fun (v : id sval) => mkVal [v] : expr typ func).
+Reify Pattern patterns_imp += (RHasType sval (?!0)) => (fun (v : id sval) => mkVal [v] : expr typ func).
 Reify Pattern patterns_imp += (RHasType Stack.val (?0)) => (fun (v : id Stack.val) => mkVal [v] : expr typ func).
 Reify Pattern patterns_imp += (RHasType (@val SVal) (?0)) => (fun (v : id (@val SVal)) => mkVal [v] : expr typ func).
 Reify Pattern patterns_imp += (RHasType cmd (?0)) => (fun (c : id cmd) => mkCmd [c] : expr typ func).
@@ -136,7 +136,7 @@ Reify Pattern patterns_imp += (!! False) => (mkFalse [tyProp] : expr typ func).
 Reify Pattern patterns_imp += (!! and) => (fAnd [tyProp] : expr typ func).
 
 Reify Pattern patterns_imp += (!! or) => (fOr [tyProp] : expr typ func).
-Reify Pattern patterns_imp += (!! ex @?0 ) => (fun (x : function reify_imp_typ) => fExists [tyProp, x] : expr typ func).
+Reify Pattern patterns_imp += (!! ex @ ?0) => (fun (x : function reify_imp_typ) => fExists [tyProp, x] : expr typ func).
 Reify Pattern patterns_imp += (RPi (?0) (?1)) => (fun (x : function reify_imp_typ) (y : function reify_imp) =>
                                                    ExprCore.App (fForall [tyProp, x]) (ExprCore.Abs x y)).
 Reify Pattern patterns_imp += (RImpl (?0) (?1)) => (fun (x y : function reify_imp) => ExprCore.App (ExprCore.App (fImpl [tyProp]) x) y).
