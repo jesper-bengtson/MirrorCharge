@@ -22,7 +22,7 @@ Section ApplySubst.
 		    	
     Fixpoint applyParSubst (p : expr typ func) x vs es :=
     	match vs, es with
-    		| v :: vs, mkConsExprList [e, es] =>
+    		| v :: vs, mkCons [tyExpr, e, es] =>
     			if string_dec x v then
     				e
     			else
@@ -30,9 +30,9 @@ Section ApplySubst.
     	    | _, _ => p
     	 end.
 
-	Fixpoint applyTruncSubst x vs es :=
+	Fixpoint applyTruncSubst x vs (es : expr typ func) :=
 		match vs, es with
-			| v :: vs, mkConsExprList [e, es] =>
+			| v :: vs, mkCons [tyExpr, e, es] =>
 				if string_dec x v then
 					e
 				else
@@ -42,9 +42,9 @@ Section ApplySubst.
 
 	Definition applySubst t (f e : expr typ func) (x : String.string) := 
 		match f with
-		  | mkSingleSubst [t, p, mkString [y], e] => applySingleSubst p x y e
-		  | mkSubst [t, p, mkSubstList [mkVarList [vs], es]] => applyParSubst p x vs es
-		  | mkTruncSubst [t, p, mkSubstList [mkVarList [vs], es]] => applyTruncSubst x vs es
+		  | mkApplySingleSubst [t, p, mkString [y], e] => applySingleSubst p x y e
+(*		  | mkApplySubst [t, p, mkSubstList [mkVarList [vs], es]] => applyParSubst p x vs es
+		  | mkApplyTruncSubst [t, p, mkSubstList [mkVarList [vs], es]] => applyTruncSubst x vs es*)
 		  | _ => mkApplySubst [t, e, f]
 		end.
 
@@ -74,7 +74,7 @@ Definition simplify (e : expr typ func) (args : list (expr typ func))
     | Inj (inl (inr pEval)) =>
       match args with
         | App (Inj (inl (inr eVar))) X :: xs =>
-          apps (App fstack_get X) xs
+          apps (App fStackGet X) xs
         | _ => apps e args
       end
     | Inj (inl (inr (pApplySubst t))) =>
