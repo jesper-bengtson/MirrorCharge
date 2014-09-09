@@ -320,6 +320,19 @@ Section SepTests.
     prep.
   Abort.
 
+  (** With existentials that need existentials **)
+  Goal forall w x, exists P,
+         PT w x ** (Exists y, PT x y) |-- Exists x, PT w x ** P.
+  Proof.
+    prep.
+  Abort.
+
+  Goal forall w x, exists P,
+         PT w x ** (Exists y, PT x y) |-- Exists x, (PT w x ** P x).
+  Proof.
+    prep.
+  Abort.
+
   (** With existentials & pure premises **)
   Goal forall w x y,
          PT w x ** PT x y |--

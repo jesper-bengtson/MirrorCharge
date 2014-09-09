@@ -1,52 +1,71 @@
 Require Import ILogic ILInsts.
 Require Import ILogicFunc.
-Require Import MirrorCore.Ext.Types.
-Require Import MirrorCore.Ext.ExprCore.
+Require Import MirrorCore.Lambda.ExprCore.
+Require Import MirrorCore.TypesI.
 Require Import MapPositive.
 Require Import MirrorCore.SymI.
 Require Import ExtLib.Core.RelDec.
 Require Import Coq.Bool.Bool.
 Require Import ExtLib.Data.Positive.
-Require Import Ext.ExprLift.
+Require Import MirrorCore.Lambda.ExprLift.
 Require Import ExtLib.Tactics.Consider.
-Require Import MirrorCore.Ext.Expr.
-Require Import MirrorCore.Ext.ExprD.
-Require Import MirrorCore.Ext.ExprTactics.
+Require Import MirrorCore.Lambda.Expr.
+Require Import MirrorCore.Lambda.ExprD.
 Require Import MirrorCore.EnvI.
 Require Import ExtLib.Tactics.Cases.
 Require Import ExtLib.Tactics.Injection.
 Require Import ExtLib.Tactics.EqDep.
-Require Import Ext.SetoidFold.
 Require Import Relation_Definitions.
-Require Import MirrorCore.Ext.AppFull.
-(*
+
 Set Implicit Arguments.
 Unset Strict Implicit.
 Set Maximal Implicit Insertion.
-
+(*
 Definition inhabited (ts : types)  := forall (t : typ),
   option (Inhabited (typD ts nil t)).
+*)
+Check logic_ops.
+
+Check RSym_ilfunc.
 
 Section PullQuant.
-  Context (ts : types) (funcs : fun_map ts).
+  Variable typ : Type.
+  Variable RType_typ : RType typ.
+  Variable Typ2_Fun : Typ2 _ Fun.
+  Variable Typ0_typ : Typ0 RType_typ Prop.
+
+  Variable func : Type.
+  Variable RSym_func : RSym func.
+
+  Context (gs : logic_ops RType_typ).
+  Context {gsOk : logic_opsOk gs}.
+  
+  Context {es : embed_ops RType_typ}.
+  Context {esOk : embed_opsOk gs es}.
+  
+  Context {Req : RelDec (@eq typ)}.
+  
+(*
+  Context (ts : typs) (funcs : fun_map ts).
   Context (gs : logic_ops ts) {gsOk : logic_opsOk gs}.
   Context {es : embed_ops ts} {esOk : embed_opsOk gs es}.
   Context {is : inhabited ts}.
+*)
+Check embed_ops.
+  Definition TT := option (list typ * expr typ (ilfunc typ))%type.
 
-  Definition TT := option (list typ * expr ilfunc)%type.
-
-  Local Instance RSym_sym : SymI.RSym (typD ts) ilfunc := RSym_ilfunc funcs gs es.
+  Local Instance RSym_sym : SymI.RSym (ilfunc typ) := RSym_ilfunc _ gs es _ _.
 
   Let T:Type := tenv typ -> tenv typ -> TT.
-  Definition atomic (e : expr ilfunc) : T := fun _ _ => Some (nil, e).
+  Definition atomic (e : expr typ (ilfunc typ)) : T := fun _ _ => Some (nil, e).
 
   Definition pq_var (v : var) : T := atomic (Var v).
   Definition pq_uvar (u : uvar) : T := atomic (UVar u).
-  Definition pq_inj (s : ilfunc) : T := atomic (Inj s).
-  Definition pq_abs (x : typ) (e : expr ilfunc) (_ : T) : T :=
+  Definition pq_inj (s : ilfunc typ) : T := atomic (Inj s).
+  Definition pq_abs (x : typ) (e : expr typ (ilfunc typ)) (_ : T) : T :=
     atomic (Abs x e).
 
-  Definition pq_app (f : expr ilfunc) (_ : T) (args : list (expr ilfunc * T)) : T :=
+  Definition pq_app (f : expr typ (ilfunc typ)) (_ : T) (args : list (expr typ (ilfunc typ) * T)) : T :=
     fun us vs =>
     match f, args with
       | Inj (ilf_true t), nil => (atomic f) us vs
@@ -61,8 +80,6 @@ Section PullQuant.
         match a us vs, b us vs with
           | Some (xs, a), Some (ys, b) => Some (xs ++ ys,
                                                 App (App f (lift 0 (length ys) a))
-          | Some (xs, a), Some (ys, b) => Some (xs ++ ys,
-                                                App (App f (lift 0 (length ys) a))
                                                     (lift (length ys) (length xs) b))
           | _, _                       => None
         end
@@ -70,7 +87,7 @@ Section PullQuant.
     end.
 
 
-  Definition pq_exists (t t_logic : typ) (_ : expr ilfunc) (a : T) : T :=
+  Definition pq_exists (t t_logic : typ) (_ : expr typ (ilfunc typ)) (a : T) : T :=
     fun us vs =>
       match a us (t :: vs) with
   	| Some (ts, a) => Some (t :: ts, a)
