@@ -44,7 +44,7 @@ Definition field_lookup2 : Program -> String.string -> SS.t -> Prop := field_loo
 Definition typeof2 (C : String.string) (x : sval) := typeof C x.
 Definition method_spec2 : String.string -> String.string -> list String.string -> String.string -> sasn -> sasn -> spec := method_spec.
 
-Notation "'ap_eq' '[' x ',' y ']'" := (ap (T := Fun stack) (ap (pure (@eq _)) x) y).
+Notation "'ap_eq' '[' x ',' y ']'" := (ap (T := Fun stack) (ap (pure (@eq sval)) x) y).
 Notation "'ap_pointsto' '[' x ',' f ',' e ']'" := 
 	(ap (T := Fun stack) (ap (ap (pure pointsto2) (stack_get x)) (pure f)) e).
 Notation "'ap_typeof' '[' x ',' C ']'" :=

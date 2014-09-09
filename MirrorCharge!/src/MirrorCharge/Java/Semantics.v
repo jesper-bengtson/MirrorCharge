@@ -41,11 +41,16 @@ Proof.
   eapply roc_post; [eapply rule_skip | apply H].
 Qed.
 	
+Lemma rule_skip2 P G :(* P |-- Q -> *)G |-- {[P]} cskip {[P]}.
+Proof.
+  apply rule_skip. reflexivity.
+Qed.
+	
 Lemma rule_if (e : dexpr) c1 c2 (P Q : sasn) G
       (Hc1 : G |-- {[(@embed (@vlogic String.string _) sasn _ 
-                      ap_eq [eval2 e, pure (vbool true)]) //\\ P]} c1 {[Q]})
+                      ap_eq [eval2 e, pure (T := Fun stack) (vbool true)]) //\\ P]} c1 {[Q]})
       (Hc2 : G |-- {[(@embed (@vlogic String.string _) sasn _ 
-                      ap_eq [eval2 (E_not e), pure (vbool true)]) //\\ P]} c2 {[Q]}) :
+                      ap_eq [eval2 (E_not e), pure (T := Fun stack) (vbool true)]) //\\ P]} c2 {[Q]}) :
   G |-- {[P]} cif e c1 c2 {[Q]}.
 Proof.
   eapply rule_if; unfold vlogic_eval, Open.liftn, Open.lift; simpl in *;
@@ -104,55 +109,39 @@ Require Import List.
     (P Q F Pm Qm : sasn)
     (HSpec : G |-- |> method_spec2 C m ps r Pm Qm)
     (HPre: P |-- apply_subst2 asn Pm (substl_trunc (zip ps (@map _ (stack -> sval) eval2 es))) ** F)
-    (HLen: length ps = length es)
-    (HPost : Exists v:sval, apply_subst2 asn Qm (substl_trunc (zip (@cons String.string r ps) 
+    (HLen: length ps = length es) :
+          G |-- {[ P ]} cscall x C m es {[ Exists v:sval, apply_subst2 asn Qm (substl_trunc (zip (@cons String.string r ps) 
                                      (@cons (stack -> sval) (stack_get x)
                                       (@map (stack -> sval) _ (fun e => apply_subst2 sval e (subst2 (pure (T := Fun stack) v) x)) 
                                           (@map dexpr (stack -> sval) eval2 es))))) ** 
-                           apply_subst2 asn F (subst2 (pure (T := Fun stack) v) x) |-- Q) :
-          G |-- {[ P ]} cscall x C m es {[ Q ]}.
+                           apply_subst2 asn F (subst2 (pure (T := Fun stack) v) x)]}.
 Proof.
+	admit.
+Qed.
 
-(*
-    reify_imp (G |-- |> method_spec2 C m ps r Pm Qm).
-    reify_imp (P |-- apply_subst2 asn Pm (substl_trunc (zip ps (@map _ (stack -> sval) eval2 es))) ** F).
-    reify_imp (apply_subst2 asn Pm (substl_trunc (@nil ((String.string * (stack -> sval)%type))))).
-*)
-
-	reify_imp (Exists x : asn, (pure (T := Fun stack) x)).
-	reify_imp (fun x => ap_eq [pure (T := Fun stack) x), pure (T := Fun stack) x]).
-	reify_imp (Exists x : sval, ap_eq [(pure (T := Fun stack) x), pure (T := Fun stack) (vint 2)]).
-x
-reify_imp (Exists v:sval, apply_subst2 asn Qm (substl_trunc (zip (@cons String.string r ps) 
+Lemma rule_dynamic_complete C (m : String.string) (ps : list String.string) (es : list dexpr) (x y r : var) G
+    (P F Pm Qm : sasn)
+    (HSpec : G |-- |> method_spec2 C m ps r Pm Qm)
+    (HPre: P |-- embed (ap_typeof [x, C]) //\\ 
+                 apply_subst2 asn Pm (substl_trunc (zip ps (@map _ (stack -> sval) eval2 (E_var x :: es)))) ** 
+                 F)
+    (HLen: length ps = length (E_var y :: es)) :
+          G |-- {[ P ]} cdcall x y m es {[ Exists v:sval, apply_subst2 asn Qm (substl_trunc (zip (@cons String.string r ps) 
                                      (@cons (stack -> sval) (stack_get x)
                                       (@map (stack -> sval) _ (fun e => apply_subst2 sval e (subst2 (pure (T := Fun stack) v) x)) 
                                           (@map dexpr (stack -> sval) eval2 es))))) ** 
-                           apply_subst2 asn F (subst2 (pure (T := Fun stack) v) x) |-- Q).
-                           (reify_imp (fun (x y : nat) => x)).
-    reify_imp (exists x : nat, x = x).
-    reify_imp (Exists x : sval, ap_eq [(pure (T := Fun stack) x), pure (T := Fun stack) (vint 2)]).
-    reify_imp (@map (stack -> sval) _ (fun e => apply_subst2 sval e (subst2 (pure (T := Fun stack) (vint 0)) x))
-    	 		(@map _ (stack -> sval) eval2 es)).
-    reify_imp (@cons String.string r ps).
-    reify_imp (@zip String.string (stack -> sval) (@cons String.string r ps)
-    	(@cons (stack -> sval) (stack_get x)
-        (@map (stack -> sval) _ (fun e => apply_subst2 sval e (subst2 (pure (T := Fun stack) (vint 0)) x)) 
-        (@map dexpr (stack -> sval) eval2 es)))).
-    reify_imp (Exists v:sval, apply_subst2 asn Qm  (substl_trunc (zip (r :: ps) ((stack_get x) ::
-                                      map (fun e => apply_subst2 sval e (subst2 (cpure (T := Fun stack) v) x)) 
-                                          (@map dexpr (stack -> sval) eval2 es)))) ** 
-                           apply_subst2 asn F (subst2 (pure (T := Fun stack) v) x) |-- Q).
-    reify_imp (map (fun e => apply_subst2 sval e (subst2 (pure (T := Fun stack) (vint 0)) x)) 
-                                          (@map dexpr (stack -> sval) eval2 es)).
-    reify_imp (map dexpr (stack -> sval) eval2 es).
+                           apply_subst2 asn F (subst2 (pure (T := Fun stack) v) x) ]}.
+Proof.
+	admit.
+Qed.
 
-
-(*
-  
-  
-  Lemma rule_alloc_ax (x : var) C fields :
-    [prog](fun Pr => field_lookup Pr C fields) |-- {[ ltrue ]} calloc x C {[ Exists p:ptr,
-      @lembedand vlogic sasn _ _ (@land vlogic _ (`typeof `C (x/V)) (open_eq x /V `(vptr p)))
-      (SS.fold (fun f Q => `pointsto `(vptr p) `f `null ** Q) fields ltrue)]}.
-  Proof.
-*)
+  Lemma rule_dcall_forward C m ps (es : list dexpr) (x y r : var) G
+  (P Q F Pm Qm : sasn) 
+    (Hspec : G |-- |> C :.: m |-> ps {{ Pm }}-{{ r, Qm }})
+    (HPre : P |-- (@lembedand vlogic sasn _ _ (`typeof (`C) (y/V)) (Pm //! zip ps (map (fun e s => eval e s) ((E_var y)::es)))
+      ** F))
+    (HLen : length ps = length (E_var y :: es))
+    (HPost : Exists v:val, @lembedand vlogic sasn _ _ ((`typeof (`C) (y/V))[{`v//x}])
+     (Qm //! (zip (r :: ps) ((x/V) :: (y/V)[{`v//x}] ::
+        map (fun e => e[{`v//x}]) (map (fun e s => eval e s) es))) ** F[{`v//x}]) |-- Q) :
+    G |-- {[ P ]} cdcall x y m es {[ Q ]}.

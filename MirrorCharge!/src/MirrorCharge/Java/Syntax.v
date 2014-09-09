@@ -39,13 +39,6 @@ Inductive typ :=
 | tyArr : typ -> typ -> typ
 | tyList : typ -> typ
 | tyPair : typ -> typ -> typ
-
-(*
-| tyVarList : typ
-| tyExprList : typ
-| tySubstList : typ
-*)
-
 | tyVal : typ
 | tyString : typ
 | tyNat : typ
@@ -221,7 +214,7 @@ Instance Typ0_Prop : Typ0 _ Prop :=
 Inductive java_func :=
 | pString (_ : string)
 | pVal (_ : sval)
-| pVarList (_ : @list String.string) 
+| pVarList (_ : list String.string) 
 | pProg (_ : Prog_wf)
 | pCmd (_ : cmd)
 | pExpr (_ : dexpr)
@@ -680,6 +673,7 @@ Notation "'mkTypeOf' '[' C ',' x ']'" := (App (App fTypeOf C) x) (at level 0).
 
 Notation "'mkCons' '[' t ',' x ',' xs ']'" := (App (App (fCons [t]) x) xs).
 Notation "'mkLength '[' t ',' lst ']'" := (App (fLength [t]) lst).
+Notation "'mkZip' '[' t ',' u ',' xs ',' ys ']'" := (App (App (fZip [t, u]) xs) ys).
 
 (*
 Notation "'mkNilVarList'" := (Inj (inl (inr pNilVarList))) (at level 0).
@@ -749,12 +743,14 @@ Notation "'mkApplySubst' '[' t ',' P ',' s ']'" := (App (App (fApplySubst [t]) P
 Notation "'mkSingleSubst' '[' x ',' e ']'" := (App (App fSingleSubst e) x).
 Notation "'mkApplySingleSubst' '[' t ',' P ',' x ',' e ']'" := (mkApplySubst [t, P, mkSingleSubst [e, x]]).
 
-Notation "'mkSubst' '[' es ']'" := (App fSubst es).
-Notation "'mkApplySubst' '[' t ',' P ',' es ']'" := (mkApplySubst [t, P, mkSubst [es]]).
+Notation "'mkSubst' '[' s ']'" := (App fSubst s).
+Notation "'mkApplySubst' '[' t ',' P ',' s ']'" := (mkApplySubst [t, P, mkSubst [s]]).
 
-Notation "'mkTruncSubst' '[' es ']'" := (App fTruncSubst es).
-Notation "'mkApplyTruncSubst' '[' t ',' P ',' es ']'" := (mkApplySubst [t, P, mkTruncSubst [es]]).
- 
+Notation "'mkTruncSubst' '[' s ']'" := (App fTruncSubst s).
+Notation "'mkApplyTruncSubst' '[' t ',' P ',' s ']'" := (mkApplySubst [t, P, mkTruncSubst [s]]).
+
+Notation "'mkSubstList' '[' vs ',' es ']'" := (mkZip [tyString, tyArr tyStack tyVal, vs, mkExprList [es]]).
+
 (*                                                        
 Notation "'mkSubstList' '[' vs ',' es ']'" := (App (App (Inj (inl (inr pZipSubst))) vs) es) (at level 0).
 
