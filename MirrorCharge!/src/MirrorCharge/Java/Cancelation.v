@@ -25,9 +25,9 @@ Local Existing Instance Expr_expr.
 Definition sls : SepLogFoldEx.SepLogSpec typ func :=
 {| SepLogFoldEx.is_pure := fun (e : expr typ func) =>
                 match e with
-                  | mkTrue [_]
+          (*        | mkTrue [_]
                   | mkFalse [_] => true
-                  | App (App (Inj (inl (inr (pAp _ _)))) (App (Inj (inl (inr (pConst _)))) (Inj (inr (ilf_embed tyProp _))))) _ => true
+                  | App (App (Inj (inl (inr (pAp _ _)))) (App (Inj (inl (inr (pConst _)))) (Inj (inr (ilf_embed tyProp _))))) _ => true*)
                   | _ => false
                 end
  ; SepLogFoldEx.is_emp := fun e => false
@@ -47,6 +47,8 @@ Definition sls : SepLogFoldEx.SepLogSpec typ func :=
                   | _ => None
                 end
  |}.
+
+About normalize.
 
 Section inst_2.
   Variable lookup : uvar -> nat -> option (expr typ func).
@@ -90,25 +92,29 @@ Local Existing Instance SubstU_CS.
 
 Let doUnifySepLog (tus tvs : EnvI.tenv typ) (s : CascadeSubst subst subst) (e1 e2 : expr typ func)
 : option (CascadeSubst subst subst) :=
-  @exprUnify _ typ func _ _ _ _ _ 10 nil tus tvs 0 s e1 e2 tyPure.
+  @exprUnify _ typ func _ _ _ _ _ 10 nil tus tvs 0 s e1 e2 tySasn.
 
 Let ssl : SynSepLog typ func :=
 {| e_star := fun l r =>
+               let result := mkStar [tySasn, l, r] in
+               let nested_match := match r with
+		                           | mkEmp [_] => l
+		                           | _ => result
+		                           end in
                match l with
                  | mkEmp [_] => r
-                 | _ => match r with
-                          | mkEmp [_] => l
-                          | _ => mkStar [tySasn, l, r]
-                        end
+                 | _ => nested_match
                end
  ; e_emp := mkEmp [tySasn]
  ; e_and := fun l r =>
+ 			  let result := mkAnd [tySasn, l, r] in
+ 			  let nested_match := match r with
+		                          | mkTrue [_] => l
+		                          | _ => result
+		                          end in
               match l with
                 | mkEmp [_] => r
-                | _ => match r with
-                         | mkTrue [_] => l
-                         | _ => mkAnd [tySasn, l, r]
-                       end
+                | _ => nested_match
               end
  ; e_true := mkTrue [tySasn]
  |}.
@@ -121,23 +127,11 @@ Definition eproveTrue (s : CascadeSubst subst subst) (e : expr typ func)
   end.
 
 Definition is_solved (e1 e2 : BILNormalize.conjunctives typ func) : bool :=
-  match e1 , e2 with
-    | {| BILNormalize.spatial := e1s
-       ; BILNormalize.star_true := t
-       ; BILNormalize.pure := _ |}
-    , {| BILNormalize.spatial := nil
-       ; BILNormalize.star_true := t'
-       ; BILNormalize.pure := nil |} =>
-      if t' then
-        (** ... |- true **)
-        true
-      else
-        (** ... |- emp **)
-        if t then false else match e1s with
-                               | nil => true
-                               | _ => false
-                             end
-    | _ , _ => false
+  match e2 with
+    | {| BILNormalize.spatial := nil
+       ; BILNormalize.star_true := _
+       ; BILNormalize.pure := nil |} => true
+    | _ => false
   end.
 
 Require Import ExtLib.Core.RelDec.

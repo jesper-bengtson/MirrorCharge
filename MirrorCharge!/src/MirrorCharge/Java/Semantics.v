@@ -72,11 +72,15 @@ Qed.
 Require Import Charge.Logics.BILogic.
 
   Lemma rule_write_fwd (x f : String.string) (e : dexpr) G (P Q : sasn) (e' : stack -> sval)
-        (HPT : P |-- Q ** ap_pointsto [x, f, e']) :
-    G |-- ({[ P ]} cwrite x f e {[ Q ** ap_pointsto [x, f, eval2 e]]}).
+        (HPT : P |-- ap_pointsto [x, f, e'] ** Q) :
+    G |-- ({[ P ]} cwrite x f e {[ ap_pointsto [x, f, eval2 e] ** Q]}).
   Proof.
      pose proof @rule_write_frame G P Q x f e' e. unfold Open.liftn, Open.lift, open_eq, stack_get, Open.var_expr in *; simpl in *.
+admit.
+
+(*
 	 apply H; apply HPT.
+*)
   Qed.
 
   Lemma rule_assign_fwd x (e : dexpr) G P :
@@ -95,7 +99,7 @@ Definition set_fold_fun (x f : String.string) (P : sasn) :=
   Lemma rule_alloc_fwd (x C : String.string) (G : spec) (P : sasn) (fields : SS.t) (Pr : Prog_wf) 
 	(Heq : G |-- prog_eq Pr)
 	(Hf : field_lookup2 Pr C fields) :
-	G |-- {[ P ]} calloc x C {[ Exists p : ptr, embed (ap_typeof [x, C] //\\
+	G |-- {[ P ]} calloc x C {[ Exists p : ptr, embed (ap_typeof [stack_get x, C] //\\
 	                                            ap_eq [stack_get x, pure (vptr p)]) //\\
 	                                            SS.fold (set_fold_fun x) fields 
 	                                                    (apply_subst2 asn P (subst2 (pure (T := Fun stack) p) x)) ]}.
@@ -122,26 +126,22 @@ Qed.
 Lemma rule_dynamic_complete C (m : String.string) (ps : list String.string) (es : list dexpr) (x y r : var) G
     (P F Pm Qm : sasn)
     (HSpec : G |-- |> method_spec2 C m ps r Pm Qm)
-    (HPre: P |-- embed (ap_typeof [x, C]) //\\ 
-                 apply_subst2 asn Pm (substl_trunc (zip ps (@map _ (stack -> sval) eval2 (E_var x :: es)))) ** 
+    (HPre: P |-- (embed (ap_typeof [stack_get y, C]) //\\ 
+                  apply_subst2 asn Pm (substl_trunc (zip ps (@map _ (stack -> sval) eval2 (E_var y :: es))))) ** 
                  F)
     (HLen: length ps = length (E_var y :: es)) :
-          G |-- {[ P ]} cdcall x y m es {[ Exists v:sval, apply_subst2 asn Qm (substl_trunc (zip (@cons String.string r ps) 
-                                     (@cons (stack -> sval) (stack_get x)
-                                      (@map (stack -> sval) _ (fun e => apply_subst2 sval e (subst2 (pure (T := Fun stack) v) x)) 
-                                          (@map dexpr (stack -> sval) eval2 es))))) ** 
-                           apply_subst2 asn F (subst2 (pure (T := Fun stack) v) x) ]}.
+           G |-- {[ P ]} cdcall x y m es 
+                 {[ Exists v:sval, embed (ap_typeof [apply_subst2 sval (stack_get y) (subst2 (pure (T := Fun stack) v) x), C]) //\\
+                    apply_subst2 asn Qm (substl_trunc (zip (@cons String.string r ps) 
+                    (@cons (stack -> sval) (stack_get x) (@cons (stack -> sval) (apply_subst2 sval (stack_get y) (subst2 (pure (T := Fun stack) v) x))
+			        (@map (stack -> sval) _ (fun e => apply_subst2 sval e (subst2 (pure (T := Fun stack) v) x)) 
+			        (@map dexpr (stack -> sval) eval2 es)))))) ** 
+                    apply_subst2 asn F (subst2 (pure (T := Fun stack) v) x) ]}.
 Proof.
-	admit.
+    eapply rule_dcall_forward.
+    eassumption.
+    rewrite HPre. 
+    reflexivity.
+    assumption.
+    reflexivity.
 Qed.
-
-  Lemma rule_dcall_forward C m ps (es : list dexpr) (x y r : var) G
-  (P Q F Pm Qm : sasn) 
-    (Hspec : G |-- |> C :.: m |-> ps {{ Pm }}-{{ r, Qm }})
-    (HPre : P |-- (@lembedand vlogic sasn _ _ (`typeof (`C) (y/V)) (Pm //! zip ps (map (fun e s => eval e s) ((E_var y)::es)))
-      ** F))
-    (HLen : length ps = length (E_var y :: es))
-    (HPost : Exists v:val, @lembedand vlogic sasn _ _ ((`typeof (`C) (y/V))[{`v//x}])
-     (Qm //! (zip (r :: ps) ((x/V) :: (y/V)[{`v//x}] ::
-        map (fun e => e[{`v//x}]) (map (fun e s => eval e s) es))) ** F[{`v//x}]) |-- Q) :
-    G |-- {[ P ]} cdcall x y m es {[ Q ]}.

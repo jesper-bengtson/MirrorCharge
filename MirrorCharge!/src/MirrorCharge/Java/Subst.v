@@ -30,7 +30,8 @@ Section ApplySubst.
     	    | _, _ => p
     	 end.
 
-	Fixpoint applyTruncSubst x vs (es : expr typ func) :=
+	Fixpoint applyTruncSubst (x : String.string) (vs : list String.string) 
+	                         (es : expr typ func) :=
 		match vs, es with
 			| v :: vs, mkCons [tyExpr, e, es] =>
 				if string_dec x v then
@@ -40,12 +41,13 @@ Section ApplySubst.
 			| _, _ => fNull
 		end.
 
-	Definition applySubst t (f e : expr typ func) (x : String.string) := 
+	Definition applySubst (t : typ) (f e : expr typ func) (x : String.string) :=
+		let result := mkApplySubst [t, e, f] in	
 		match f with
 		  | mkApplySingleSubst [t, p, mkString [y], e] => applySingleSubst p x y e
 (*		  | mkApplySubst [t, p, mkSubstList [mkVarList [vs], es]] => applyParSubst p x vs es
 		  | mkApplyTruncSubst [t, p, mkSubstList [mkVarList [vs], es]] => applyTruncSubst x vs es*)
-		  | _ => mkApplySubst [t, e, f]
+		  | _ => result
 		end.
 
 End ApplySubst.
@@ -54,6 +56,7 @@ Section PushSubst.
   Variable f : expr typ func.
 
   Fixpoint pushSubst (e : expr typ func) (t : typ) : expr typ func :=
+    let result := mkApplySubst [t, e, f] in 
     match e with
     	| mkAnd [l, p, q] => mkAnd [l, pushSubst p t, pushSubst q t]
     	| mkOr [l, p, q] => mkOr [l, pushSubst p t, pushSubst q t]
@@ -63,7 +66,7 @@ Section PushSubst.
     	| mkAp [t1, t2, p, q] => mkAp [t1, t2, pushSubst p (tyArr t1 t2), pushSubst q t1]
     	| mkConst [l, p] => mkConst [l, p]
     	| App fstack_get (mkString [v]) => applySubst t f e v 
-    	| _ => mkApplySubst [t, e, f]
+    	| _ => result
     end.
     
 End PushSubst.
@@ -79,7 +82,7 @@ Definition simplify (e : expr typ func) (args : list (expr typ func))
       end
     | Inj (inl (inr (pApplySubst t))) =>
       match args with
-        | f :: e :: nil =>
+        | e :: f :: nil =>
           pushSubst f e t
         | _ => apps e args
       end

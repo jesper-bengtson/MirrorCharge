@@ -685,7 +685,7 @@ Notation "'mkConsExprList' '[' x ',' xs ']'" := (App (App (Inj (inl (inr pConsEx
 Notation "'mkVal' '[' v ']'" := (Inj (inl (inr (pVal v)))) (at level 0).
 Notation "'mkVarList' '[' lst ']'" := (Inj (inl (inr (pVarList lst)))) (at level 0).
 
-Notation "'mkString' '[' s ']'" := (Inj (inl (inr (pString s)))) (at level 0).
+Notation "'mkString' '[' s ']'" := (@Inj (inl (inr (pString s)))) (at level 0).
 Notation "'mkProg' '[' P ']'" := (Inj (inl (inr (pProg P)))) (at level 0).
 Notation "'mkProgEq' '[' P ']'" := (App fProgEq P) (at level 0).
 Notation "'mkCmd' '[' c ']'" := (Inj (inl (inr (pCmd c)))) (at level 0).

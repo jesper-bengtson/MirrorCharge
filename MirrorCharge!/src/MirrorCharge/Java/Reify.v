@@ -47,12 +47,12 @@ Definition method_spec2 : String.string -> String.string -> list String.string -
 Notation "'ap_eq' '[' x ',' y ']'" := (ap (T := Fun stack) (ap (pure (@eq sval)) x) y).
 Notation "'ap_pointsto' '[' x ',' f ',' e ']'" := 
 	(ap (T := Fun stack) (ap (ap (pure pointsto2) (stack_get x)) (pure f)) e).
-Notation "'ap_typeof' '[' x ',' C ']'" :=
+Notation "'ap_typeof' '[' e ',' C ']'" :=
 	(ap (T := Fun stack) 
 	    (ap (T := Fun stack) 
 	        (pure (T := Fun stack) typeof2) 
 	        (pure (T := Fun stack) C))
-	    (stack_get x)).
+	    e).
 
 Definition set_fold_fun (x f : String.string) (P : sasn) :=
 	ap_pointsto [x, f, pure null] ** P.

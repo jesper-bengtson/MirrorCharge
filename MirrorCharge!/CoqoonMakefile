@@ -19,13 +19,17 @@ override COQFLAGS += -R $(EXTLIB_PATH) ExtLib
 override COQFLAGS += -R $(MIRRORCORE_PATH) MirrorCore
 override COQFLAGS += $(JAVA_FLAGS)
 override COQFLAGS += -R $(EXTERNAL_PATH) ""
+override COQFLAGS += -R $(MCEXAMPLES_PATH) McExamples
 OBJECTS = \
+	bin/MirrorCharge/AutoSetoidRewrite.vo \
 	bin/MirrorCharge/BILNormalize.vo \
 	bin/MirrorCharge/BILNormalizeEx.vo \
 	bin/MirrorCharge/CancellerTac.vo \
 	bin/MirrorCharge/ILFFold.vo \
 	bin/MirrorCharge/ILPullQuant.vo \
+	bin/MirrorCharge/ILPullQuant2.vo \
 	bin/MirrorCharge/ILPullQuantStar.vo \
+	bin/MirrorCharge/ILaterFunc.vo \
 	bin/MirrorCharge/ILogicFunc.vo \
 	bin/MirrorCharge/Imp/Goal.vo \
 	bin/MirrorCharge/Imp/Imp.vo \
@@ -63,12 +67,15 @@ all: $(OBJECTS)
 clean:
 	rm -f $(OBJECTS)
 
+bin/MirrorCharge/AutoSetoidRewrite.vo: src/MirrorCharge/AutoSetoidRewrite.v
 bin/MirrorCharge/BILNormalize.vo: src/MirrorCharge/BILNormalize.v bin/MirrorCharge/Iterated.vo bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/SynSepLog.vo
 bin/MirrorCharge/BILNormalizeEx.vo: src/MirrorCharge/BILNormalizeEx.v bin/MirrorCharge/Iterated.vo bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/SepLogFoldEx.vo bin/MirrorCharge/SynSepLog.vo
 bin/MirrorCharge/CancellerTac.vo: src/MirrorCharge/CancellerTac.v
 bin/MirrorCharge/ILFFold.vo: src/MirrorCharge/ILFFold.v bin/MirrorCharge/ILogicFunc.vo
 bin/MirrorCharge/ILPullQuant.vo: src/MirrorCharge/ILPullQuant.v bin/MirrorCharge/ILogicFunc.vo
+bin/MirrorCharge/ILPullQuant2.vo: src/MirrorCharge/ILPullQuant2.v bin/MirrorCharge/AutoSetoidRewrite.vo bin/MirrorCharge/ILogicFunc.vo
 bin/MirrorCharge/ILPullQuantStar.vo: src/MirrorCharge/ILPullQuantStar.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/ILFFold.vo bin/MirrorCharge/SepLogFold.vo
+bin/MirrorCharge/ILaterFunc.vo: src/MirrorCharge/ILaterFunc.v
 bin/MirrorCharge/ILogicFunc.vo: src/MirrorCharge/ILogicFunc.v
 bin/MirrorCharge/Imp/Goal.vo: src/MirrorCharge/Imp/Goal.v bin/MirrorCharge/Imp/Imp.vo
 bin/MirrorCharge/Imp/Imp.vo: src/MirrorCharge/Imp/Imp.v

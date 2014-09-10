@@ -311,14 +311,15 @@ Definition test_read :=
   let vars := nil in
   let goal :=
   	mkEntails [tySpec, mkTrue [tySpec], 
-  	           mkTriple [ mkPointsto "o" "f" (mkConst [tyVal, mkVal [vint 3]]),
-  	                     mkCmd [cread "x" "o" "f"],
-  	                     (UVar 0)]]
+  	           mkTriple [mkStar [tySasn, 
+  	                             mkPointsto "o1" "f1" (mkConst [tyVal, mkVal [vint 3]]),
+  	                             mkPointsto "o" "f" (mkConst [tyVal, mkVal [vint 4]])],
+  	                     mkCmd [cseq (cread "x" "o" "f") cskip],
+  	                     UVar 0]]
   in
   @symE uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
+ 
 Time Eval vm_compute  in test_read.
-
-Require Import Charge.Logics.BILogic.
 
 Definition testWrite :=
   let uvars := tySasn :: nil in
@@ -331,61 +332,22 @@ Definition testWrite :=
   in
   @symE uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
 Time Eval vm_compute  in testWrite.
-Print write_lemma.
 
-Opaque the_canceller.
-Goal (exists x, x = testWrite).
-cbv.
-Transparent the_canceller.
-Check @the_canceller.
-match goal with | |- context [the_canceller ?a ?b ?c ?d ?e] => 
-pose (the_canceller a b c d e); pose a; pose b; pose c; pose d
-end.
-Check exprD'.
-pose (exprD' l l0 e0 tySasn).
-simpl in r.
-red in r.
-simpl in r.
-unfold Open_App in r.
-simpl in r.
-unfold Open_Inj in r.
-simpl in r.
-unfold Rcast_val in r.
-simpl in r. 
-unfold Rcast in r; simpl in r.
-
-pose (exprD' l l0 e tySasn).
-simpl in r0.
-red in r0.
-simpl in r0.
-unfold Open_App in r0.
-simpl in r0.
-unfold Open_Inj in r0.
-simpl in r0.
-unfold Rcast_val in r0.
-simpl in r0. 
-unfold Rcast in r; simpl in r0.
-
-Eval cbv beta iota zeta delta [exprD' Expr_expr] in (exprD' nil nil e (tySasn)).
-cbv in s.
-
-Check stac_cancel.
-Print stac.
-simpl.
 Definition testSwap :=
-  let uvars := nil in
-  let vars := tyExpr :: tyExpr :: nil in
+  let uvars := tySasn :: nil in
+  let vars := nil in
   let goal := mkEntails [tySpec, mkTrue [tySpec],
   	                     mkTriple [mkStar [tySasn,
-  		                                   mkPointsto "o" "f1" (App fEval (Var 0)),
-	  	                                   mkPointsto "o" "f2" (App fEval (Var 1))],                                           	                      
+  		                                   mkPointsto "o" "f1" (mkConst [tyVal, mkVal [vint 1]]),
+	  	                                   mkPointsto "o" "f2" (mkConst [tyVal, mkVal [vint 2]])],                                           	                      
   	                               mkCmd [cseq (cread "x1" "o" "f1")
-  	                                      (cseq (cread "x2" "o" "f2")
-  	                                      (cseq (cwrite "o" "f1" (E_var "x2"))
-  	                                            (cwrite "o" "f2" (E_var "x1"))))], 
-			                       mkStar [tySasn,
+  	                                           (cread "x2" "o" "f2")
+  	                               (*       (cseq (cwrite "o" "f1" (E_var "x2"))
+  	                                            (cwrite "o" "f2" (E_var "x1")))) *) ], 
+			                       UVar 0
+			                       (*mkStar [tySasn,
 			                               mkPointsto "o" "f1" (App fEval (Var 1)),
-			                               mkPointsto "o" "f2" (App fEval (Var 0))]]]                                     
+			                               mkPointsto "o" "f2" (App fEval (Var 0))*)]]                                     
   in
   let tac := symE in
   @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
