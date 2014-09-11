@@ -156,17 +156,11 @@ Proof.
 	+ do 2 rewrite type_cast_typ_refl; reflexivity.	
 Qed.
 
-Fixpoint typD (ls : list Type) (t : typ) : Type :=
+Fixpoint typD  (t : typ) : Type :=
   match t with
-    | tyArr a b => typD ls a -> typD ls b
-	| tyList a => @list (typD ls a)
-	| tyPair a b => (typD ls a * typD ls b)%type
-
-(*
-    | tyVarList => @list string
-    | tyExprList => @list (@Open.expr (String.string) SVal)
-    | tySubstList => @list (String.string * (@Open.expr (String.string) SVal))
-*)
+    | tyArr a b => typD a -> typD b
+	| tyList a => @list (typD a)
+	| tyPair a b => (typD a * typD b)%type
     | tyProp => Prop
     | tyNat => nat
     | tySpec => spec
@@ -180,7 +174,38 @@ Fixpoint typD (ls : list Type) (t : typ) : Type :=
     | tyExpr => dexpr
     | tySubst => @Subst.subst (String.string) SVal
   end.
-   
+
+Definition inhabited_typ (t : typ) := true.
+
+Require Import ILogic.
+
+Lemma inhabited_typ_sound (t : typ) (H : inhabited_typ t = true) : Inhabited (typD t).
+Proof.
+  induction t; simpl in *.
+  + assert (inhabited_typ t2 = true) by reflexivity.
+    specialize (IHt2 H0). destruct IHt2; destruct cinhabited. 
+    repeat split; intros; assumption.
+  + repeat split. apply nil.
+  + assert (inhabited_typ t1 = true) by reflexivity.
+  	assert (inhabited_typ t2 = true) by reflexivity.
+  	specialize (IHt1 H0); specialize (IHt2 H1).
+  	destruct IHt1; destruct cinhabited as [a].
+  	destruct IHt2; destruct cinhabited as [b].
+  	repeat split; assumption.
+  + repeat split; apply null.
+  + repeat split; apply EmptyString.
+  + apply _.
+  + repeat split; apply True.
+  + repeat split; apply ltrue.
+  + repeat split; apply ltrue.
+  + repeat split. admit.
+  + repeat split; intros. intro. apply null.
+  + repeat split; apply cskip.
+  + repeat split; apply SS.empty.
+  + repeat split; apply (E_val null).
+  + repeat split; intros. intros x s. apply null.
+Qed.
+
 Inductive tyAcc_typ : typ -> typ -> Prop :=
 | tyAcc_tyArrL : forall a b, tyAcc_typ a (tyArr a b)
 | tyAcc_tyArrR : forall a b, tyAcc_typ a (tyArr b a).
@@ -188,14 +213,14 @@ Inductive tyAcc_typ : typ -> typ -> Prop :=
 Instance RType_typ : RType typ :=
 { typD := typD
 ; tyAcc := tyAcc_typ
-; type_cast := fun _ => type_cast_typ
+; type_cast := type_cast_typ
 }.
 
 Instance Typ2_Fun : Typ2 _ Fun :=
 { typ2 := tyArr
-; typ2_cast := fun _ _ _ => eq_refl
-; typ2_match := fun T ts t tr =>
-                  match t as t return T (typD ts t) -> T (typD ts t) with
+; typ2_cast := fun _ _ => eq_refl
+; typ2_match := fun T t tr =>
+                  match t as t return T (typD t) -> T (typD t) with
                     | tyArr a b => fun _ => tr a b
                     | _ => fun fa => fa
                   end
@@ -203,9 +228,9 @@ Instance Typ2_Fun : Typ2 _ Fun :=
 
 Instance Typ0_Prop : Typ0 _ Prop :=
 { typ0 := tyProp
-; typ0_cast := fun _ => eq_refl
-; typ0_match := fun T ts t tr =>
-                  match t as t return T (typD ts t) -> T (typD ts t) with
+; typ0_cast := eq_refl
+; typ0_match := fun T t tr =>
+                  match t as t return T (typD t) -> T (typD t) with
                     | tyProp => fun _ => tr
                     | _ => fun fa => fa
                   end
@@ -415,17 +440,13 @@ Definition set_fold_fun (x : String.string) (f : field) (P : sasn) :=
 	(`pointsto) (x/V) `f `null ** P.
 
 Definition stack_get (x : string) (s : stack) := s x.
-Eval cbv in (match typeof_sym_java pSubst with
-  | Some t => typD nil t
-  | None => unit
-  end).
-  Print substlist.
+
 Instance RSym_imp_func : SymI.RSym java_func :=
 { typeof_sym := typeof_sym_java
-; symD := fun ts f =>
+; symD := fun f =>
             match f as f return match typeof_sym_java f with
                                   | None => unit
-                                  | Some t => typD ts t
+                                  | Some t => typD t
                                 end
             with
               | pString s => s
@@ -435,16 +456,16 @@ Instance RSym_imp_func : SymI.RSym java_func :=
               | pCmd c => c
               | pExpr e => e
               | pFields fs => fs
-              | pEq t => @eq (typD ts t)
+              | pEq t => @eq (typD t)
               
-              | pAp t u => @Applicative.ap (Fun stack) (Applicative_Fun _) (typD ts t) (typD ts u)
-              | pConst t => @Applicative.pure (Fun stack) (Applicative_Fun _) (typD ts t)
+              | pAp t u => @Applicative.ap (Fun stack) (Applicative_Fun _) (typD t) (typD u)
+              | pConst t => @Applicative.pure (Fun stack) (Applicative_Fun _) (typD t)
               | pMethodSpec => method_spec
               | pProgEq => prog_eq
               | pStackGet => stack_get
               | pStackSet => stack_add
               
-              | pApplySubst t => @apply_subst (String.string) SVal (typD ts t)
+              | pApplySubst t => @apply_subst (String.string) SVal (typD t)
               
               | pTriple => triple
               | pEval => eval
@@ -463,20 +484,20 @@ Instance RSym_imp_func : SymI.RSym java_func :=
               | pLater _ => tt
               
               | pFieldLookup => field_lookup
-              | pSetFold t => @SS.fold (typD ts t)
+              | pSetFold t => @SS.fold (typD t)
               | pSetFoldFun => set_fold_fun
               
               | pPointsto => pointsto
               
-              | pZip a b => @zip (typD ts a) (typD ts b)
+              | pZip a b => @zip (typD a) (typD b)
               | pSubst => @substl_aux  String.string _ SVal
               | pTruncSubst => @substl_trunc_aux String.string _ SVal
               | pSingleSubst => @subst1 String.string _ SVal
               
-              | pCons t => @cons (typD ts t)
-              | pNil t => @nil (typD ts t)
-              | pLength t => @length (typD ts t)
-              | pMap a b => @map (typD ts a) (typD ts b)
+              | pCons t => @cons (typD t)
+              | pNil t => @nil (typD t)
+              | pLength t => @length (typD t)
+              | pMap a b => @map (typD a) (typD b)
   (*            
               | pConsVarList => @cons string
               | pNilVarList => @nil string
@@ -499,21 +520,21 @@ Local Existing Instance ILFun_ILogic.
 Definition fs : @SymEnv.functions typ _ :=
   SymEnv.from_list
     (@SymEnv.F typ _ (tyArr tyString (tyArr tyVarList  tyProp))
-               (fun _ => (@In string)) ::
+               (@In string) ::
      @SymEnv.F typ _ (tyArr tyVarList tyProp)
-               (fun _ => (@NoDup string)) ::
+               (@NoDup string) ::
      nil).
 
   Definition lops : logic_ops RType_typ :=
   fun t =>
     match t
-          return option (forall ts, ILogic.ILogicOps (TypesI.typD ts t))
+          return option (ILogic.ILogicOps (TypesI.typD t))
     with
       | tyProp => Some _
       | tyAsn => Some _
-      | tySasn => Some (fun _ => @ILFun_Ops stack asn _)
+      | tySasn => Some (@ILFun_Ops stack asn _)
       | tySpec => Some _
-      | tyPure => Some (fun _ => @ILFun_Ops stack Prop _)
+      | tyPure => Some ( @ILFun_Ops stack Prop _)
       | _ => None
     end.
 
@@ -521,10 +542,9 @@ Definition eops : embed_ops RType_typ :=
   fun t u =>
     match t as t , u as u
           return option
-                   (forall ts : list Type,
-                      ILEmbed.EmbedOp (TypesI.typD ts t) (TypesI.typD ts u))
+                   (ILEmbed.EmbedOp (TypesI.typD t) (TypesI.typD u))
     with
-      | tyPure, tySasn => Some (fun _ => EmbedSasnPureOp)
+      | tyPure, tySasn => Some EmbedSasnPureOp
       | _ , _ => None
     end.
 
@@ -551,7 +571,7 @@ Proof.
 Qed.
 
 Let Expr_expr : ExprI.Expr _ (expr typ func) := @Expr_expr typ func _ _ _.
-Let Expr_ok : @ExprI.ExprOk typ RType_typ (expr typ func) Expr_expr := ExprOk_expr nil.
+Let Expr_ok : @ExprI.ExprOk typ RType_typ (expr typ func) Expr_expr := ExprOk_expr.
 Local Existing Instance Expr_expr.
 Local Existing Instance Expr_ok.
 
@@ -685,7 +705,7 @@ Notation "'mkConsExprList' '[' x ',' xs ']'" := (App (App (Inj (inl (inr pConsEx
 Notation "'mkVal' '[' v ']'" := (Inj (inl (inr (pVal v)))) (at level 0).
 Notation "'mkVarList' '[' lst ']'" := (Inj (inl (inr (pVarList lst)))) (at level 0).
 
-Notation "'mkString' '[' s ']'" := (@Inj (inl (inr (pString s)))) (at level 0).
+Notation "'mkString' '[' s ']'" := (Inj (inl (inr (pString s)))) (at level 0).
 Notation "'mkProg' '[' P ']'" := (Inj (inl (inr (pProg P)))) (at level 0).
 Notation "'mkProgEq' '[' P ']'" := (App fProgEq P) (at level 0).
 Notation "'mkCmd' '[' c ']'" := (Inj (inl (inr (pCmd c)))) (at level 0).
@@ -768,7 +788,7 @@ Definition lpointsto (v f v' : expr typ func) :=
 
 Definition test_lemma :=
   @lemmaD typ RType_typ (expr typ func) Expr_expr (expr typ func)
-          (fun tus tvs e => exprD' nil tus tvs tyProp e)
+          (fun tus tvs e => exprD' tus tvs tyProp e)
           tyProp
           (fun x => x) nil nil.
 

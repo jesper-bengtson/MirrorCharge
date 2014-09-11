@@ -1,6 +1,6 @@
 Require Import MirrorCore.Lambda.ExprCore.
 Require Import MirrorCore.Lambda.ExprD.
-Require Import MirrorCore.Lambda.RedAll.
+Require Import MirrorCore.Lambda.Red.
 Require Import MirrorCore.Lambda.ExprLift.
 Require Import MirrorCore.TypesI.
 Require Import MirrorCore.SymI.
@@ -34,6 +34,12 @@ Section ILPullQuant.
   Variable ilfunc_to_func : ilfunc typ -> func.
   
   Variable Eq : typ -> func.
+  
+  Variable inhabited : typ -> bool.
+  
+Require Import Charge.Logics.ILogic.
+  
+  Variable inhabited_sound : forall t ts, inhabited t = true -> Inhabited (typD ts t).
 
 Let Rbase := expr typ func.
 
@@ -70,14 +76,33 @@ Definition match_plus_l (e : expr typ func) (rg : RG Rbase) : m (expr typ func) 
 	        (fun _ =>
 	           rg_ret (App (Inj (ilfunc_to_func (ilf_exists l t)))
 	                  (Abs t (App (App (Inj ((ilfunc_to_func (ilf_and l)))) 
-	                  (App P (Var 0))) (lift 0 1 Q))))))
+	                  (beta (App P (Var 0)))) (lift 0 1 Q))))))
 	      (rg_bind
 	        (unifyRG (@rel_dec (expr typ func) _ _) rg 
 	                 (RGinj (Inj (ilfunc_to_func (ilf_entails l)))))
 	        (fun _ =>
 	           rg_ret (App (Inj (ilfunc_to_func (ilf_exists l t))) 
 	                  (Abs t (App (App (Inj (ilfunc_to_func (ilf_and l))) 
-	                  (App P (Var 0))) (lift 0 1 Q))))))
+	                  (beta (App P (Var 0)))) (lift 0 1 Q))))))
+      	| Some (ilf_or _), Some (ilf_exists l t) =>
+      	  let rewrite_rl :=
+	      rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg 
+		               (RGflip (RGinj (Inj (ilfunc_to_func (ilf_entails l))))))
+		        (fun _ =>
+		           rg_ret (App (Inj (ilfunc_to_func (ilf_exists l t)))
+		                  (Abs t (App (App (Inj ((ilfunc_to_func (ilf_or l)))) 
+		                  (beta (App P (Var 0)))) (lift 0 1 Q))))) in
+		      match inhabited t with 
+		      	| true => rg_plus rewrite_rl 
+		      			      (rg_bind
+		        (unifyRG (@rel_dec (expr typ func) _ _) rg 
+		                 (RGinj (Inj (ilfunc_to_func (ilf_entails l)))))
+		        (fun _ =>
+		           rg_ret (App (Inj (ilfunc_to_func (ilf_exists l t))) 
+		                  (Abs t (App (App (Inj (ilfunc_to_func (ilf_or l))) 
+		                  (beta (App P (Var 0)))) (lift 0 1 Q))))))
+		      	| false => rewrite_rl
+		      end
 	    | _, _ => rg_fail
 	  end
 	  | _ => rg_fail
@@ -94,13 +119,31 @@ Definition match_plus_r (e : expr typ func) (rg : RG Rbase) : m (expr typ func) 
 	        (fun _ =>
 	           rg_ret (App (Inj (ilfunc_to_func (ilf_exists l t))) 
 	                  (Abs t (App (App (Inj (ilfunc_to_func (ilf_and l)))
-	                  (lift 0 1 Q)) (App P (Var 0)))))))
+	                  (lift 0 1 Q)) (beta (App P (Var 0))))))))
 	      (rg_bind
 	        (unifyRG (@rel_dec (expr typ func) _ _) rg (RGflip (RGinj (Inj (ilfunc_to_func (ilf_entails l))))))
 	        (fun _ =>
 	           rg_ret (App (Inj (ilfunc_to_func (ilf_exists l t)))
 	                  (Abs t (App (App (Inj (ilfunc_to_func (ilf_and l))) 
-	                  (lift 0 1 Q)) (App P (Var 0)))))))
+	                  (lift 0 1 Q)) (beta (App P (Var 0))))))))
+       | Some (ilf_or _), Some (ilf_exists l t) =>
+          let rewrite_rl := 
+		      rg_bind
+		        (unifyRG (@rel_dec (expr typ func) _ _) rg (RGflip (RGinj (Inj (ilfunc_to_func (ilf_entails l))))))
+		        (fun _ =>
+		           rg_ret (App (Inj (ilfunc_to_func (ilf_exists l t)))
+		                  (Abs t (App (App (Inj (ilfunc_to_func (ilf_or l))) 
+		                  (lift 0 1 Q)) (beta (App P (Var 0))))))) in
+		      match inhabited t with
+		      	| true => rg_plus rewrite_rl 
+					      (rg_bind
+					        (unifyRG (@rel_dec (expr typ func) _ _ ) rg (RGinj (Inj (ilfunc_to_func (ilf_entails l)))))
+					        (fun _ =>
+					           rg_ret (App (Inj (ilfunc_to_func (ilf_exists l t))) 
+					                  (Abs t (App (App (Inj (ilfunc_to_func (ilf_or l)))
+					                  (lift 0 1 Q)) (beta (App P (Var 0)))))))) 
+		      	| false => rewrite_rl
+		      end
 	   | _, _ => rg_fail
 	 end
    | _ => rg_fail
@@ -160,8 +203,6 @@ Section interleave.
     end.
 End interleave.
 
-
-
 Fixpoint rw_fix (n : nat)
   (rw : rw_type -> rw_type)
   (e : expr typ func) (rvars : list (RG Rbase)) (rg : RG Rbase)
@@ -174,7 +215,7 @@ Fixpoint rw_fix (n : nat)
 
 Definition quant_pull l (e : expr typ func) : expr typ func :=
   match
-    rw_fix 10 (@setoid_rewrite typ func (expr typ func)
+    rw_fix 500 (@setoid_rewrite typ func (expr typ func)
                      rel_dec
                      rewrite_exs rewrite_respects)
       e nil (RGinj (Inj (ilfunc_to_func (ilf_entails l))))
@@ -188,7 +229,7 @@ End ILPullQuant.
 
 Inductive typ :=
 | tyArr : typ -> typ -> typ
-| tyNat | tyBool
+| tyNat | tyBool | tyEmpty
 | tyProp.
 
 Fixpoint typD (ts : list Type) (t : typ) : Type :=
@@ -196,6 +237,7 @@ Fixpoint typD (ts : list Type) (t : typ) : Type :=
     | tyNat => nat
     | tyBool => bool
     | tyProp => Prop
+    | tyEmpty => Empty_set
     | tyArr a b => typD ts a -> typD ts b
   end.
 
@@ -284,7 +326,6 @@ Instance Typ0_tyProp : Typ0 _ Prop :=
 Inductive func :=
 | N : nat -> func | Eq : typ -> func.
 
-
 Definition typeof_func (f : func) : option typ :=
   Some match f with
          | N _ => tyNat
@@ -348,11 +389,39 @@ Definition fTrue l : expr typ my_func := Inj (inr (ilf_true l)).
 Definition mkNat n : expr typ my_func := Inj (inl (N n)).
 Definition mkEq t a b : expr typ my_func := App (App (Inj (my_eq t)) a) b.
 Print quant_pull.
+Print typ.
 
-Definition my_quant_pull := @quant_pull typ _ my_func _ func_to_ilfunc ilfunc_to_func my_eq.
-Definition my_rewrite_exs := @rewrite_exs typ _ my_func _ func_to_ilfunc ilfunc_to_func.
+Fixpoint my_inhabited t :=
+	match t with
+	  | tyArr t1 t2 => my_inhabited t2
+	  | tyEmpty => false
+	  | _ => true
+	end.
+	
+Definition my_inhabited_sound : forall t ts, my_inhabited t = true -> Inhabited (typD ts t).
+Proof.
+  intros.
+  induction t.
+  simpl in H. specialize (IHt2 H).
+  destruct IHt2.
+  inversion cinhabited.
+  repeat split. intro. simpl. apply X.
+  simpl in *; apply _.
+  simpl in *; apply _.
+  simpl in *; inversion H.
+  simpl in *. repeat split; apply True.
+Qed.
+
+Definition my_quant_pull := @quant_pull typ _ my_func _ func_to_ilfunc ilfunc_to_func my_eq my_inhabited.
+
+Definition my_rewrite_exs := @rewrite_exs typ _ my_func _ func_to_ilfunc ilfunc_to_func my_inhabited.
  Definition goal :=
  	fAnd tyProp (fTrue tyProp) (fEx tyProp tyNat (mkEq tyNat (Var 0) (mkNat 3))).
+ 
+ Definition inhabited_pull := fOr tyProp (fEx tyProp tyNat (mkEq tyNat (Var 0) (Var 0)))
+ 										  (fEx tyProp tyEmpty (mkEq tyEmpty (Var 0) (Var 0))).
+ 
+Time Eval vm_compute in my_quant_pull tyProp inhabited_pull.
  
 Check rewrite_exs.
 Time Eval vm_compute in my_rewrite_exs goal nil (RGinj (Inj (inr (ilf_entails tyProp) : my_func))).
@@ -365,78 +434,3 @@ Fixpoint crazy_goal n :=
 	end.
 
 Time Eval vm_compute in my_quant_pull tyProp (crazy_goal 6).
-
-Example test :
-	exists x, x = my_quant_pull tyProp goal.
-Proof.
-  vm_compute.
-  unfold my_quant_pull.
-  unfold quant_pull. simpl.
-  Transparent rewrite_respects.
-  unfold rewrite_respects.
-  Opaque rewrite_respects.
-  unfold func_to_ilfunc.
-  
-  pose (rg_bind
-          (unifyRG rel_dec
-             (RGrespects (RGvar (expr typ my_func) 2)
-                (RGrespects (RGvar (expr typ my_func) 1)
-                   (RGinj (Inj (ilfunc_to_func (ilf_entails tyProp))))))
-             (RGrespects (RGinj (Inj (ilfunc_to_func (ilf_entails tyProp))))
-                (RGrespects
-                   (RGinj (Inj (ilfunc_to_func (ilf_entails tyProp))))
-                   (RGinj (Inj (ilfunc_to_func (ilf_entails tyProp)))))))
-          (fun _ : RG (expr typ my_func) =>
-           rg_ret ((Inj (ilfunc_to_func (ilf_and tyProp)) : expr typ my_func)))
-           {|
-          mp := FMapPositive.PositiveMap.empty (RG (expr typ my_func));
-          max := 3 |}).
-       Eval compute in o.   
-       Ltac redfirstmatch :=
-       	let rec go x := 
-       	match x with 
-       		| match ?y with _ => _ end => go y
-       		| _ => let x' := eval hnf in x in change x with x'
-       	end in
-       	match goal with
-       		| |- exists y, _ = ?x => go x 
-       	end.
-       	redfirstmatch.
-       	cbv iota beta.
-       	redfirstmatch.
-  simpl in o.
-  cbv in o.
-  simpl in o.
-  red in o.
-  red in m0.
-  simpl in m0.
-  cbv in m0.
-  red.
-cbv.
-vm_compute.
-simpl.
-unfold quant_pull.
-simpl.
-vm_compute.
-
-Definition goal : expr typ func :=
-  fAnd (fEx tyNat (fEq_nat (Var 0) (fN 3)))
-       (fEx tyNat (fEq_nat (Var 0) (fN 7))).
-
-Time Eval vm_compute in quant_pull goal.
-
-
-Definition quant_pull' (e : expr typ (ilfunc typ)) : expr typ (ilfunc typ) :=
-  match
-    interleave (@setoid_rewrite typ (ilfunc typ) (expr typ (ilfunc typ))
-                                rel_dec
-                                rewrite_exs)
-               (fun rw e rvars rg rs =>
-                  rw (beta_all (@apps _ _) nil nil e) rvars rg rs)
-               10 e nil (RGinj (Inj (Eq tyProp)))
-               (rsubst_empty _)
-  with
-    | None => e
-    | Some (e,_) => e
-  end.
-

@@ -190,7 +190,7 @@ Reify Seed Typed Table term_table += 6 => [ tyCmd , Skip ].
 Reify Seed Typed Table term_table += 7 => [ (tyNat >> tyNat >> tyHProp) , PtsTo ].
 Reify Seed Typed Table term_table += 8 => [ (tyVariable >> (tyNat >> tyLProp) >> (tyNat >> tyLProp) >> tySProp) , function_spec ].
 *)
-Let elem_ctor : forall x : Syntax.typ, (forall ts : list Type, typD ts x) -> @SymEnv.function _ _ :=
+Let elem_ctor : forall x : Syntax.typ, typD x -> @SymEnv.function _ _ :=
   @SymEnv.F _ _.
 
 Ltac reify_imp e :=
@@ -199,7 +199,6 @@ Ltac reify_imp e :=
   reify_expr reify_imp k
              [ (fun (y : @mk_dvar_map_abs _ _ _ (list Type) _ term_table elem_ctor) => True) ]
              [ e ].
-Check @pointsto.
 
 Goal True.
   reify_imp (exists x : nat, x = x).

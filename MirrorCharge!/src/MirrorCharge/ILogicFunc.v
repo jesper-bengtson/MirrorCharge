@@ -68,18 +68,18 @@ Section typed.
   **)
 
   Definition logic_ops := forall (t : typ),
-    option (forall ts, ILogicOps (typD ts t)).
+    option (ILogicOps (typD t)).
   Definition embed_ops := forall (t u : typ),
-    option (forall ts, EmbedOp (typD ts t) (typD ts u)).
+    option (EmbedOp (typD t) (typD u)).
   Definition logic_opsOk (l : logic_ops) : Prop :=
     forall g, match l g return Prop with
-                | Some T => forall ts, @ILogic _ (T ts)
+                | Some T => @ILogic _ T
                 | None => True
               end.
   Definition embed_opsOk (ls : logic_ops) (es : embed_ops) : Prop :=
     forall t t',
       match ls t , ls t' , es t t' return Prop with
-        | Some a , Some b , Some T => forall ts, @Embed _ (a ts) _ _ (T ts)
+        | Some a , Some b , Some T => @Embed _ a _ _ T
         | _ , _ , _ => True
       end.
 
@@ -125,37 +125,37 @@ Section typed.
         end
     end.
 
-  Definition typ2_cast_bin ls (a b c : typ)
-  : (typD ls a -> typD ls b -> typD ls c) -> typD ls (tyArr a (tyArr b c)) :=
+  Definition typ2_cast_bin (a b c : typ)
+  : (typD a -> typD b -> typD c) -> typD (tyArr a (tyArr b c)) :=
     fun f =>
-      match eq_sym (typ2_cast ls a (tyArr b c)) in _ = t
+      match eq_sym (typ2_cast a (tyArr b c)) in _ = t
             return t with
-        | eq_refl => match eq_sym (typ2_cast ls b c) in _ = t
+        | eq_refl => match eq_sym (typ2_cast b c) in _ = t
                            return _ -> t with
                        | eq_refl => f
                      end
         end.
 
-  Definition typ2_cast_quant ls (a b c : typ)
-  : ((typD ls a -> typD ls b) -> typD ls c) -> typD ls (tyArr (tyArr a b) c) :=
+  Definition typ2_cast_quant (a b c : typ)
+  : ((typD a -> typD b) -> typD c) -> typD (tyArr (tyArr a b) c) :=
     fun f =>
-      match eq_sym (typ2_cast ls (tyArr a b) c) in _ = t
+      match eq_sym (typ2_cast (tyArr a b) c) in _ = t
             return t with
-        | eq_refl => match eq_sym (typ2_cast ls a b) in _ = t
+        | eq_refl => match eq_sym (typ2_cast a b) in _ = t
                            return t -> _ with
                        | eq_refl => f
                      end
       end.
 
-  Definition funcD (ts : list Type) (f : ilfunc) :
+  Definition funcD (f : ilfunc) :
     match typeof_func f with
-      | Some t => typD ts t
+      | Some t => typD t
       | None => unit
     end.
   refine (
     match f as f
           return match typeof_func f with
-		   | Some t => typD ts t
+		   | Some t => typD t
 		   | None => unit
 		 end
     with
@@ -165,10 +165,10 @@ Section typed.
 			      | Some _ => Some t
 			      | None => None
 			    end with
-			| Some t0 => typD ts t0
+			| Some t0 => typD t0
 			| None => unit
 		      end) with
-	  | Some t => @ltrue _ (t ts)
+	  | Some t => @ltrue _ t
 	  | None => tt
         end
       | ilf_false t =>
@@ -177,10 +177,10 @@ Section typed.
 			      | Some _ => Some t
 			      | None => None
 			    end with
-			| Some t0 => typD ts t0
+			| Some t0 => typD t0
 			| None => unit
 		      end) with
-	  | Some t => @lfalse _ (t ts)
+	  | Some t => @lfalse _ t
 	  | None => tt
         end
       | ilf_entails t =>
@@ -189,17 +189,17 @@ Section typed.
 			      | Some _ => Some (tyArr t (tyArr t tyProp))
 			      | None => None
 			    end with
-			| Some t0 => typD ts t0
+			| Some t0 => typD t0
 			| None => unit
 		      end) with
 	  | Some C =>
-            match eq_sym (typ2_cast ts t (tyArr t tyProp)) in _ = t
+            match eq_sym (typ2_cast t (tyArr t tyProp)) in _ = t
                   return t with
               | eq_refl =>
-                match eq_sym (typ2_cast ts t tyProp) in _ = t
+                match eq_sym (typ2_cast t tyProp) in _ = t
                       return _ -> t with
                   | eq_refl =>
-                    match eq_sym (typ0_cast ts) in _ = t
+                    match eq_sym (typ0_cast (F := Prop)) in _ = t
                           return _ -> _ -> t
                     with
                       | eq_refl => @lentails _ _
@@ -214,10 +214,10 @@ Section typed.
 			      | Some _ => Some (tyArr t (tyArr t t))
 			      | None => None
 			    end with
-			| Some t0 => typD ts t0
+			| Some t0 => typD t0
 			| None => unit
 		      end) with
-	  | Some t => typ2_cast_bin ts _ _ _ (@land _ _)
+	  | Some t => typ2_cast_bin _ _ _ (@land _ _)
 	  | None => tt
         end
       | ilf_impl t =>
@@ -226,10 +226,10 @@ Section typed.
 			      | Some _ => Some (tyArr t (tyArr t t))
 			      | None => None
 			    end with
-			| Some t0 => typD ts t0
+			| Some t0 => typD t0
 			| None => unit
 		      end) with
-	  | Some t => typ2_cast_bin ts _ _ _ (@limpl _ _)
+	  | Some t => typ2_cast_bin _ _ _ (@limpl _ _)
 	  | None => tt
         end
       | ilf_or t =>
@@ -238,10 +238,10 @@ Section typed.
 			      | Some _ => Some (tyArr t (tyArr t t))
 			      | None => None
 			    end with
-			| Some t0 => typD ts t0
+			| Some t0 => typD t0
 			| None => unit
 		      end) with
-	  | Some t => typ2_cast_bin ts _ _ _ (@lor _ _)
+	  | Some t => typ2_cast_bin _ _ _ (@lor _ _)
 	  | None => tt
         end
       | ilf_exists a t =>
@@ -249,10 +249,10 @@ Section typed.
 					| Some _ => Some (tyArr (tyArr a t) t)
 					| None => None
 				      end with
-				  | Some t0 => typD ts t0
+				  | Some t0 => typD t0
 				  | None => unit
 				end) with
-	  | Some t0 => typ2_cast_quant _ _ _ _ (@lexists _ _ _)
+	  | Some t0 => typ2_cast_quant _ _ _ (@lexists _ _ _)
 	  | None => tt
         end
       | ilf_forall a t =>
@@ -260,10 +260,10 @@ Section typed.
 					| Some _ => Some (tyArr (tyArr a t) t)
 					| None => None
 				      end with
-				  | Some t0 => typD ts t0
+				  | Some t0 => typD t0
 				  | None => unit
 				end) with
-	  | Some t0 => typ2_cast_quant _ _ _ _ (@lforall _ _ _)
+	  | Some t0 => typ2_cast_quant _ _ _ (@lforall _ _ _)
 	  | None => tt
         end
       | ilf_embed t u =>
@@ -272,12 +272,12 @@ Section typed.
 			     | Some _ => Some (tyArr t u)
 			     | None => None
 			   end with
-		       | Some t0 => typD ts t0
+		       | Some t0 => typD t0
 		       | None => unit
 		     end
         with
 	  | Some t0 =>
-            match eq_sym (typ2_cast ts t u) in _ = t return t
+            match eq_sym (typ2_cast t u) in _ = t return t
             with
               | eq_refl => @embed _ _ _
             end

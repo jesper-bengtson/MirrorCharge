@@ -27,8 +27,8 @@ Section syn_sep_log.
   Variable SL : typ.
 
   Variable SLS : SepLogSpec typ sym.
-  Variable ILO : ILogicOps (typD nil SL).
-  Variable BILO : BILOperators (typD nil SL).
+  Variable ILO : ILogicOps (typD SL).
+  Variable BILO : BILOperators (typD SL).
   Variable IL : @ILogic _ ILO.
   Variable BIL : @BILogic _ ILO BILO.
 
@@ -50,35 +50,35 @@ Section syn_sep_log.
   Record SynSepLogOk : Type :=
   { e_empOk : forall tus tvs,
               exists val,
-                exprD' nil tus tvs SL SSL.(e_emp) = Some val /\
+                exprD' tus tvs SL SSL.(e_emp) = Some val /\
                 forall us vs, val us vs -|- empSP
   ; e_trueOk : forall tus tvs,
                exists val,
-                 exprD' nil tus tvs SL SSL.(e_true) = Some val /\
+                 exprD' tus tvs SL SSL.(e_true) = Some val /\
                  forall us vs, val us vs -|- ltrue
   ; e_starOk : forall tus tvs x y valx valy,
-                 exprD' nil tus tvs SL x = Some valx ->
-                 exprD' nil tus tvs SL y = Some valy ->
+                 exprD' tus tvs SL x = Some valx ->
+                 exprD' tus tvs SL y = Some valy ->
                  exists val,
-                   exprD' nil tus tvs SL (SSL.(e_star) x y) = Some val /\
+                   exprD' tus tvs SL (SSL.(e_star) x y) = Some val /\
                    forall us vs, val us vs -|- valx us vs ** valy us vs
   ; e_starValid : forall tus tvs x y val,
-                    exprD' nil tus tvs SL (SSL.(e_star) x y) = Some val ->
+                    exprD' tus tvs SL (SSL.(e_star) x y) = Some val ->
                     exists valx valy,
-                      exprD' nil tus tvs SL x = Some valx /\
-                      exprD' nil tus tvs SL y = Some valy /\
+                      exprD' tus tvs SL x = Some valx /\
+                      exprD' tus tvs SL y = Some valy /\
                       forall us vs, val us vs -|- valx us vs ** valy us vs
   ; e_andOk : forall tus tvs x y valx valy,
-                exprD' nil tus tvs SL x = Some valx ->
-                exprD' nil tus tvs SL y = Some valy ->
+                exprD' tus tvs SL x = Some valx ->
+                exprD' tus tvs SL y = Some valy ->
                 exists val,
-                  exprD' nil tus tvs SL (SSL.(e_and) x y) = Some val /\
+                  exprD' tus tvs SL (SSL.(e_and) x y) = Some val /\
                   forall us vs, val us vs -|- valx us vs //\\ valy us vs
   ; e_andValid : forall tus tvs x y val,
-                   exprD' nil tus tvs SL (SSL.(e_and) x y) = Some val ->
+                   exprD' tus tvs SL (SSL.(e_and) x y) = Some val ->
                    exists valx valy,
-                     exprD' nil tus tvs SL x = Some valx /\
-                     exprD' nil tus tvs SL y = Some valy /\
+                     exprD' tus tvs SL x = Some valx /\
+                     exprD' tus tvs SL y = Some valy /\
                      forall us vs, val us vs -|- valx us vs //\\ valy us vs
   }.
 

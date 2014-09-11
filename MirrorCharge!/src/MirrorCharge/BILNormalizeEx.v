@@ -185,13 +185,13 @@ Section conjunctives.
   Variable SL : typ.
 
   Section conjunctivesD.
-    Variable ILO : ILogicOps (typD nil SL).
-    Variable BILO : BILOperators (typD nil SL).
+    Variable ILO : ILogicOps (typD SL).
+    Variable BILO : BILOperators (typD SL).
     Variable IL : @ILogic _ ILO.
     Variable BIL : @BILogic _ ILO BILO.
 
     Definition well_formed (PO : PureOp)
-               (c : conjunctives) (us vs : env nil) : Prop :=
+               (c : conjunctives) (us vs : env) : Prop :=
       List.Forall (fun e =>
                      exists val, exprD us vs e SL  = Some val
                               /\ @Pure.pure _ PO val) c.(pure).
@@ -211,7 +211,7 @@ Section conjunctives.
 
     Section with_pure.
 
-    Variable PureOp_it : @PureOp (typD nil SL).
+    Variable PureOp_it : @PureOp (typD SL).
     Variable Pure_it : @Pure _ _ _ PureOp_it.
     Hypothesis pure_ltrue : Pure.pure ltrue.
     Hypothesis pure_land : forall p q, Pure.pure p -> Pure.pure q -> Pure.pure (land p q).
@@ -221,7 +221,7 @@ Section conjunctives.
         exprD us vs (iterated_base (e_true SSL) (e_and SSL) ps) SL = Some x1 ->
         List.Forall
           (fun e : expr typ sym =>
-             exists val : typD nil SL,
+             exists val : typD SL,
                exprD us vs e SL = Some val /\ Pure.pure val) ps -> Pure.pure x1.
     Proof.
 (*
@@ -567,11 +567,11 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
     Theorem conjunctives_to_expr_conjunctives_to_expr_star_iff
     : forall tvs tus c,
         match
-            exprD' nil tus tvs SL (conjunctives_to_expr c)
-          , exprD' nil tus tvs SL (conjunctives_to_expr_star c)
+            exprD' tus tvs SL (conjunctives_to_expr c)
+          , exprD' tus tvs SL (conjunctives_to_expr_star c)
         with
           | Some cE , Some cE' =>
-            forall us (vs : hlist (typD nil) tvs),
+            forall us (vs : hlist typD tvs),
             well_formed _ c (join_env us) (join_env vs) ->
             cE us vs -|- cE' us vs
           | None , None => True

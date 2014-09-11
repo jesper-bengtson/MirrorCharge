@@ -8,6 +8,7 @@ Require Import MirrorCore.Lemma.
 Require Import MirrorCore.TypesI.
 Require Import MirrorCore.Lambda.Expr.
 Require Import MirrorCore.STac.STac.
+Require Import MirrorCore.RTac.RTac.
 Require Import MirrorCore.provers.DefaultProver.
 Require MirrorCore.syms.SymEnv.
 Require MirrorCore.syms.SymSum.
@@ -216,13 +217,14 @@ Definition pull_exists_lemma : lemma typ (expr typ func) (expr typ func) :=
  ; concl := mkEntails [tySpec, Var 0, mkTriple [mkExists [tySasn, tyVal, App (Var 2) (Var 0)], Var 2, Var 3]]
 |}.
 
+
 Definition fieldLookupTac : stac typ (expr typ func) subst :=
 	fun tus tvs s lst e =>
 		match e with
 		  | mkFieldLookup [mkProg [P], mkString [C], X] =>
 		  	match SM.find C (p_classes P) with
     	      | Some Class =>
-    	        match @exprUnify subst typ func _ _ RS SS SU 3 nil
+    	        match @exprUnify subst typ func _ _ RS SS SU 3
                                  tus tvs 0 s X (mkFields[c_fields Class]) tyVarList with
                   | Some s => Solved nil nil s
                   | None   => Fail
@@ -232,41 +234,56 @@ Definition fieldLookupTac : stac typ (expr typ func) subst :=
 		  | _ => Fail
 		end.
 
-Let EAPPLY lem tac :=
-  @EAPPLY typ (expr typ func) subst _ _ ExprLift.vars_to_uvars
+Let EAPPLY :=
+  @EAPPLY typ (expr typ func) subst _ _ SS SU ExprLift.vars_to_uvars
                 (fun tus tvs n e1 e2 t s =>
-                   @exprUnify subst typ func _ _ RS SS SU 3 nil
+                   @exprUnify subst typ func _ _ RS SS SU 3
                               tus tvs n s e1 e2 t)
-                (@ExprSubst.instantiate typ func) SS SU
-                lem (apply_to_all tac).
+                (@ExprSubst.instantiate typ func)
+(*                lem (apply_to_all tac)*).
 
   Let APPLY lem tac :=
-    @APPLY typ (expr typ func) subst _ Typ0_Prop
+    @APPLY typ (expr typ func) subst _ Typ0_Prop SS SU
            ExprLift.vars_to_uvars
            (fun tus tvs n e1 e2 t s =>
-              @exprUnify subst typ func _ _ RS SS SU 3 nil
+              @exprUnify subst typ func _ _ RS SS SU 3
                          tus tvs n s e1 e2 t)
-           (@ExprSubst.instantiate typ func) SS SU
+           (@ExprSubst.instantiate typ func)
            lem (apply_to_all tac).
 
 Require Import MirrorCharge.Java.Subst.
-Check @INSTANTIATE.
+
 Let INSTANTIATE := 
 	@INSTANTIATE typ (expr typ func) subst (@ExprSubst.instantiate typ func) SS.
 
+Require Import MirrorCore.RTac.RTac.
+
+Check INTRO.
+
+Definition fintro e : option (typ * (expr typ func -> expr typ func) + expr typ func * expr typ func) :=
+	match e with
+		| App (fForall [l, t]) P => Some (inl (t, fun x => beta (App P x)))
+		| mkImpl [l, P, Q] => Some (inr (P, Q))
+		| _ => None
+	end.
+
+Let INTRO := @INTRO typ (expr typ func) subst (@Var typ func) fintro.
+
+
 Definition solve_entailment :=
-  THEN (TRY (APPLY pull_exists_lemma (@IDTAC _ _ _)))
-       (THEN INSTANTIATE (THEN
+  THEN (TRY (THEN (APPLY pull_exists_lemma (@IDTAC _ _ _)) (REPEAT 10 INTRO)))
+       (STAC_no_hyps (STac.Then.THEN INSTANTIATE (STac.Then.THEN
              (SIMPLIFY (fun _ _ _ => beta_all simplify nil nil))
-                        stac_cancel)).
+                        stac_cancel))).
 
 Fixpoint tripleE (c : cmd) : stac typ (expr typ func) subst :=
 	match c with
-	    | cskip => EAPPLY skip_lemma solve_entailment
-		| cseq c1 c2 => EAPPLY (seq_lemma c1 c2) (FIRST (tripleE c1::tripleE c2::nil))
-		| cassign x e => EAPPLY (assign_lemma x e) solve_entailment
-		| cread x y f => EAPPLY (read_lemma x y f) solve_entailment
-		| cwrite x f e => EAPPLY (write_lemma x f e) solve_entailment
+	    | cskip => EAPPLY skip_lemma (apply_to_all solve_entailment)
+		| cseq c1 c2 => EAPPLY (seq_lemma c1 c2) 
+			(FIRST (tripleE c1::tripleE c2::nil))
+		| cassign x e => EAPPLY (assign_lemma x e) (apply_to_all solve_entailment)
+		| cread x y f => EAPPLY (read_lemma x y f) (apply_to_all solve_entailment)
+		| cwrite x f e => EAPPLY (write_lemma x f e) (apply_to_all solve_entailment)
 		| _ => @IDTAC _ _ _
 	end.
 

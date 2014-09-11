@@ -56,9 +56,9 @@ Section seplog_fold.
   Variable sls : SepLogSpec.
 
   Record SepLogSpecOk (sls : SepLogSpec)
-         (OPS : ILogic.ILogicOps (typD nil SL))
-         (BI : BILOperators (typD nil SL)) : Type :=
-  { _PureOp : @PureOp (typD nil SL)
+         (OPS : ILogic.ILogicOps (typD SL))
+         (BI : BILOperators (typD SL)) : Type :=
+  { _PureOp : @PureOp (typD SL)
   ; _Pure : @Pure _ OPS BI _PureOp
   ; His_pure : forall e,
                  sls.(is_pure) e = true ->
@@ -73,11 +73,11 @@ Section seplog_fold.
                  sls.(is_star) e = true ->
                  forall us vs,
                    exprD us vs e (tyArr SL (tyArr SL SL)) =
-                   Some match eq_sym (typ2_cast nil SL (tyArr SL SL)) in _ = t
+                   Some match eq_sym (typ2_cast SL (tyArr SL SL)) in _ = t
                               return t
                         with
                           | eq_refl =>
-                            match eq_sym (typ2_cast nil SL SL) in _ = t
+                            match eq_sym (typ2_cast SL SL) in _ = t
                                   return _ -> t
                             with
                               | eq_refl => sepSP
@@ -87,16 +87,16 @@ Section seplog_fold.
 
   Record SepLogArgsOk (R_t : expr typ sym -> T -> tenv typ -> tenv typ -> Prop) :=
   { otherOk
-    : forall ts e es tus tvs,
-        @typeof_apps typ sym _ _ _ ts tus tvs e (List.map fst es) = Some SL ->
+    : forall e es tus tvs,
+        @typeof_apps typ sym _ _ _ tus tvs e (List.map fst es) = Some SL ->
         (forall x y,
            In (x,y) es ->
-           typeof_expr ts tus tvs x = Some SL ->
+           typeof_expr tus tvs x = Some SL ->
            R_t x y tus tvs) ->
         R_t (apps e (List.map fst es)) (sla.(do_other) e es) tus tvs
   ; pureOk
-    : forall ts e tus tvs,
-        typeof_expr ts tus tvs e = Some SL ->
+    : forall e tus tvs,
+        typeof_expr tus tvs e = Some SL ->
         sls.(is_pure) e = true ->
         R_t e (sla.(do_pure) e) tus tvs
   ; empOk
@@ -105,10 +105,10 @@ Section seplog_fold.
         sls.(is_emp) (Inj e) = true ->
         R_t (Inj e) sla.(do_emp) tus tvs
   ; starOk
-    : forall ts e l r l_res r_res tus tvs,
+    : forall e l r l_res r_res tus tvs,
         typeof_sym e = Some (tyArr SL (tyArr SL SL)) ->
-        typeof_expr ts tus tvs l = Some SL ->
-        typeof_expr ts tus tvs r = Some SL ->
+        typeof_expr tus tvs l = Some SL ->
+        typeof_expr tus tvs r = Some SL ->
         sls.(is_star) (Inj e) = true ->
         R_t l l_res tus tvs ->
         R_t r r_res tus tvs ->
