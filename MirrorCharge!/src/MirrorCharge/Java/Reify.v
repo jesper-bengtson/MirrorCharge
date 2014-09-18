@@ -36,6 +36,7 @@ Reify Declare Syntax reify_imp_typ :=
      (@Patterns.CFail Syntax.typ))
   }.
 
+
 Definition eval2 : dexpr -> stack -> val := eval.
 Definition pointsto2 : sval -> String.string -> sval -> asn := pointsto.
 Definition subst2 : (stack -> sval) -> String.string -> @subst String.string _ := subst1.
@@ -60,6 +61,8 @@ Definition set_fold_fun (x f : String.string) (P : sasn) :=
 Reify Declare Typed Table term_table : BinNums.positive => reify_imp_typ.
 
 Let Ext x := @ExprCore.Inj Syntax.typ Syntax.func (inl (inl x)).
+
+Check Ext.
 
 Reify Declare Syntax reify_imp :=
   { (@Patterns.CVar _ (@ExprCore.Var Syntax.typ Syntax.func)
@@ -124,9 +127,10 @@ Reify Pattern patterns_imp += (!! @ILogic.lfalse @ ?0 @ #) => (fun (x : function
 Reify Pattern patterns_imp += (!! @ILogic.land @ ?0 @ #) => (fun (x : function reify_imp_typ) => fAnd [x] : expr typ func).
 Reify Pattern patterns_imp += (!! @ILogic.lor @ ?0 @ #) => (fun (x : function reify_imp_typ) => fOr [x] : expr typ func).
 Reify Pattern patterns_imp += (!! @ILogic.limpl @ ?0 @ #) => (fun (x : function reify_imp_typ) => fImpl [x] : expr typ func).
+(*
 Reify Pattern patterns_imp += (!! @ILogic.lexists @ ?0 @ # @ ?1) => (fun (x y : function reify_imp_typ) => fExists [x, y] : expr typ func).
+*)
 Reify Pattern patterns_imp += (!! @ILogic.lforall @ ?0 @ # @ ?1) => (fun (x y : function reify_imp_typ) => fForall [x, y] : expr typ func).
-
 (** Embedding Operators **)
 Reify Pattern patterns_imp += (!! @ILEmbed.embed @ ?0 @ ?1 @ #) => (fun (x y : function reify_imp_typ) => fEmbed [x, y] : expr typ func).
 
@@ -136,9 +140,12 @@ Reify Pattern patterns_imp += (!! False) => (mkFalse [tyProp] : expr typ func).
 Reify Pattern patterns_imp += (!! and) => (fAnd [tyProp] : expr typ func).
 
 Reify Pattern patterns_imp += (!! or) => (fOr [tyProp] : expr typ func).
+(*
 Reify Pattern patterns_imp += (!! ex @ ?0) => (fun (x : function reify_imp_typ) => fExists [tyProp, x] : expr typ func).
+*)
 Reify Pattern patterns_imp += (RPi (?0) (?1)) => (fun (x : function reify_imp_typ) (y : function reify_imp) =>
                                                    ExprCore.App (fForall [tyProp, x]) (ExprCore.Abs x y)).
+
 Reify Pattern patterns_imp += (RImpl (?0) (?1)) => (fun (x y : function reify_imp) => ExprCore.App (ExprCore.App (fImpl [tyProp]) x) y).
 
 (** Separation Logic Operators **)
@@ -190,6 +197,10 @@ Reify Seed Typed Table term_table += 6 => [ tyCmd , Skip ].
 Reify Seed Typed Table term_table += 7 => [ (tyNat >> tyNat >> tyHProp) , PtsTo ].
 Reify Seed Typed Table term_table += 8 => [ (tyVariable >> (tyNat >> tyLProp) >> (tyNat >> tyLProp) >> tySProp) , function_spec ].
 *)
+
+
+
+
 Let elem_ctor : forall x : Syntax.typ, typD x -> @SymEnv.function _ _ :=
   @SymEnv.F _ _.
 
@@ -201,6 +212,11 @@ Ltac reify_imp e :=
              [ e ].
 
 Goal True.
+  reify_imp (forall P, P /\ P).
+  reify_imp (forall x : nat, x = x).
+  reify_imp (exists x : nat, x = x).
+  reify_imp (exists x : nat, x = x).
+
   reify_imp (exists x : nat, x = x).
   reify_imp (@map nat nat).
   reify_imp subst2.

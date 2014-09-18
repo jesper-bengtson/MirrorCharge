@@ -210,14 +210,14 @@ Proof.
 Defined.
 Print assign_lemma.
 
-Definition pull_exists_lemma : lemma typ (expr typ func) (expr typ func) :=
-{|
-   vars := tySpec :: tyArr tyVal tySasn :: tyCmd :: tySasn :: nil
- ; premises :=  mkEntails [tySpec, Var 0, mkForall [tySpec, tyVal, mkTriple [App (Var 2) (Var 0), Var 3, Var 4]]] :: nil 
- ; concl := mkEntails [tySpec, Var 0, mkTriple [mkExists [tySasn, tyVal, App (Var 2) (Var 0)], Var 2, Var 3]]
-|}.
+Definition pull_exists_lemma : lemma typ (expr typ func) (expr typ func).
+Proof.
+  reify_lemma (@pull_exists sval).
+Defined.
 
+Print pull_exists_lemma.
 
+(*
 Definition fieldLookupTac : stac typ (expr typ func) subst :=
 	fun tus tvs s lst e =>
 		match e with
@@ -233,6 +233,7 @@ Definition fieldLookupTac : stac typ (expr typ func) subst :=
 		    end
 		  | _ => Fail
 		end.
+*)
 
 Let EAPPLY :=
   @EAPPLY typ (expr typ func) subst _ _ SS SU ExprLift.vars_to_uvars
@@ -242,58 +243,68 @@ Let EAPPLY :=
                 (@ExprSubst.instantiate typ func)
 (*                lem (apply_to_all tac)*).
 
-  Let APPLY lem tac :=
+  Let APPLY :=
     @APPLY typ (expr typ func) subst _ Typ0_Prop SS SU
            ExprLift.vars_to_uvars
            (fun tus tvs n e1 e2 t s =>
               @exprUnify subst typ func _ _ RS SS SU 3
                          tus tvs n s e1 e2 t)
            (@ExprSubst.instantiate typ func)
-           lem (apply_to_all tac).
+          (* lem (apply_to_all tac)*).
 
 Require Import MirrorCharge.Java.Subst.
 
 Let INSTANTIATE := 
-	@INSTANTIATE typ (expr typ func) subst (@ExprSubst.instantiate typ func) SS.
+	@INSTANTIATE typ (expr typ func) subst SS (@ExprSubst.instantiate typ func).
 
 Require Import MirrorCore.RTac.RTac.
 
-Check INTRO.
-
-Definition fintro e : option (typ * (expr typ func -> expr typ func) + expr typ func * expr typ func) :=
+Definition fintro e : option (OpenAs typ (expr typ func)) :=
 	match e with
-		| App (fForall [l, t]) P => Some (inl (t, fun x => beta (App P x)))
-		| mkImpl [l, P, Q] => Some (inr (P, Q))
+		| App (fForall [tyProp, t]) P => Some (AsAl t (fun x => beta (App P x)))
+		| App (fExists [tyProp, t]) P => Some (AsEx t (fun x => beta (App P x)))
+		| mkImpl [tyProp, P, Q] => Some (AsHy typ P Q)
 		| _ => None
 	end.
 
-Let INTRO := @INTRO typ (expr typ func) subst (@Var typ func) fintro.
+Let INTRO := @INTRO typ (expr typ func) subst (@Var typ func) (@UVar typ func) fintro.
 
+(*
+Let FINISH := @finish typ (expr typ func) subst SU.
+*)
+
+Check @STAC_no_hyps.
 
 Definition solve_entailment :=
-  THEN (TRY (THEN (APPLY pull_exists_lemma (@IDTAC _ _ _)) (REPEAT 10 INTRO)))
-       (STAC_no_hyps (STac.Then.THEN INSTANTIATE (STac.Then.THEN
-             (SIMPLIFY (fun _ _ _ => beta_all simplify nil nil))
-                        stac_cancel))).
+  THEN (TRY (THEN (APPLY pull_exists_lemma) (REPEAT 10 INTRO)))
+       (THEN INSTANTIATE
+             (THEN (SIMPLIFY (fun _ _ => beta_all simplify nil nil))
+                             (STAC_no_hyps (@ExprSubst.instantiate typ func) stac_cancel))).
 
-Fixpoint tripleE (c : cmd) : stac typ (expr typ func) subst :=
+Definition simStep (r : rtac typ (expr typ func) subst) : 
+	rtac typ (expr typ func) subst :=
+	THEN INSTANTIATE
+	     (THEN (TRY (THEN (APPLY pull_exists_lemma) (REPEAT 10 INTRO)))
+	           r).
+
+Fixpoint tripleE (c : cmd) : rtac typ (expr typ func) subst :=
 	match c with
-	    | cskip => EAPPLY skip_lemma (apply_to_all solve_entailment)
-		| cseq c1 c2 => EAPPLY (seq_lemma c1 c2) 
-			(FIRST (tripleE c1::tripleE c2::nil))
-		| cassign x e => EAPPLY (assign_lemma x e) (apply_to_all solve_entailment)
-		| cread x y f => EAPPLY (read_lemma x y f) (apply_to_all solve_entailment)
-		| cwrite x f e => EAPPLY (write_lemma x f e) (apply_to_all solve_entailment)
+	    | cskip => THEN INSTANTIATE (THEN (APPLY skip_lemma) solve_entailment)
+		| cseq c1 c2 => simStep (THEN (EAPPLY (seq_lemma c1 c2))
+						              (FIRST (tripleE c1::tripleE c2::nil)))
+		| cassign x e => simStep (THEN (EAPPLY (assign_lemma x e)) solve_entailment)
+		| cread x y f => simStep (THEN (EAPPLY (read_lemma x y f)) solve_entailment)
+		| cwrite x f e => simStep (THEN (EAPPLY (write_lemma x f e)) IDTAC)
 		| _ => @IDTAC _ _ _
 	end.
 
-Definition symE : stac typ (expr typ func) subst :=
-	fun tus tvs s lst e => 
-		match e with 
+Definition symE : rtac typ (expr typ func) subst :=
+	(fun ctx s e => 
+		(match e return rtac typ (expr typ func) subst with 
 			| mkEntails [tySpec, G, mkTriple [P, mkCmd [c], Q]] => 
-			  (tripleE c) tus tvs s lst e 
-			| _ => Fail
-		end.  
+			  (tripleE c)
+			| _ => @FAIL _ _ _
+		end) ctx s e).  
 		
 Require Import Java.Semantics.OperationalSemantics.
 Require Import Java.Logic.SpecLogic.
@@ -301,13 +312,17 @@ Require Import Java.Logic.AssertionLogic.
 
 Require Import Charge.Logics.ILogic.
 
-Definition testSkip :=
+Print rtac.
+
+Definition testSkip : Result typ (expr typ func) subst :=
   let vars := tySpec :: tySasn :: nil in
   let goal :=
-      mkEntails [tySpec, Var 0,
-                 mkTriple [Var 1, mkCmd [cskip], Var 1]]
+      mkForall [tyProp, tySpec,
+      mkForall [tyProp, tySasn,
+                mkEntails [tySpec, Var 0,
+                mkTriple [Var 1, mkCmd [cskip], Var 1]]]]
   in
-  @symE nil vars (SubstI.empty (expr :=expr typ func)) nil goal.
+  (THEN (REPEAT 10 INTRO) symE) CTop (SubstI.empty (expr := expr typ func)) goal.
   
 Time Eval vm_compute in testSkip.
 
@@ -323,50 +338,235 @@ Definition mkPointsto x f e : expr typ func :=
 Require Import String.
 Open Scope string.
 
+Local Existing Instance RS.
+Print RS.
+Print RSym.
+
+Instance JavaFuncRelDecEq : RelDec (@eq java_func) := 
+{ rel_dec := fun x y => match java_func_eq x y with | Some b => b | None => false end}.
+
+Instance FuncRelDecEq : RelDec (@eq (ilfunc typ)) := _.
+
+
+Section SumEq.
+  Variable T : Type.
+  Variable U : Type.
+
+  Variable EDT : RelDec (@eq T).
+  Variable EDU : RelDec (@eq U).
+
+  (** Specialization for equality **)
+  Global Instance RelDec_eq_sum : RelDec (@eq (T + U)) :=
+  { rel_dec := fun x y =>
+    match x , y with
+      | inl x , inl y => eq_dec x y
+      | inr x , inr y => eq_dec x y
+      | _ , _ => false
+    end }.
+
+End SumEq.
+
+
+Instance ExprRelDecEq : RelDec (@eq (expr typ func)) := _.
+
+Check ASSUMPTION.
+
+(*
+Check (@exprUnify subst typ func _ _ 
+
+Let ASSUMPTION : rtac typ (expr typ func) subst :=
+  ASSUMPTION _ (fun x y s => @exprUnify subst typ func _ _ RS SS SU 3
+                              (tyProp::nil) (tyProp::nil) 0 s x y tyProp).
+
+
+Definition test_goal :=
+	(THEN (REPEAT 10 INTRO) ASSUMPTION)
+	(GGoal (SubstI.empty (expr := expr typ func)) 
+	(Some mkForall [tyProp, tyProp, 
+	       mkExists [tyProp, tyProp, mkImpl [tyProp, Var 1, Var 0]]])).
+	       
+Eval cbv in test_goal.
+
+*)
 Definition test_read :=
-  let uvars := tySasn :: nil in
-  let vars := nil in
   let goal :=
+    mkExists [tyProp, tySasn,
   	mkEntails [tySpec, mkTrue [tySpec], 
-  	           mkTriple [mkStar [tySasn, 
-  	                             mkPointsto "o1" "f1" (mkConst [tyVal, mkVal [vint 3]]),
-  	                             mkPointsto "o" "f" (mkConst [tyVal, mkVal [vint 4]])],
-  	                     mkCmd [cseq (cread "x" "o" "f") cskip],
-  	                     UVar 0]]
+  	           mkTriple [mkPointsto "o" "f" (mkConst [tyVal, mkVal [vint 3]]),
+  	                     mkCmd [cread "x" "o" "f"],
+  	                     Var 0]]]
   in
-  @symE uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
- 
+  
+  (THEN (REPEAT 10 INTRO) symE)
+  	    CTop (SubstI.empty (expr :=expr typ func)) goal.
 Time Eval vm_compute  in test_read.
 
+
 Definition testWrite :=
-  let uvars := tySasn :: nil in
-  let vars := nil in
   let goal :=
+    mkExists [tyProp, tySasn,
   	mkEntails [tySpec, mkTrue [tySpec], 
-  	           mkTriple [mkStar [tySasn, mkEmp [tySasn], mkPointsto "o" "f" (mkConst [tyVal, mkVal [vint 3]])],
+  	           mkTriple [mkPointsto "o" "f" (mkConst [tyVal, mkVal [vint 3]]),
   	                     mkCmd [cwrite "o" "f" (E_val (vint 0))],
-  	                     (UVar 0)]]
+  	                     (Var 0)]]]
   in
-  @symE uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
+  (THEN (REPEAT 10 INTRO) (EAPPLY (write_lemma "o" "f" (E_val (vint 0)))))
+  	    CTop (SubstI.empty (expr :=expr typ func)) goal.
+
+Set Printing Width 140.
+
 Time Eval vm_compute  in testWrite.
 
+(* GREGORY this fails *)
+
+Print write_lemma.
+Eval compute in typeof_expr nil nil (
+                              mkStar  [tySasn, mkEmp  [tySasn],
+                                      mkAp  [tyVal, tyAsn,
+                                            mkAp  [tyString, tyArr tyVal tyAsn,
+                                                  mkAp  [tyVal, tyArr tyString (tyArr tyVal tyAsn),
+                                                  mkConst  [tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn)), 
+                                                           fPointsto], 
+                                                  App fStackGet mkString  ["o"]], 
+                                            mkConst  [tyString, mkString  ["f"]]], 
+                                      mkConst  [tyVal, mkVal  [3%Z]]]] ).
+
+Print write_lemma.
+
+
 Definition testSwap :=
-  let uvars := tySasn :: nil in
-  let vars := nil in
-  let goal := mkEntails [tySpec, mkTrue [tySpec],
+  let goal := mkExists [tyProp, tySasn,
+              mkEntails [tySpec, mkTrue [tySpec],
   	                     mkTriple [mkStar [tySasn,
   		                                   mkPointsto "o" "f1" (mkConst [tyVal, mkVal [vint 1]]),
 	  	                                   mkPointsto "o" "f2" (mkConst [tyVal, mkVal [vint 2]])],                                           	                      
   	                               mkCmd [cseq (cread "x1" "o" "f1")
-  	                                           (cread "x2" "o" "f2")
-  	                               (*       (cseq (cwrite "o" "f1" (E_var "x2"))
-  	                                            (cwrite "o" "f2" (E_var "x1")))) *) ], 
-			                       UVar 0
-			                       (*mkStar [tySasn,
-			                               mkPointsto "o" "f1" (App fEval (Var 1)),
-			                               mkPointsto "o" "f2" (App fEval (Var 0))*)]]                                     
+  	                                           (cseq (cread "x2" "o" "f2")
+  	                                                 (cseq (cwrite "o" "f1" (E_var "x2"))
+  	                                                       (cwrite "o" "f2" (E_var "x1"))))], 
+			                       
+			                       mkStar [tySasn,
+			                               mkPointsto "o" "f1" (mkConst [tyVal, mkVal [vint 2]]),
+			                               mkPointsto "o" "f2" (mkConst [tyVal, mkVal [vint 1]])]]]]
   in
-  let tac := symE in
-  @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
-  
+  (THEN (REPEAT 10 INTRO) symE)
+  	    CTop (SubstI.empty (expr :=expr typ func)) goal.
+
+Print pull_exists_lemma.
+ 
 Time Eval vm_compute in testSwap.
+Print seq_lemma.
+Definition test := Eval vm_compute in testSwap.
+
+Print Goal.
+Locate Goal.
+
+Check goalD.
+
+Print goalD.
+
+Eval vm_compute in 
+match test with
+	| More _ g => Some (goalD (typ := typ) (expr := expr typ func) nil nil g)
+	| _ => None
+end.
+
+Print Goal.
+
+Print Result.
+
+Print test.
+
+
+Lemma test : exists x, x = testSwap.
+Proof.
+  Opaque tripleE.
+  compute.
+  Transparent tripleE.
+  Opaque read_lemma.
+  unfold tripleE.
+  
+  unfold simStep.
+  Opaque EAPPLY.
+  unfold THEN.
+  unfold INSTANTIATE, Instantiate.INSTANTIATE, SIMPLIFY, TRY.
+  unfold runRTac, runRTac'.
+  
+  match goal with
+  	| |- context [APPLY ?a ?b ?c ?d] =>
+  		remember (APPLY a b c d)
+  end.
+  
+  compute in Heqr. rewrite Heqr.
+  clear.
+  
+  simpl.
+  
+  match goal with
+  	| |- context [EAPPLY ?a ?b ?c ?d] =>
+  		remember (EAPPLY a b c d)
+  end.
+  
+  Transparent EAPPLY.
+  
+  compute in Heqr.
+  
+  rewrite Heqr.
+  
+  clear.
+  
+  simpl.
+  
+  match goal with
+  	| |- context [EAPPLY ?a ?b ?c ?d] =>
+  		remember (EAPPLY a b c d)
+  end.
+  
+  unfold EAPPLY, EApply.EAPPLY in Heqr.
+  
+  Opaque LemmaApply.eapplicable.
+  simpl in Heqr.
+  
+   
+ match goal with
+  	| H : context [LemmaApply.eapplicable ?a ?b ?c ?d ?e ?f ?g ?h] |- _ =>
+	remember (LemmaApply.eapplicable a b c d e f g h)
+  end.
+  
+  Transparent LemmaApply.eapplicable.
+  
+  unfold LemmaApply.eapplicable in Heqo.
+  
+  Transparent read_lemma.
+  
+  simpl in Heqo.
+  
+  Print read_lemma.
+  
+  compute in Heqo.
+  rewrite Heqo in Heqr.
+  
+  Opaque read_lemma.
+  
+  simpl in Heqo.
+  
+  Transparent read_lemma.
+  
+  simpl in Heqo.
+  
+  cbv in Heqo.
+  
+  cbv in Heqo.
+    
+  compute in Heqr0.
+  unfold EAPPLY in Heqr.
+  
+  compute in Heqr.
+  
+  Check FIRST.
+  
+  Opaque seq_lemma.
+  unfold tripleE.
+  Opaque
+  unfold solve_entailment.
+  compute.

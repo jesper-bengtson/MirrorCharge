@@ -27,6 +27,14 @@ Local Instance Applicative_Fun A : Applicative (Fun A) :=
 ; ap := fun _ _ f x y => (f y) (x y)
 }.
 
+Lemma pull_exists {A} {P : A -> sasn} c Q G
+	(H : forall x, G |-- {[P x]} c {[Q]}) :
+	G |-- {[Exists x, P x]} c {[Q]}.
+Proof.
+  rewrite <- exists_into_precond2.
+  apply lforallR. apply H.
+Qed.
+
 Lemma rule_seq c1 c2 (P Q R : sasn) G
       (Hc1 : G |-- {[P]} c1 {[Q]})
       (Hc2 : G |-- {[Q]} c2 {[R]}) :
@@ -57,30 +65,33 @@ Proof.
   	[apply Hc1|apply Hc2].
 Qed.
 
-  Lemma rule_read_fwd (x y : String.string) (f : String.string) (e : stack -> sval) (P : sasn) (G : spec)
-    (HPT : P |-- ap (T := Fun stack) (ap (ap (pure pointsto2) (stack_get y)) (pure f)) e) : 
-    G |-- {[ P ]} 
-          cread x y f 
-          {[ Exists v : sval, embed (ap_eq [stack_get x, apply_subst2 sval e (subst2 (pure v) x)]) //\\ 
-    					      (apply_subst2 asn P (subst2 (pure (T := Fun stack) v) x)) ]}.
+  Lemma rule_read_fwd (x y : String.string) (f : String.string) (e : stack -> sval) (P Q : sasn) (G : spec)
+    (HP : P |-- ap (T := Fun stack) (ap (ap (pure pointsto2) (stack_get y)) (pure f)) e) 
+    (HQ : Exists v : sval, embed (ap_eq [stack_get x, apply_subst2 sval e (subst2 (pure v) x)]) //\\ 
+    					      (apply_subst2 asn P (subst2 (pure (T := Fun stack) v) x)) |-- Q) :
+    G |-- {[ P ]} cread x y f {[ Q ]}.
   Proof.
     pose proof @rule_read_fwd x y f e P. 
     unfold Open.liftn, Open.lift, open_eq, stack_get, Open.var_expr in *; simpl in *.
-	rewrite <- H; [apply ltrueR | apply HPT].
+    rewrite <- HQ , <- H; [apply ltrueR | apply HP].
   Qed.
 
 Require Import Charge.Logics.BILogic.
 
-  Lemma rule_write_fwd (x f : String.string) (e : dexpr) G (P Q : sasn) (e' : stack -> sval)
-        (HPT : P |-- ap_pointsto [x, f, e'] ** Q) :
-    G |-- ({[ P ]} cwrite x f e {[ ap_pointsto [x, f, eval2 e] ** Q]}).
+  Lemma rule_write_fwd (x f : String.string) (e : dexpr) G (P Q F : sasn) (e' : stack -> sval)
+        (HP : P |-- ap_pointsto [x, f, e'] ** F) 
+        (HQ : ap_pointsto [x, f, eval2 e] ** F |-- Q) :
+    G |-- ({[ P ]} cwrite x f e {[ Q ]}).
   Proof.
-     pose proof @rule_write_frame G P Q x f e' e. unfold Open.liftn, Open.lift, open_eq, stack_get, Open.var_expr in *; simpl in *.
-admit.
-
-(*
-	 apply H; apply HPT.
-*)
+     pose proof @rule_write_frame G P F x f e' e. unfold Open.liftn, Open.lift, open_eq, stack_get, Open.var_expr in *; simpl in *.
+	 rewrite <- HQ, H.
+	 unfold stack. unfold pointsto2. unfold eval2.
+	 
+	 setoid_rewrite <- sepSPC1 at 2.
+	 reflexivity. 
+	 rewrite HP. 
+	 setoid_rewrite <- sepSPC1 at 2.
+	 reflexivity.
   Qed.
 
   Lemma rule_assign_fwd x (e : dexpr) G P :

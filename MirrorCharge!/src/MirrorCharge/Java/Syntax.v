@@ -524,6 +524,13 @@ Definition fs : @SymEnv.functions typ _ :=
      @SymEnv.F typ _ (tyArr tyVarList tyProp)
                (@NoDup string) ::
      nil).
+Eval simpl in TypesI.typD tySpec.
+Locate SymEnv.functions.
+Definition should_not_be_necessary : ILogicOps (TypesI.typD tySpec).
+Proof.
+  simpl.
+  apply _.
+Qed.
 
   Definition lops : logic_ops RType_typ :=
   fun t =>
@@ -533,7 +540,7 @@ Definition fs : @SymEnv.functions typ _ :=
       | tyProp => Some _
       | tyAsn => Some _
       | tySasn => Some (@ILFun_Ops stack asn _)
-      | tySpec => Some _
+      | tySpec => Some should_not_be_necessary
       | tyPure => Some ( @ILFun_Ops stack Prop _)
       | _ => None
     end.
