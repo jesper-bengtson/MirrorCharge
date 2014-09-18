@@ -277,12 +277,13 @@ Let FINISH := @finish typ (expr typ func) subst SU.
 
 Check @STAC_no_hyps.
 
-Definition solve_entailment :=
-  THEN (TRY (THEN (APPLY pull_exists_lemma) (REPEAT 10 INTRO)))
-       (THEN INSTANTIATE
+Definition solve_entailment : rtac typ (expr typ func) subst := IDTAC.
+(*  THEN (TRY (THEN (APPLY pull_exists_lemma) (REPEAT 10 INTRO))) IDTAC.*)
+  
+  (*    (THEN INSTANTIATE
              (THEN (SIMPLIFY (fun _ _ => beta_all simplify nil nil))
                              (STAC_no_hyps (@ExprSubst.instantiate typ func) stac_cancel))).
-
+*)
 Definition simStep (r : rtac typ (expr typ func) subst) : 
 	rtac typ (expr typ func) subst :=
 	THEN INSTANTIATE
@@ -354,7 +355,7 @@ Definition test_read :=
   	                     (Var 0))).
 Eval vm_compute in typeof_expr nil nil test_read.
 
-Definition runTac tac := (THEN (REPEAT 10 INTRO) symE)
+Definition runTac tac := (THEN (REPEAT 10 INTRO) (THEN (EAPPLY (read_lemma "x" "o" "f")) IDTAC))
 	 CTop (SubstI.empty (expr :=expr typ func)) tac.
 
 Time Eval vm_compute in runTac test_read.
@@ -364,8 +365,8 @@ Eval vm_compute in match runTac test_read with
 					| _ => None
 				   end.
 
-(* GREGORY : This goal does not type check, the first GEx after the first GConj is ill-typed *)
-
+(* GREGORY : This goal does not type check, the third GEx from the top is ill-typed *)
+(* EAPPLY seems to work, but THEN IDTAC results in an unsolvable goal. *)
 
 Definition read_result := Eval vm_compute in test_read.
 
