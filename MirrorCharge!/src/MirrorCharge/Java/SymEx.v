@@ -26,6 +26,7 @@ Require Import MirrorCharge.SynSepLog.
 Require Import MirrorCharge.SepLogFold.
 Require Import MirrorCharge.Java.Cancelation.
 Require Import MirrorCharge.Java.Syntax.
+Require Import MirrorCharge.Java.Semantics.
 
 Require Import MirrorCore.Reify.Reify.
 
@@ -152,7 +153,8 @@ Ltac reify_lemma e :=
        reify_expr Reify.reify_imp k [ True ] [ T ])
   end.
 *)
-Require Import Semantics.
+
+Require Import MirrorCharge.Java.Semantics.
   
 (** Skip **)
 Definition skip_lemma : lemma typ (expr typ func) (expr typ func).
@@ -261,9 +263,9 @@ Require Import MirrorCore.RTac.RTac.
 
 Definition fintro e : option (OpenAs typ (expr typ func)) :=
 	match e with
-		| App (fForall [tyProp, t]) P => Some (AsAl t (fun x => beta (App P x)))
-		| App (fExists [tyProp, t]) P => Some (AsEx t (fun x => beta (App P x)))
-		| mkImpl [tyProp, P, Q] => Some (AsHy typ P Q)
+		| App (Inj (inr (ilf_forall t tyProp))) P => Some (AsAl t (fun x => beta (App P x)))
+		| App (Inj (inr (ilf_exists t tyProp))) P => Some (AsEx t (fun x => beta (App P x)))
+		| App (App (Inj (inr (ilf_impl tyProp))) P) Q => Some (AsHy typ P Q)
 		| _ => None
 	end.
 
@@ -294,14 +296,15 @@ Fixpoint tripleE (c : cmd) : rtac typ (expr typ func) subst :=
 						              (FIRST (tripleE c1::tripleE c2::nil)))
 		| cassign x e => simStep (THEN (EAPPLY (assign_lemma x e)) solve_entailment)
 		| cread x y f => simStep (THEN (EAPPLY (read_lemma x y f)) solve_entailment)
-		| cwrite x f e => simStep (THEN (EAPPLY (write_lemma x f e)) IDTAC)
+		| cwrite x f e => simStep (THEN (EAPPLY (write_lemma x f e)) solve_entailment)
 		| _ => @IDTAC _ _ _
 	end.
 
 Definition symE : rtac typ (expr typ func) subst :=
 	(fun ctx s e => 
 		(match e return rtac typ (expr typ func) subst with 
-			| mkEntails [tySpec, G, mkTriple [P, mkCmd [c], Q]] => 
+			| App (App (Inj (inr (ilf_entails tySpec))) G) 
+			      (App (App (App (Inj (inl (inr pTriple))) P) Q) (Inj (inl (inr (pCmd c))))) => 
 			  (tripleE c)
 			| _ => @FAIL _ _ _
 		end) ctx s e).  
@@ -312,96 +315,68 @@ Require Import Java.Logic.AssertionLogic.
 
 Require Import Charge.Logics.ILogic.
 
-Print rtac.
+Definition typecheck_goal g :=
+  match goalD nil nil g with
+    | None => false
+    | Some _ => true
+  end.
 
-Definition testSkip : Result typ (expr typ func) subst :=
-  let vars := tySpec :: tySasn :: nil in
-  let goal :=
-      mkForall [tyProp, tySpec,
-      mkForall [tyProp, tySasn,
-                mkEntails [tySpec, Var 0,
-                mkTriple [Var 1, mkCmd [cskip], Var 1]]]]
-  in
-  (THEN (REPEAT 10 INTRO) symE) CTop (SubstI.empty (expr := expr typ func)) goal.
+Definition testSkip := 
+      mkForall tyProp tySpec
+      (mkForall tyProp tySasn
+                (mkEntails tySpec (Var 1)
+                (mkTriple (Var 0) (mkCmd cskip) (Var 0)))).
+Time Eval vm_compute in typeof_expr nil nil testSkip.
+
+Time Eval vm_compute in 
+  (THEN (REPEAT 10 INTRO) symE) CTop (SubstI.empty (expr := expr typ func)) testSkip.
   
 Time Eval vm_compute in testSkip.
 
-Definition mkPointsto x f e : expr typ func :=
-(mkAp [tyVal, tyAsn, 
-                      mkAp [tyString, tyArr tyVal tyAsn,
-                            mkAp [tyVal, tyArr tyString (tyArr tyVal tyAsn),
-                                  mkConst [tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn)), fPointsto],
-                                  App fStackGet (mkString [x])],
-                            mkConst [tyString, mkString [f]]],
-                      e]).
-
-Require Import String.
 Open Scope string.
 
-Local Existing Instance RS.
-Print RS.
-Print RSym.
-
-Instance JavaFuncRelDecEq : RelDec (@eq java_func) := 
-{ rel_dec := fun x y => match java_func_eq x y with | Some b => b | None => false end}.
-
-Instance FuncRelDecEq : RelDec (@eq (ilfunc typ)) := _.
-
-
-Section SumEq.
-  Variable T : Type.
-  Variable U : Type.
-
-  Variable EDT : RelDec (@eq T).
-  Variable EDU : RelDec (@eq U).
-
-  (** Specialization for equality **)
-  Global Instance RelDec_eq_sum : RelDec (@eq (T + U)) :=
-  { rel_dec := fun x y =>
-    match x , y with
-      | inl x , inl y => eq_dec x y
-      | inr x , inr y => eq_dec x y
-      | _ , _ => false
-    end }.
-
-End SumEq.
+Definition mkPointsto x f e : expr typ func :=
+   mkAp tyVal tyAsn 
+        (mkAp tyString (tyArr tyVal tyAsn)
+              (mkAp tyVal (tyArr tyString (tyArr tyVal tyAsn))
+                    (mkConst (tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn))) 
+                             fPointsto)
+                    (App fStackGet (mkString x)))
+              (mkConst tyString (mkString f)))
+        e.
 
 
-Instance ExprRelDecEq : RelDec (@eq (expr typ func)) := _.
-
-Check ASSUMPTION.
-
-(*
-Check (@exprUnify subst typ func _ _ 
-
-Let ASSUMPTION : rtac typ (expr typ func) subst :=
-  ASSUMPTION _ (fun x y s => @exprUnify subst typ func _ _ RS SS SU 3
-                              (tyProp::nil) (tyProp::nil) 0 s x y tyProp).
-
-
-Definition test_goal :=
-	(THEN (REPEAT 10 INTRO) ASSUMPTION)
-	(GGoal (SubstI.empty (expr := expr typ func)) 
-	(Some mkForall [tyProp, tyProp, 
-	       mkExists [tyProp, tyProp, mkImpl [tyProp, Var 1, Var 0]]])).
-	       
-Eval cbv in test_goal.
-
-*)
 Definition test_read :=
-  let goal :=
-    mkExists [tyProp, tySasn,
-  	mkEntails [tySpec, mkTrue [tySpec], 
-  	           mkTriple [mkPointsto "o" "f" (mkConst [tyVal, mkVal [vint 3]]),
-  	                     mkCmd [cread "x" "o" "f"],
-  	                     Var 0]]]
-  in
-  
-  (THEN (REPEAT 10 INTRO) symE)
-  	    CTop (SubstI.empty (expr :=expr typ func)) goal.
-Time Eval vm_compute  in test_read.
+    mkExists tyProp tySasn
+  	(mkEntails tySpec (mkTrue tySpec)
+  	           (mkTriple (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 3))))
+  	                     (mkCmd (cread "x" "o" "f"))
+  	                     (Var 0))).
+Eval vm_compute in typeof_expr nil nil test_read.
+
+Definition runTac tac := (THEN (REPEAT 10 INTRO) symE)
+	 CTop (SubstI.empty (expr :=expr typ func)) tac.
+
+Time Eval vm_compute in runTac test_read.
+
+Eval vm_compute in match runTac test_read with
+					| More _ g => Some (typecheck_goal g)
+					| _ => None
+				   end.
+
+(* GREGORY : This goal does not type check, the first GEx after the first GConj is ill-typed *)
 
 
+Definition read_result := Eval vm_compute in test_read.
+
+Eval vm_compute in 
+     match read_result with
+	   | More _ g => Some (typecheck_goal g)
+	   | _ => None
+	 end.
+
+Print More.
+Print read_lemma.
 Definition testWrite :=
   let goal :=
     mkExists [tyProp, tySasn,
@@ -410,7 +385,7 @@ Definition testWrite :=
   	                     mkCmd [cwrite "o" "f" (E_val (vint 0))],
   	                     (Var 0)]]]
   in
-  (THEN (REPEAT 10 INTRO) (EAPPLY (write_lemma "o" "f" (E_val (vint 0)))))
+  (THEN (REPEAT 10 INTRO) symE)
   	    CTop (SubstI.empty (expr :=expr typ func)) goal.
 
 Set Printing Width 140.

@@ -21,34 +21,34 @@ Local Existing Instance RSym_ilfunc.
 Local Existing Instance RS.
 Local Existing Instance Expr_expr.
 
-(** NOTE: this is for [locals -> HProp] **)
+Local Notation "a @ b" := (@App typ _ a b) (at level 30).
+Local Notation "\ t -> e" := (@Abs typ _ t e) (at level 40).
+
 Definition sls : SepLogFoldEx.SepLogSpec typ func :=
 {| SepLogFoldEx.is_pure := fun (e : expr typ func) =>
                 match e with
-          (*        | mkTrue [_]
-                  | mkFalse [_] => true
-                  | App (App (Inj (inl (inr (pAp _ _)))) (App (Inj (inl (inr (pConst _)))) (Inj (inr (ilf_embed tyProp _))))) _ => true*)
+                  | Inj (inr (ilf_true _))
+                  | Inj (inr (ilf_false _)) => true
+                  | App (App (Inj (inl (inr (pAp _ _)))) (App (Inj (inl (inr (pConst _)))) (Inj (inr (ilf_embed tyProp _))))) _ => true
                   | _ => false
                 end
  ; SepLogFoldEx.is_emp := fun e => false
  ; SepLogFoldEx.is_star := fun (e : expr typ func) =>
                 match e with
-                  | fStar [_] => true
+                  | Inj (inl (inr (pStar _))) => true
                   | _ => false
                 end
  ; SepLogFoldEx.is_and := fun (e : expr typ func) =>
                 match e with
-                  | fAnd [_] => true
+                  | Inj (inr (ilf_and _)) => true
                   | _ => false
                 end
  ; SepLogFoldEx.is_ex := fun (e : expr typ func) =>
                 match e with
-                  | fExists [t, _] => Some t
+                  | Inj (inr (ilf_exists t u)) => Some t
                   | _ => None
                 end
  |}.
-
-About normalize.
 
 Section inst_2.
   Variable lookup : uvar -> nat -> option (expr typ func).
@@ -96,33 +96,29 @@ Let doUnifySepLog (tus tvs : EnvI.tenv typ) (s : CascadeSubst subst subst) (e1 e
 
 Let ssl : SynSepLog typ func :=
 {| e_star := fun l r =>
-               let result := mkStar [tySasn, l, r] in
-               let nested_match := match r with
-		                           | mkEmp [_] => l
-		                           | _ => result
-		                           end in
                match l with
-                 | mkEmp [_] => r
-                 | _ => nested_match
+                 | Inj (inl (inr (pEmp _))) => r
+                 | _ => match r with
+                          | Inj (inl (inr (pEmp _))) => l
+                          | _ => mkStar tySasn l r
+                        end
                end
- ; e_emp := mkEmp [tySasn]
+ ; e_emp := mkEmp tySasn
  ; e_and := fun l r =>
- 			  let result := mkAnd [tySasn, l, r] in
- 			  let nested_match := match r with
-		                          | mkTrue [_] => l
-		                          | _ => result
-		                          end in
               match l with
-                | mkEmp [_] => r
-                | _ => nested_match
+                | Inj (inr (ilf_true _)) => r
+                | _ => match r with
+                         | Inj (inr (ilf_true _)) => l
+                         | _ => mkAnd tySasn l r
+                       end
               end
- ; e_true := mkTrue [tySasn]
+ ; e_true := mkTrue tySasn
  |}.
 
 Definition eproveTrue (s : CascadeSubst subst subst) (e : expr typ func)
 : option (CascadeSubst subst subst) :=
   match e with
-    | mkTrue [_] => Some s
+    | Inj (inr (ilf_true _)) => Some s
     | _ => None
   end.
 
@@ -206,11 +202,11 @@ Definition the_canceller tus tvs (lhs rhs : expr typ func)
 Definition stac_cancel : stac typ (expr typ func) subst :=
   fun tus tvs s hyps e =>
     match e with
-      | mkEntails [tySasn, L, R] =>
+      | App (App (Inj (inr (ilf_entails tySasn))) L) R =>
         match the_canceller tus tvs L R s with
           | inl (l,r,s') =>
             let e' :=
-                mkEntails [tySasn, l, r]
+                mkEntails tySasn l r
             in
             More tus tvs s hyps e'
           | inr s' => @Solved _ _ _ nil nil s'
