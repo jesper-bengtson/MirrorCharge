@@ -214,22 +214,22 @@ Definition stac_cancel : stac typ (expr typ func) subst :=
     match e with
       | App (App (Inj (inr (ilf_entails tySProp))) G)
             (App (Inj (inr (ilf_embed tyProp tySProp)))
-                 (App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) L) R)) =>
+                 (App (App (Inj (inr (ilf_entails tyLProp))) L) R)) =>
         match the_canceller tus tvs L R s with
           | inl (l,r,s') =>
             let e' :=
                 App (App (Inj (inr (ilf_entails tySProp))) G)
-            (App (Inj (inr (ilf_embed tyProp tySProp)))
-                 (App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) l) r))
+                    (App (Inj (inr (ilf_embed tyProp tySProp)))
+                         (App (App (Inj (inr (ilf_entails tyLProp))) l) r))
             in
             More tus tvs s hyps e'
           | inr s' => @Solved _ _ _ nil nil s'
         end
-      | App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) L) R =>
+      | App (App (Inj (inr (ilf_entails tyLProp))) L) R =>
         match the_canceller tus tvs L R s with
           | inl (l,r,s') =>
             let e' :=
-                App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) l) r
+                App (App (Inj (inr (ilf_entails tyLProp))) l) r
             in
             More tus tvs s hyps e'
           | inr s' => @Solved _ _ _ nil nil s'

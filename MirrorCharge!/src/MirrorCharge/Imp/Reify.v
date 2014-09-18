@@ -17,10 +17,10 @@ Reify Declare Typed Table term_table : BinNums.positive => reify_imp_typ.
 Let Ext x := @ExprCore.Inj Syntax.typ Syntax.func (inl (inl x)).
 
 Reify Declare Syntax reify_imp :=
-  { (@Patterns.CPatterns _ patterns_imp
+  { (@Patterns.CVar _ (@ExprCore.Var Syntax.typ Syntax.func)
+    (@Patterns.CPatterns _ patterns_imp
     (@Patterns.CApp _ (@ExprCore.App Syntax.typ Syntax.func)
     (@Patterns.CAbs _ reify_imp_typ (@ExprCore.Abs Syntax.typ Syntax.func)
-    (@Patterns.CVar _ (@ExprCore.Var Syntax.typ Syntax.func)
     (@Patterns.CTypedTable _ _ _ term_table Ext
     (@Patterns.CFail (ExprCore.expr Syntax.typ Syntax.func)))))))
   }.
@@ -116,7 +116,7 @@ Reify Seed Typed Table term_table += 6 => [ tyCmd , Skip ].
 Reify Seed Typed Table term_table += 7 => [ (tyNat >> tyNat >> tyHProp) , PtsTo ].
 Reify Seed Typed Table term_table += 8 => [ (tyVariable >> (tyNat >> tyLProp) >> (tyNat >> tyLProp) >> tySProp) , function_spec ].
 
-Let elem_ctor : forall x : Syntax.typ, (forall ts : list Type, typD ts x) -> @SymEnv.function _ _ :=
+Definition elem_ctor : forall x : Syntax.typ, (forall ts : list Type, typD ts x) -> @SymEnv.function _ _ :=
   @SymEnv.F _ _.
 
 Ltac reify_imp e :=
