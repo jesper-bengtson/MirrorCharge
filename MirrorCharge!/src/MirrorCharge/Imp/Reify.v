@@ -116,14 +116,14 @@ Reify Seed Typed Table term_table += 6 => [ tyCmd , Skip ].
 Reify Seed Typed Table term_table += 7 => [ (tyNat >> tyNat >> tyHProp) , PtsTo ].
 Reify Seed Typed Table term_table += 8 => [ (tyVariable >> (tyNat >> tyLProp) >> (tyNat >> tyLProp) >> tySProp) , function_spec ].
 
-Definition elem_ctor : forall x : Syntax.typ, (forall ts : list Type, typD ts x) -> @SymEnv.function _ _ :=
+Definition elem_ctor : forall x : Syntax.typ, (typD x) -> @SymEnv.function _ _ :=
   @SymEnv.F _ _.
 
 Ltac reify_imp e :=
   let k fs e :=
       pose e in
   reify_expr reify_imp k
-             [ (fun (y : @mk_dvar_map_abs _ _ _ (list Type) _ term_table elem_ctor) => True) ]
+             [ (fun (y : @mk_dvar_map _ _ _ _ term_table elem_ctor) => True) ]
              [ e ].
 
 Goal True.
