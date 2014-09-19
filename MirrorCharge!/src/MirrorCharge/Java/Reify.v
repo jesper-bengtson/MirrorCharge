@@ -27,7 +27,6 @@ Local Instance Applicative_Fun A : Applicative (Fun A) :=
 ; ap := fun _ _ f x y => (f y) (x y)
 }.
 
-
 (*
 Reify Declare Patterns const_for_cmd += ((RHasType cmd ?0) => (fun (c : id cmd) => mkCmd [c] : expr typ func)).
 *)

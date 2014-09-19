@@ -15,11 +15,6 @@ Local Existing Instance RSym_ilfunc.
 Local Existing Instance RS.
 Local Existing Instance Expr_expr.
 
-Local Notation "a @ b" := (@App typ _ a b) (at level 30).
-Local Notation "\ t -> e" := (@Abs typ _ t e) (at level 40).
-Local Notation "'Ap' '[' x , y ']'" := (Inj (inl (inr (pAp x y)))) (at level 0).
-Local Notation "'Const' '[' x ']'" := (Inj (inl (inr (pConst x)))) (at level 0).
-
 Section ApplySubst.
 
 	Definition applySingleSubst (p : expr typ func) x y e :=
@@ -27,7 +22,7 @@ Section ApplySubst.
 		    	
     Fixpoint applyParSubst (p : expr typ func) x vs es :=
     	match vs, es with
-    		| v :: vs, App (App (Inj (inl (inr (pCons tyExpr)))) e) es =>
+    		| v :: vs, mCons [tyExpr, e, es] =>
     			if string_dec x v then
     				e
     			else
@@ -38,21 +33,17 @@ Section ApplySubst.
 	Fixpoint applyTruncSubst (x : String.string) (vs : list String.string) 
 	                         (es : expr typ func) :=
 		match vs, es with
-			| v :: vs, App (App (Inj (inl (inr (pCons tyExpr)))) e) es =>
+			| v :: vs, mCons [tyExpr, e, es] =>
 				if string_dec x v then
 					e
 				else
 					applyTruncSubst x vs es 
 			| _, _ => fNull
 		end.
-Print mkApplySingleSubst.
-Print mkApplySubst.
-Print mkSingleSubst.
+
 	Definition applySubst (t : typ) (f e : expr typ func) (x : String.string) :=
 		match f with
-		  | App (App (Inj (inl (inr (pApplySubst t)))) P) 
-		             (App (App (Inj (inl (inr pSingleSubst))) (Inj (inl (inr (pString y))))) e) =>
-			applySingleSubst P x y e
+		  | mApplySingleSubst [t, p, mString [y], e] => applySingleSubst p x y e
 (*		  | mkApplySubst [t, p, mkSubstList [mkVarList [vs], es]] => applyParSubst p x vs es
 		  | mkApplyTruncSubst [t, p, mkSubstList [mkVarList [vs], es]] => applyTruncSubst x vs es*)
 		  | _ => mkApplySubst t e f
@@ -65,14 +56,15 @@ Section PushSubst.
 
   Fixpoint pushSubst (e : expr typ func) (t : typ) : expr typ func :=
     match e with
-    	| App (App (Inj (inr (ilf_and l))) p) q => mkAnd l (pushSubst p t) (pushSubst q t)
-    	| App (App (Inj (inr (ilf_or l))) p) q => mkOr l (pushSubst p t) (pushSubst q t)
-    	| App (App (Inj (inr (ilf_impl l))) p) q => mkImpl l (pushSubst p t) (pushSubst q t)
-    	| Inj (inr (ilf_true l)) => mkTrue l
-    	| Inj (inr (ilf_false l)) => mkFalse l
-    	| App (App (Ap [t1, t2]) p) q => mkAp t1 t2 (pushSubst p (tyArr t1 t2)) (pushSubst q t1)
-    	| App (Const [l]) p => mkConst l p
-    	| App fstack_get (Inj (inl (inr (pString v)))) => applySubst t f e v 
+    	| mAnd [l, p, q] => mkAnd l (pushSubst p t) (pushSubst q t)
+    	| mOr [l, p, q] => mkOr l (pushSubst p t) (pushSubst q t)
+    	| mImpl [l, p, q] => mkImpl l (pushSubst p t) (pushSubst q t)
+    	| mTrue [l] => mkTrue l
+    	| mFalse [l] => mkFalse l
+    	| mAp [t1, t2, p, q] => mkAp t1 t2 (pushSubst p (tyArr t1 t2)) 
+    	                             (pushSubst q t1)
+    	| mConst [l, p] => mkConst l p
+    	| App fstack_get (mString [v]) => applySubst t f e v 
     	| _ => mkApplySubst t e f
     end.
     
@@ -95,4 +87,3 @@ Definition simplify (e : expr typ func) (args : list (expr typ func))
       end
     | _ => apps e args
   end.
-

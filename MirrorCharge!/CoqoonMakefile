@@ -93,7 +93,7 @@ bin/MirrorCharge/Java/Cancelation.vo: src/MirrorCharge/Java/Cancelation.v bin/Mi
 bin/MirrorCharge/Java/Reify.vo: src/MirrorCharge/Java/Reify.v bin/MirrorCharge/Java/Syntax.vo
 bin/MirrorCharge/Java/Semantics.vo: src/MirrorCharge/Java/Semantics.v bin/MirrorCharge/Java/Reify.vo bin/MirrorCharge/Java/Syntax.vo
 bin/MirrorCharge/Java/Subst.vo: src/MirrorCharge/Java/Subst.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/Java/Syntax.vo
-bin/MirrorCharge/Java/SymEx.vo: src/MirrorCharge/Java/SymEx.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Java/Cancelation.vo bin/MirrorCharge/Java/Syntax.vo bin/MirrorCharge/Java/Semantics.vo bin/MirrorCharge/Java/Reify.vo bin/MirrorCharge/Java/Semantics.vo bin/MirrorCharge/Java/Subst.vo
+bin/MirrorCharge/Java/SymEx.vo: src/MirrorCharge/Java/SymEx.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Java/Cancelation.vo bin/MirrorCharge/Java/Syntax.vo bin/MirrorCharge/Java/Semantics.vo bin/MirrorCharge/Java/Reify.vo bin/MirrorCharge/Java/Subst.vo bin/MirrorCharge/Java/Semantics.vo bin/MirrorCharge/Java/Subst.vo
 bin/MirrorCharge/Java/Syntax.vo: src/MirrorCharge/Java/Syntax.v bin/MirrorCharge/ILogicFunc.vo
 bin/MirrorCharge/ModularFunc/BaseFunc.vo: src/MirrorCharge/ModularFunc/BaseFunc.v
 bin/MirrorCharge/ModularFunc/BaseType.vo: src/MirrorCharge/ModularFunc/BaseType.v

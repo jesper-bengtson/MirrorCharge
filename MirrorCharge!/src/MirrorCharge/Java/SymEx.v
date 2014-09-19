@@ -32,9 +32,8 @@ Require Import MirrorCore.Reify.Reify.
 
 Require Import MirrorCharge.Java.Reify.
 
-(*
 Require Import MirrorCharge.Java.Subst.
-*)
+
 
 Require Import Java.Language.Lang.
 Require Import Java.Language.Program.
@@ -275,15 +274,11 @@ Let INTRO := @INTRO typ (expr typ func) subst (@Var typ func) (@UVar typ func) f
 Let FINISH := @finish typ (expr typ func) subst SU.
 *)
 
-Check @STAC_no_hyps.
+Definition solve_entailment : rtac typ (expr typ func) subst := 
+   (*   (THEN INSTANTIATE
+             (THEN (SIMPLIFY (fun _ _ => beta_all simplify nil nil))*)
+                   (STAC_no_hyps (@ExprSubst.instantiate typ func) stac_cancel).
 
-Definition solve_entailment : rtac typ (expr typ func) subst := IDTAC.
-(*  THEN (TRY (THEN (APPLY pull_exists_lemma) (REPEAT 10 INTRO))) IDTAC.*)
-  
-  (*    (THEN INSTANTIATE
-             (THEN (SIMPLIFY (fun _ _ => beta_all simplify nil nil))
-                             (STAC_no_hyps (@ExprSubst.instantiate typ func) stac_cancel))).
-*)
 Definition simStep (r : rtac typ (expr typ func) subst) : 
 	rtac typ (expr typ func) subst :=
 	THEN INSTANTIATE
@@ -346,7 +341,6 @@ Definition mkPointsto x f e : expr typ func :=
               (mkConst tyString (mkString f)))
         e.
 
-
 Definition test_read :=
     mkExists tyProp tySasn
   	(mkEntails tySpec (mkTrue tySpec)
@@ -355,8 +349,10 @@ Definition test_read :=
   	                     (Var 0))).
 Eval vm_compute in typeof_expr nil nil test_read.
 
-Definition runTac tac := (THEN (REPEAT 10 INTRO) (THEN (EAPPLY (read_lemma "x" "o" "f")) IDTAC))
+Definition runTac tac := (THEN (REPEAT 10 INTRO) symE)
 	 CTop (SubstI.empty (expr :=expr typ func)) tac.
+
+Set Printing Width 140.
 
 Time Eval vm_compute in runTac test_read.
 
@@ -365,8 +361,43 @@ Eval vm_compute in match runTac test_read with
 					| _ => None
 				   end.
 
-(* GREGORY : This goal does not type check, the third GEx from the top is ill-typed *)
-(* EAPPLY seems to work, but THEN IDTAC results in an unsolvable goal. *)
+Opaque the_canceller.
+
+(* GREGORY: This example test demonstrates the problem *)
+
+Example test : exists x, x = runTac test_read.
+Proof.
+  compute.
+  Check the_canceller.
+  match goal with
+  | |- context [the_canceller ?a ?b ?c ?d ?e] =>
+  	remember (the_canceller a b c d e)
+  end.
+  
+  Transparent the_canceller.
+
+  compute in Heqs.
+  rewrite Heqs.
+  clear.
+
+  match goal with
+  | |- context [the_canceller ?a ?b ?c ?d ?e] =>
+ 	 pose c; pose d; remember (the_canceller a b c d e)
+  end.
+  (* Here c is an expression and d is a unification variable. I want this cancellation to succeed *)
+  clear e e0.
+  cbv in Heqs. (*But here it fails *)
+
+  rewrite Heqs.
+  
+  (* And we get a lot of new uninstantiated unification variables that I don't know where they are coming from *)
+  
+  
+  Opaque the_canceller.
+  
+  compute.
+  vm_compute.
+  Check nat.
 
 Definition read_result := Eval vm_compute in test_read.
 

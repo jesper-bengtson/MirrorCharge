@@ -150,7 +150,7 @@ Proof.
 	+ do 2 rewrite type_cast_typ_refl; reflexivity.	
 Qed.
 
-Fixpoint typD  (t : typ) : Type :=
+Fixpoint typD (t : typ) : Type :=
   match t with
     | tyArr a b => typD a -> typD b
 	| tyList a => @list (typD a)
@@ -320,6 +320,7 @@ Definition typeof_sym_java (f : java_func) : option typ :=
     | pPointsto => Some (tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn)))
     
     | pZip a b => Some (tyArr (tyList a) (tyArr (tyList b) (tyList (tyPair a b))))
+
     | pSubst => Some (tyArr tySubstList tySubst)
     | pTruncSubst => Some (tyArr tySubstList tySubst)
     | pSingleSubst => Some (tyArr (tyArr tyStack tyVal) (tyArr tyString tySubst))
@@ -328,7 +329,6 @@ Definition typeof_sym_java (f : java_func) : option typ :=
     | pNil t => Some (tyList t)
     | pLength t => Some (tyArr (tyList t) tyNat)
     | pMap a b => Some (tyArr (tyArr a b) (tyArr (tyList a) (tyList b)))
-
     | pNull => Some tyVal
     end.
     
@@ -459,7 +459,6 @@ Instance RSym_imp_func : SymI.RSym java_func :=
               | pNil t => @nil (typD t)
               | pLength t => @length (typD t)
               | pMap a b => @map (typD a) (typD b)
-  
               | pNull => null
             end
 ; sym_eqb := java_func_eq
@@ -477,7 +476,8 @@ Definition fs : @SymEnv.functions typ _ :=
      @SymEnv.F typ _ (tyArr tyVarList tyProp)
                (@NoDup string) ::
      nil).
-
+Eval simpl in TypesI.typD tySpec.
+Locate SymEnv.functions.
 Definition should_not_be_necessary : ILogicOps (TypesI.typD tySpec).
 Proof.
   simpl.
@@ -546,183 +546,248 @@ Definition SO : SubstI.SubstOk Expr_expr SS :=
 Local Existing Instance SS.
 Local Existing Instance SU.
 Local Existing Instance SO.
-(*
-Definition fMethodSpec : expr typ func := Inj (inl (inr pMethodSpec)).
-Definition fProgEq : expr typ func := Inj (inl (inr pProgEq)).
-Definition fTriple : expr typ func := Inj (inl (inr pTriple)).
-Definition fEval : expr typ func := Inj (inl (inr pEval)).
-
-Definition fEq t : expr typ func := Inj (inl (inr (pEq t))).
-Definition fAp t u : expr typ func := Inj (inl (inr (pAp t u))).
-Definition fConst t : expr typ func := Inj (inl (inr (pConst t))).
-Definition fStackGet : expr typ func := Inj (inl (inr pStackGet)).
-Definition fStackSet : expr typ func := Inj (inl (inr pStackSet)).
-
-Definition fFieldLookup : expr typ func := Inj (inl (inr pFieldLookup)).
-Definition fSetFold : expr typ func := Inj (inl (inr pSetFold)).
-Definition fSetFoldFun : expr typ func := Inj (inl (inr pSetFoldFun)).
-
-Definition fLengthVarList : expr typ func := Inj (inl (inr pLengthVarList)).
-Definition fLengthExprList : expr typ func := Inj (inl (inr pLengthExprList)).
-
-Definition fTypeOf : expr typ func := Inj (inl (inr pTypeOf)).
-
-Definition fApplySubst t : expr typ func := Inj (inl (inr (pApplySubst t))).
-Definition fPointsto : expr typ func := Inj (inl (inr (pPointsto))).
-Definition fNull : expr typ func := Inj (inl (inr pNull)).
-
-Definition fNilVarList : expr typ func := Inj (inl (inr pNilVarList)).
-Definition fNilExprList : expr typ func := Inj (inl (inr pNilExprList)).
-Definition fConsVarList : expr typ func:= Inj (inl (inr pConsVarList)).
-Definition fConsExprList : expr typ func:= Inj (inl (inr pConsExprList)).
 	
-Definition fVal v : expr typ func := Inj (inl (inr (pVal v))).
-Definition fVarList lst : expr typ func := Inj (inl (inr (pVarList lst))).
+Notation "'mfMethodSpec'" := (Inj (inl (inr pMethodSpec))) (at level 0).
+Definition fMethodSpec : expr typ func := mfMethodSpec.
 
-Definition fString s : expr typ func:= Inj (inl (inr (pString s))).
-Definition fProg P : expr typ func:= Inj (inl (inr (pProg P))).
+Notation "'mfProgEq'" := (Inj (inl (inr pProgEq))) (at level 0).
+Definition fProgEq : expr typ func := mfProgEq.
 
-Definition fCmd c : expr typ func := Inj (inl (inr (pCmd c))).
-Definition fExpr e : expr typ func := Inj (inl (inr (pExpr e))).
-Definition fFields fs : expr typ func := Inj (inl (inr (pFields fs))).
+Notation "'mfTriple'" := (Inj (inl (inr pTriple))) (at level 0).
+Definition fTriple : expr typ func := mfTriple.
 
-Definition fExprList lst : expr typ func := fold_right (fun e acc => App (App fConsExprList (App fEval (fExpr e))) acc) fNilExprList lst.
+Notation "'mfEval'" := (Inj (inl (inr pEval))) (at level 0).
+Definition fEval : expr typ func := mfEval.
 
-Definition fExists l t : expr typ func := Inj (inr (ilf_exists l t)).
-Definition fForall l t : expr typ func := Inj (inr (ilf_forall l t)).
-Definition fAnd l : expr typ func := Inj (inr (ilf_and l)).
-Definition fOr l : expr typ func := Inj (inr (ilf_or l)).
-Definition fImpl l : expr typ func := Inj (inr (ilf_impl l)).
-Definition fTrue l : expr typ func := Inj (inr (ilf_true l)).
-Definition fFalse l : expr typ func := Inj (inr (ilf_false l)).
-Definition fEntails l : expr typ func := Inj (inr (ilf_entails l)).
+Notation "'mfEq' '[' t ']'" := (Inj (inl (inr (pEq t)))) (at level 0).
+Definition fEq t : expr typ func := mfEq [t].
 
-Definition fEmbed (f t : typ) : expr typ func := Inj (inr (ilf_embed f t)).
+Notation "'mfAp' '[' t ',' u ']'" := (Inj (inl (inr (pAp t u)))) (at level 0).
+Definition fAp t u : expr typ func := mfAp [t, u].
 
-Definition fSingleSubst : expr typ func := Inj (inl (inr pSingleSubst)).
-Definition fSubst : expr typ func := Inj (inl (inr pSubst)).
-Definition fTruncSubst : expr typ func := Inj (inl (inr pTruncSubst)).
-                                                         
-Definition fStar l : expr typ func := Inj (inl (inr (pStar l))).
-Definition fEmp l : expr typ func:= Inj (inl (inr (pEmp l))).
-	*)
-	
-Definition fMethodSpec : expr typ func := Inj (inl (inr pMethodSpec)).
-Definition fProgEq : expr typ func := Inj (inl (inr pProgEq)).
-Definition fTriple : expr typ func := Inj (inl (inr pTriple)).
-Definition fEval : expr typ func := Inj (inl (inr pEval)).
+Notation "'mfConst' '[' t ']'" := (Inj (inl (inr (pConst t)))) (at level 0).
+Definition fConst t : expr typ func := mfConst [t].
 
-Definition fEq t : expr typ func := Inj (inl (inr (pEq t))).
-Definition fAp t u : expr typ func := Inj (inl (inr (pAp t u))).
-Definition fConst t : expr typ func := Inj (inl (inr (pConst t))).
-Definition fStackGet : expr typ func := Inj (inl (inr pStackGet)).
-Definition fStackSet : expr typ func := Inj (inl (inr pStackSet)).
+Notation "'mfStackGet'" := (Inj (inl (inr pStackGet))).
+Definition fStackGet : expr typ func := mfStackGet.
 
-Definition fFieldLookup : expr typ func := Inj (inl (inr pFieldLookup)).
-Definition fSetFold t : expr typ func := Inj (inl (inr (pSetFold t))).
-Definition fSetFoldFun : expr typ func := Inj (inl (inr pSetFoldFun)).
+Notation "'mfStackSet'" := (Inj (inl (inr pStackSet))).
+Definition fStackSet : expr typ func := mfStackSet.
 
-Definition fLength t : expr typ func := Inj (inl (inr (pLength t))).
-Definition fNil t : expr typ func := Inj (inl (inr (pNil t))).
-Definition fCons t : expr typ func := Inj (inl (inr (pCons t))).
-Definition fZip t u : expr typ func := Inj (inl (inr (pZip t u))).
-Definition fMap t u : expr typ func := Inj (inl (inr (pMap t u))).
+Notation "'mfFieldLookup'" := (Inj (inl (inr pFieldLookup))).
+Definition fFieldLookup : expr typ func := mfFieldLookup.
 
-Definition fTypeOf : expr typ func := Inj (inl (inr pTypeOf)).
+Notation "'mfSetFold' '[' t ']'" := (Inj (inl (inr (pSetFold t)))).
+Definition fSetFold t : expr typ func := mfSetFold [t].
 
-Definition fApplySubst t : expr typ func := Inj (inl (inr (pApplySubst t))).
-Definition fPointsto : expr typ func := Inj (inl (inr (pPointsto))).
-Definition fNull : expr typ func := Inj (inl (inr pNull)).
+Notation "'mfSetFoldFun'" := (Inj (inl (inr pSetFoldFun))).
+Definition fSetFoldFun : expr typ func := mfSetFoldFun.
 
-Definition fSingleSubst : expr typ func := Inj (inl (inr pSingleSubst)).
-Definition fSubst : expr typ func := Inj (inl (inr pSubst)).
-Definition fTruncSubst : expr typ func := Inj (inl (inr pTruncSubst)).
+Notation "'mfLength' '[' t ']'" := (Inj (inl (inr (pLength t)))).
+Definition fLength t : expr typ func := mfLength [t].
 
-Definition mkAp t u a b : expr typ func := App (App (fAp t u) a) b.
-Definition mkMethodSpec C m args r P Q : expr typ func := 
-    App (App (App (App (App (App fMethodSpec C) m) args) r) P) Q.
-Definition mkTriple P c Q : expr typ func := App (App (App fTriple P) Q) c.
-Definition mkFieldLookup P C f : expr typ func := App (App (App fFieldLookup P) C) f.
-Definition mkSetFold t x f P : expr typ func := App (App (App (fSetFold t) (App fSetFoldFun x)) f) P. 
-Definition mkTypeOf C x : expr typ func := App (App fTypeOf C) x.
+Notation "'mfNil' '[' t ']'" := (Inj (inl (inr (pNil t)))).
+Definition fNil t : expr typ func := mfNil [t].
 
-Definition mkCons t x xs : expr typ func := App (App (fCons t) x) xs.
-Definition mkLength t lst : expr typ func := App (fLength t) lst.
-Definition mkZip t u xs ys : expr typ func := App (App (fZip t u) xs) ys.
+Notation "'mfCons' '[' t ']'" := (Inj (inl (inr (pCons t)))).
+Definition fCons t : expr typ func := mfCons [t].
 
-Definition mkVal v : expr typ func := Inj (inl (inr (pVal v))).
-Definition mkVarList lst : expr typ func := Inj (inl (inr (pVarList lst))).
+Notation "'mfZip' '[' t ',' u ']'" := (Inj (inl (inr (pZip t u)))).
+Definition fZip t u : expr typ func := mfZip [t, u].
 
-Definition mkString s : expr typ func := Inj (inl (inr (pString s))).
-Definition mkProg P : expr typ func := Inj (inl (inr (pProg P))).
-Definition mkProgEq P : expr typ func := App fProgEq P.
-Definition mkCmd c : expr typ func := Inj (inl (inr (pCmd c))).
-Definition mkExpr e : expr typ func := Inj (inl (inr (pExpr e))).
-Definition mkFields fs : expr typ func := Inj (inl (inr (pFields fs))).
+Notation "'mfMap' '[' t ',' u ']'" := (Inj (inl (inr (pMap t u)))).
+Definition fMap t u : expr typ func := mfMap [t, u].
 
-Definition mkExprList es : expr typ func :=
+Notation "'mfTypeOf'" := (Inj (inl (inr pTypeOf))).
+Definition fTypeOf : expr typ func := mfTypeOf.
+
+Notation "'mfApplySubst' '[' t ']'" := (Inj (inl (inr (pApplySubst t)))).
+Definition fApplySubst t : expr typ func := mfApplySubst [t].
+
+Notation "'mfPointsto'" := (Inj (inl (inr (pPointsto)))).
+Definition fPointsto : expr typ func := mfPointsto.
+
+Notation "'mfNull'" := (Inj (inl (inr pNull))).
+Definition fNull : expr typ func := mfNull.
+
+Notation "'mfSingleSubst'" := (Inj (inl (inr pSingleSubst))).
+Definition fSingleSubst : expr typ func := mfSingleSubst.
+
+Notation "'mfSubst'" := (Inj (inl (inr pSubst))).
+Definition fSubst : expr typ func := mfSubst.
+
+Notation "'mfTruncSubst'" := (Inj (inl (inr pTruncSubst))).
+Definition fTruncSubst : expr typ func := mfTruncSubst.
+
+Notation "'mfStar' '[' l ']'" := (Inj (inl (inr (pStar l)))).
+Definition fStar l : expr typ func := mfStar [l].
+
+
+Notation "'mAp' '[' t ',' u ',' a ',' b ']'" := (App (App (mfAp [t, u]) a) b) (at level 0).
+Definition mkAp t u a b : expr typ func := mAp [t, u, a, b].
+
+Notation "'mMethodSpec' '[' C ',' m ',' args ',' r ',' p ',' q ']'" := 
+    (App (App (App (App (App (App mfMethodSpec C) m) args) r) p) q) (at level 0).
+Definition mkMethodSpec C m args r p q : expr typ func := 
+	mMethodSpec [C, m, args, r, p, q].
+
+Notation "'mTriple' '[' P ',' c ',' Q ']'" := (App (App (App mfTriple P) Q) c) (at level 0).
+Definition mkTriple P c Q : expr typ func := mTriple [P, c, Q].
+
+Notation "'mFieldLookup' '[' P ',' C ',' f ']'" := (App (App (App mfFieldLookup P) C) f) (at level 0).
+Definition mkFieldLookup P C f : expr typ func := mFieldLookup [P, C, f].
+
+Notation "'mSetFold' '[' t ',' x ',' f ',' P ']'" := (App (App (App (mfSetFold [t]) (App mfSetFoldFun x)) f) P). 
+Definition mkSetFold t x f P : expr typ func := mSetFold [t, x, f, P].
+
+Notation "'mTypeOf' '[' C ',' x ']'" := (App (App mfTypeOf C) x) (at level 0).
+Definition mkTypeOf C x : expr typ func := mTypeOf [C, x].
+
+Notation "'mCons' '[' t ',' x ',' xs ']'" := (App (App (mfCons [t]) x) xs).
+Definition mkCons t x xs : expr typ func := mCons [t, x, xs].
+
+Notation "'mLength' '[' t ',' lst ']'" := (App (mfLength [t]) lst).
+Definition mkLength t lst : expr typ func := mLength [t, lst].
+
+Notation "'mZip' '[' t ',' u ',' xs ',' ys ']'" := (App (App (mfZip [t, u]) xs) ys).
+Definition mkZip t u xs ys : expr typ func := mZip [t, u, xs, ys].
+
+Notation "'mVal' '[' v ']'" := (Inj (inl (inr (pVal v)))) (at level 0).
+Definition mkVal v : expr typ func := mVal [v].
+
+Notation "'mVarList' '[' lst ']'" := (Inj (inl (inr (pVarList lst)))) (at level 0).
+Definition mkVarList lst : expr typ func := mVarList [lst].
+
+Notation "'mString' '[' s ']'" := (Inj (inl (inr (pString s)))) (at level 0).
+Definition mkString s : expr typ func := mString [s].
+
+Notation "'mProg' '[' P ']'" := (Inj (inl (inr (pProg P)))) (at level 0).
+Definition mkProg P : expr typ func := mProg [P].
+
+Notation "'mProgEq' '[' P ']'" := (App mfProgEq P) (at level 0).
+Definition mkProgEq P : expr typ func := mProgEq [P].
+
+Notation "'mCmd' '[' c ']'" := (Inj (inl (inr (pCmd c)))) (at level 0).
+Definition mkCmd c : expr typ func := mCmd [c].
+
+Notation "'mExpr' '[' e ']'" := (Inj (inl (inr (pExpr e)))) (at level 0).
+Definition mkExpr e : expr typ func := mExpr [e].
+
+Notation "'mFields' '[' fs ']'" := (Inj (inl (inr (pFields fs)))) (at level 0).
+Definition mkFields fs : expr typ func := mFields [fs].
+
+Notation "'mExprList' '[' es ']'" :=
 	(fold_right (fun (e : dexpr) (acc : expr typ func) => 
-		mkCons tyExpr (mkExpr e) acc) (fNil tyExpr) es).
+		mCons [tyExpr, mExpr [e], acc]) (mfNil [tyExpr]) es).
+Definition mkExprList es : expr typ func := mExprList [es].
 
+Notation "'mConst' '[' t ',' a ']'" := (App (mfConst [t]) a) (at level 0).
+Definition mkConst t a : expr typ func := mConst [t, a].
 
-Definition mkConst t a : expr typ func := App (fConst t) a.
-Definition mkEval e s : expr typ func := App (App fEval e) s.
+Notation "'mEval' '[' e ',' s ']'" := (App (App mfEval e) s) (at level 0).
+Definition mkEval e s : expr typ func := mEval [e, s].
 
+Notation "'mEq' '[' t ',' a ',' b ']'" := (App (App (mfEq [t]) a) b).
+Definition mkEq t a b : expr typ func := mEq [t, a, b].
 
-Definition mkEq t a b : expr typ func := App (App (fEq t) a) b.
+Notation "'mfExists' '[' l ',' t ']'" := (Inj (inr (ilf_exists t l))).
+Definition fExists l t : expr typ func := mfExists [l, t].
 
-Definition fExists l t : expr typ func := Inj (inr (ilf_exists t l)).
-Definition fForall l t : expr typ func := Inj (inr (ilf_forall t l)).
-Definition fAnd l : expr typ func := Inj (inr (ilf_and l)).
-Definition fOr l : expr typ func := Inj (inr (ilf_or l)).
-Definition fImpl l : expr typ func := Inj (inr (ilf_impl l)).
-Definition fEntails l : expr typ func := Inj (inr (ilf_entails l)).
+Notation "'mfForall' '[' l ',' t ']'" := (Inj (inr (ilf_forall t l))).
+Definition fForall l t : expr typ func := mfForall [l, t].
 
-Definition fLater l : expr typ func := Inj (inl (inr (pLater l))).
+Notation "'mfAnd' '[' l ']'" := (Inj (inr (ilf_and l))).
+Definition fAnd l : expr typ func := mfAnd [l]. 
 
-Definition mkExists l t f : expr typ func := App (fExists l t) (Abs t f).
-Definition mkForall l t f : expr typ func := App (fForall l t) (Abs t f).
-Definition mkAnd l P Q : expr typ func := App (App (fAnd l) P) Q.
-Definition mkOr l P Q : expr typ func := App (App (fOr l) P) Q.
-Definition mkImpl l P Q : expr typ func := App (App (fImpl l) P) Q.
-Definition mkTrue l : expr typ func := Inj (inr (ilf_true l)).
-Definition mkFalse l : expr typ func := Inj (inr (ilf_false l)).
-Definition mkNot l P : expr typ func := mkImpl l P (mkFalse l).
-Definition mkEntails l P Q : expr typ func := App (App (fEntails l) P) Q.
+Notation "'mfOr' '[' l ']'" := (Inj (inr (ilf_or l))).
+Definition fOr l : expr typ func := mfOr [l].
 
-Definition fEmbed l1 l2 : expr typ func := (Inj (inr (ilf_embed l1 l2))).
-Definition mkEmbed l1 l2 P : expr typ func := (App (fEmbed l1 l2) P).
+Notation "'mfImpl' '[' l ']'" := (Inj (inr (ilf_impl l))).
+Definition fImpl l : expr typ func := mfImpl [l].
 
-Definition mkStackGet x s  := App (App fStackGet x) s.
-Definition mkStackSet x v s : expr typ func := App (App (App fStackSet x) v) s.
+Notation "'mfEntails' '[' l ']'" := (Inj (inr (ilf_entails l))).
+Definition fEntails l : expr typ func := mfEntails [l].
 
-Definition fApply t : expr typ func := Inj (inl (inr (pApplySubst t))).
+Notation "'mfLater' '[' l ']'" := (Inj (inl (inr (pLater l)))).
+Definition fLater l : expr typ func := mfLater [l].
 
-Definition mkApplySubst t P s : expr typ func := App (App (fApplySubst t) P) s.
+Notation "'mExists' '[' l ',' t ',' e ']'" := (App (mfExists [l, t]) (Abs t e)).
+Definition mkExists l t e : expr typ func :=  mExists [l, t, e].
 
-Definition mkSingleSubst x e : expr typ func := App (App fSingleSubst e) x.
-Definition mkApplySingleSubst t P x e : expr typ func := mkApplySubst t P (mkSingleSubst e x).
+Notation "'mForall' '[' l ',' t ',' e ']'" := (App (mfForall [l, t]) (Abs t e)).
+Definition mkForall l t e : expr typ func := mForall [l, t, e].
 
-Definition mkSubst s : expr typ func := App fSubst s.
+Notation "'mAnd' '[' l ',' p ',' q ']'" := (App (App (mfAnd [l]) p) q).
+Definition mkAnd l p q : expr typ func := mAnd [l, p, q].
 
-Definition mkTruncSubst s : expr typ func := App fTruncSubst s.
-Definition mkApplyTruncSubst t P s : expr typ func := mkApplySubst t P (mkTruncSubst s).
+Notation "'mOr' '[' l ',' p ',' q ']'" := (App (App (mfOr [l]) p) q).
+Definition mkOr l p q : expr typ func := mOr [l, p, q].
 
-Definition mkSubstList vs es : expr typ func := mkZip tyString (tyArr tyStack tyVal) vs (mkExprList es).
+Notation "'mImpl' '[' l ',' p ',' q ']'" := (App (App (mfImpl [l]) p) q).
+Definition mkImpl l p q : expr typ func := mImpl [l, p, q].
 
-Definition mkNull : expr typ func := Inj (inl (inr pNull)).
+Notation "'mTrue' '[' l ']'" := (Inj (inr (ilf_true l))).
+Definition mkTrue l : expr typ func := mTrue [l].
 
-Definition fStar l : expr typ func := Inj (inl (inr (pStar l))).
+Notation "'mFalse' '[' l ']'" := (Inj (inr (ilf_false l))).
+Definition mkFalse l : expr typ func := mFalse [l].
 
-Definition mkStar l P Q : expr typ func := App (App (fStar l) P) Q.
-Definition mkEmp l : expr typ func := Inj (inl (inr (pEmp l))).
-Definition mkPointsto (v f v' : expr typ func) := 
-	App (App (App fPointsto v) f) v'.
+Notation "'mNot' '[' l ',' p ']'" := (mImpl [l, p, mFalse [l]]).
+Definition mkNot l p : expr typ func := mNot [l, p].
+
+Notation "'mEntails' '[' l ',' p ',' q ']'" := (App (App (mfEntails [l]) p) q).
+Definition mkEntails l p q : expr typ func := mEntails [l, p, q].
+
+Notation "'mfEmbed' '[' l1 ',' l2 ']'" := (Inj (inr (ilf_embed l1 l2))).
+Definition fEmbed l1 l2 : expr typ func := mfEmbed [l1, l2].
+
+Notation "'mEmbed' '[' l1 ',' l2 ',' p ']'" := (App (mfEmbed [l1, l2]) p).
+Definition mkEmbed l1 l2 p : expr typ func := mEmbed [l1, l2, p].
+
+Notation "'mStackGet' '[' x ',' s ']'"  := (App (App mfStackGet x) s).
+Definition mkStackGet x s : expr typ func := mStackGet [x, s].
+
+Notation "'mStackSet' '[' x ',' v ',' s ']'" := (App (App (App mfStackSet x) v) s).
+Definition mkStackSet x v s : expr typ func := mStackSet [x, v, s].
+
+Notation "'mfApply' '[' t ']'" := ((Inj (inl (inr (pApplySubst t))))).
+Definition fApply t : expr typ func := mfApply [t].
+
+Notation "'mApplySubst' '[' t ',' P ',' s ']'" := (App (App (mfApplySubst [t]) P) s).
+Definition mkApplySubst t P s : expr typ func := mApplySubst [t, P, s].
+
+Notation "'mSingleSubst' '[' x ',' e ']'" := (App (App mfSingleSubst e) x).
+Definition mkSingleSubst x e : expr typ func := mSingleSubst [x, e].
+
+Notation "'mApplySingleSubst' '[' t ',' P ',' x ',' e ']'" := (mApplySubst [t, P, mSingleSubst [e, x]]).
+Definition mkApplySingleSubs t P x e : expr typ func := mApplySingleSubst [t, P, x, e].
+
+Notation "'mSubst' '[' s ']'" := (App mfSubst s).
+Definition mkSubst s : expr typ func := mSubst [s].
+
+Notation "'mTruncSubst' '[' s ']'" := (App mfTruncSubst s).
+Definition mkTruncSubst s : expr typ func := mTruncSubst [s].
+
+Notation "'mApplyTruncSubst' '[' t ',' P ',' s ']'" := (mApplySubst [t, P, mTruncSubst [s]]).
+Definition mkApplyTruncSubst t P s : expr typ func := mApplyTruncSubst [t, P, s].
+
+Notation "'mSubstList' '[' vs ',' es ']'" := (mZip [tyString, tyArr tyStack tyVal, vs, mExprList [es]]).
+Definition mkSubstList vs es : expr typ func := mSubstList [vs, es].
+
+Notation "'mNull'" := (Inj (inl (inr pNull))).
+Definition mkNull : expr typ func := mNull.
+
+Notation "'mStar' '[' l ',' p ',' q ']'" := (App (App (mfStar [l]) p) q).
+Definition mkStar l p q : expr typ func := mStar [l, p, q].
+
+Notation "'mEmp' '[' l ']'" := (Inj (inl (inr (pEmp l)))).
+Definition mkEmp l : expr typ func := mEmp [l].
+
+Definition lpointsto (v f v' : expr typ func) := 
+	App (App (App mfPointsto v) f) v'.
 
 Definition test_lemma :=
   @lemmaD typ RType_typ (expr typ func) Expr_expr (expr typ func)
           (fun tus tvs e => exprD' tus tvs tyProp e)
           tyProp
           (fun x => x) nil nil.
-
-          
