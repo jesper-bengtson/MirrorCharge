@@ -55,9 +55,9 @@ Instance RelDec_eq_typ : RelDec (@eq typ) :=
                           | Some _ => true
                         end }.
 
-Fixpoint typD (ls : list Type) (t : typ) : Type :=
+Fixpoint typD (t : typ) : Type :=
   match t with
-    | tyArr a b => typD ls a -> typD ls b
+    | tyArr a b => typD a -> typD b
     | tyLocals => locals
     | tyCmd => icmd
     | tySProp => SProp
@@ -76,14 +76,14 @@ Inductive tyAcc_typ : typ -> typ -> Prop :=
 Instance RType_typ : RType typ :=
 { typD := typD
 ; tyAcc := tyAcc_typ
-; type_cast := fun _ => type_cast_typ
+; type_cast := type_cast_typ
 }.
 
 Instance Typ2_Fun : Typ2 _ Fun :=
 { typ2 := tyArr
-; typ2_cast := fun _ _ _ => eq_refl
-; typ2_match := fun T ts t tr =>
-                  match t as t return T (typD ts t) -> T (typD ts t) with
+; typ2_cast := fun _ _ => eq_refl
+; typ2_match := fun T t tr =>
+                  match t as t return T (typD t) -> T (typD t) with
                     | tyArr a b => fun _ => tr a b
                     | _ => fun fa => fa
                   end
@@ -91,9 +91,9 @@ Instance Typ2_Fun : Typ2 _ Fun :=
 
 Instance Typ0_Prop : Typ0 _ Prop :=
 { typ0 := tyProp
-; typ0_cast := fun _ => eq_refl
-; typ0_match := fun T ts t tr =>
-                  match t as t return T (typD ts t) -> T (typD ts t) with
+; typ0_cast := eq_refl
+; typ0_match := fun T t tr =>
+                  match t as t return T (typD t) -> T (typD t) with
                     | tyProp => fun _ => tr
                     | _ => fun fa => fa
                   end
@@ -168,10 +168,10 @@ Let update {T} (f : locals -> locals) (m : locals -> T) (l : locals) : T :=
 
 Instance RSym_imp_func : SymI.RSym imp_func :=
 { typeof_sym := typeof_sym_imp
-; symD := fun ts f =>
+; symD := fun f =>
             match f as f return match typeof_sym_imp f with
                                   | None => unit
-                                  | Some t => typD ts t
+                                  | Some t => typD t
                                 end
             with
               | pVar v => v
@@ -183,9 +183,9 @@ Instance RSym_imp_func : SymI.RSym imp_func :=
               | eVar => iVar
               | eConst => iConst
               | pPure t =>
-                @Applicative.pure (Fun locals) (Applicative_Fun _) (typD ts t)
+                @Applicative.pure (Fun locals) (Applicative_Fun _) (typD t)
               | pAp t u =>
-                @Applicative.ap (Fun locals) (Applicative_Fun _) (typD ts t) (typD ts u)
+                @Applicative.ap (Fun locals) (Applicative_Fun _) (typD t) (typD u)
               | pUpdate t => update
               | pStar tyHProp => BILogic.sepSP
               | pStar (tyArr tyLocals tyHProp) =>
@@ -208,31 +208,31 @@ Local Notation "a >> b" := (tyArr a b) (at level 31,right associativity).
 Definition fs : @SymEnv.functions typ _ :=
   SymEnv.from_list
     (@SymEnv.F typ _ (tyArr tyLProp (tyArr tyCmd (tyArr tyLProp tySProp)))
-               (fun _ => triple) ::
+               (triple) ::
      @SymEnv.F typ _ (tyArr tyCmd (tyArr tyCmd tyCmd))
-               (fun _ => Seq) ::
+               (Seq) ::
      @SymEnv.F typ _ (tyArr tyVariable (tyArr tyExpr tyCmd))
-               (fun _ => Assign) ::
+               (Assign) ::
      @SymEnv.F typ _ (tyArr tyVariable (tyArr tyExpr tyCmd))
-               (fun _ => Read) ::
+               (Read) ::
      @SymEnv.F typ _ (tyArr tyExpr (tyArr tyExpr tyCmd))
-               (fun _ => Write) ::
+               (Write) ::
      @SymEnv.F typ _ tyCmd
-               (fun _ => Skip) ::
+               (Skip) ::
      @SymEnv.F typ _ (tyArr tyNat (tyArr tyNat tyHProp))
-               (fun _ => PtsTo) ::
+               (PtsTo) ::
      @SymEnv.F typ _ (tyVariable >> (tyNat >> tyLProp) >> (tyNat >> tyLProp) >> tySProp)
-               (fun _ => function_spec) ::
+               (function_spec) ::
      nil).
 
 Definition lops : logic_ops _ :=
   fun t =>
     match t
-          return option (forall ts, ILogic.ILogicOps (TypesI.typD ts t))
+          return option (ILogic.ILogicOps (TypesI.typD t))
     with
       | tyProp => Some _
       | tyHProp => Some _
-      | tyArr tyLocals tyHProp => Some (fun _ => ILogicOps_lprop)
+      | tyArr tyLocals tyHProp => Some (ILogicOps_lprop)
       | tySProp => Some _
       | _ => None
     end.
@@ -241,17 +241,16 @@ Definition eops : embed_ops _ :=
   fun t u =>
     match t as t , u as u
           return option
-                   (forall ts : list Type,
-                      ILEmbed.EmbedOp (TypesI.typD ts t) (TypesI.typD ts u))
+                   (ILEmbed.EmbedOp (TypesI.typD t) (TypesI.typD u))
     with
       | tyProp , tyHProp =>
-        Some (fun _ => EmbedOp_Prop_HProp)
+        Some (EmbedOp_Prop_HProp)
       | tyHProp , tyArr tyLocals tyHProp =>
-        Some (fun ts => EmbedOp_HProp_lprop)
+        Some (EmbedOp_HProp_lprop)
       | tyProp , tyArr tyLocals tyHProp =>
-        Some (fun _ => @ILInsts.EmbedILFunDropOp _ _ EmbedOp_Prop_HProp _)
+        Some (@ILInsts.EmbedILFunDropOp _ _ EmbedOp_Prop_HProp _)
       | tyProp , tySProp =>
-        Some (fun _ => EmbedOp_Prop_SProp)
+        Some (EmbedOp_Prop_SProp)
       | _ , _ => None
     end.
 
@@ -375,6 +374,6 @@ Definition lupdate (t : typ) (a b : expr typ func) : expr typ func :=
 (** Testing function **)
 Definition test_lemma :=
   @lemmaD typ RType_typ (expr typ func) Expr_expr (expr typ func)
-          (fun tus tvs e => exprD' nil tus tvs tyProp e)
+          (fun tus tvs e => exprD' tus tvs tyProp e)
           tyProp
           (fun x => x) nil nil.

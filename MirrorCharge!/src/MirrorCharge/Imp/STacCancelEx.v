@@ -90,7 +90,7 @@ Local Existing Instance SubstU_CS.
 
 Let doUnifySepLog (tus tvs : EnvI.tenv typ) (s : CascadeSubst subst subst) (e1 e2 : expr typ func)
 : option (CascadeSubst subst subst) :=
-  @exprUnify _ typ func _ _ _ _ _ 10 nil tus tvs 0 s e1 e2 tyLProp.
+  @exprUnify _ typ func _ _ _ _ _ 10 tus tvs 0 s e1 e2 tyLProp.
 
 Let ssl : SynSepLog typ func :=
 {| e_star := fun l r =>

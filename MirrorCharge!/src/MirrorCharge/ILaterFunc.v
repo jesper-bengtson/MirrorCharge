@@ -40,18 +40,18 @@ Section typed.
   **)
 
   Definition logic_ops := forall (t : typ),
-    option (forall ts, ILogicOps (typD ts t)).
+    option (ILogicOps (typD t)).
   Definition later_ops := forall (t : typ),
-    option (forall ts, ILLOperators (@typD _ RType_typ ts t)).
+    option (ILLOperators (@typD _ RType_typ t)).
   Definition logic_opsOk (l : logic_ops) : Prop :=
     forall g, match l g return Prop with
-                | Some T => forall ts, @ILogic _ (T ts)
+                | Some T => @ILogic _ T
                 | None => True
               end.
   Definition later_opsOk (ls : logic_ops) (es : later_ops) : Prop :=
     forall t,
       match ls t , es t return Prop with
-        | Some a , Some T => forall ts, @ILLater _ (a ts) (T ts)
+        | Some a , Some T => @ILLater _ a T
         | _ , _ => True
       end.
 
@@ -70,31 +70,31 @@ Section typed.
       | Some _ => Some (tyArr f f)
     end.
 
-  Definition typ2_cast_bin ls (a b c : typ)
-  : (typD ls a -> typD ls b -> typD ls c) -> typD ls (tyArr a (tyArr b c)) :=
+  Definition typ2_cast_bin (a b c : typ)
+  : (typD a -> typD b -> typD c) -> typD (tyArr a (tyArr b c)) :=
     fun f =>
-      match eq_sym (typ2_cast ls a (tyArr b c)) in _ = t
+      match eq_sym (typ2_cast a (tyArr b c)) in _ = t
             return t with
-        | eq_refl => match eq_sym (typ2_cast ls b c) in _ = t
+        | eq_refl => match eq_sym (typ2_cast b c) in _ = t
                            return _ -> t with
                        | eq_refl => f
                      end
         end.
 
-  Definition typ2_cast_quant ls (a b c : typ)
-  : ((typD ls a -> typD ls b) -> typD ls c) -> typD ls (tyArr (tyArr a b) c) :=
+  Definition typ2_cast_quant (a b c : typ)
+  : ((typD a -> typD b) -> typD c) -> typD (tyArr (tyArr a b) c) :=
     fun f =>
-      match eq_sym (typ2_cast ls (tyArr a b) c) in _ = t
+      match eq_sym (typ2_cast (tyArr a b) c) in _ = t
             return t with
-        | eq_refl => match eq_sym (typ2_cast ls a b) in _ = t
+        | eq_refl => match eq_sym (typ2_cast a b) in _ = t
                            return t -> _ with
                        | eq_refl => f
                      end
       end.
 
-  Definition funcD (ts : list Type) (f : ilater_func) :
+  Definition funcD (f : ilater_func) :
     match typeof_func f with
-      | Some t => typD ts t
+      | Some t => typD t
       | None => unit
     end :=
     match es f as x
@@ -102,11 +102,11 @@ Section typed.
 			  | Some _ => Some (tyArr f f)
 			  | None => None
 			end with
-		    | Some t0 => typD ts t0
+		    | Some t0 => typD t0
 		    | None => unit
 		  end) with
       | Some t =>
-        match eq_sym (typ2_cast ts f f) in _ = t
+        match eq_sym (typ2_cast f f) in _ = t
               return t with
           | eq_refl => @illater _ _
         end

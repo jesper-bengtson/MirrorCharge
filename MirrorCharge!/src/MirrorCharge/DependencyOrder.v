@@ -24,8 +24,8 @@ Section better_ordering.
   Variable RSym_func : RSym func.
 
   Variable tySL : typ.
-  Variable ILogicOps_SL : ILogicOps (typD nil tySL).
-  Variable BILOperators_SL : BILOperators (typD nil tySL).
+  Variable ILogicOps_SL : ILogicOps (typD tySL).
+  Variable BILOperators_SL : BILOperators (typD tySL).
   Hypothesis ILogic_SL : @ILogic _ ILogicOps_SL.
   Hypothesis BILogic_SL : @BILogic _ ILogicOps_SL BILOperators_SL.
 
@@ -97,7 +97,7 @@ Section better_ordering.
   Variable SSL : SynSepLog typ func.
   Variable SSLO : SynSepLogOk _ _ _ _ _ SSL.
 
-  Variable PureOp_SL : @Pure.PureOp (typD nil tySL).
+  Variable PureOp_SL : @Pure.PureOp (typD tySL).
   Variable Pure_SL : Pure.Pure PureOp_SL.
   Hypothesis Pure_ltrue : Pure.pure ltrue.
   Hypothesis Pure_land : forall a b,
