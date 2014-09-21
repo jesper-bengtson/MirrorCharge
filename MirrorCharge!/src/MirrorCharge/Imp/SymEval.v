@@ -8,26 +8,24 @@ Require Import MirrorCore.TypesI.
 Require Import MirrorCore.Lambda.Expr.
 Require Import MirrorCore.STac.STac.
 Require Import MirrorCore.provers.DefaultProver.
-Require MirrorCore.syms.SymEnv.
-Require MirrorCore.syms.SymSum.
 Require Import MirrorCore.Subst.FMapSubst.
 Require Import MirrorCore.Lambda.ExprLift.
 Require Import MirrorCore.Lambda.ExprSubst.
 Require Import MirrorCore.Lambda.ExprUnify_simul.
+(*
 Require Import MirrorCore.Lambda.RedAll.
 Require Import MirrorCore.Lambda.AppN.
 Require Import MirrorCharge.ILogicFunc.
 Require Import MirrorCharge.OrderedCanceller.
 Require Import MirrorCharge.BILNormalize.
+*)
 Require Import MirrorCharge.SynSepLog.
 Require Import MirrorCharge.SepLogFold.
-Require MirrorCharge.Imp.Reify.
 Require Import MirrorCharge.Imp.Reify.
 Require Import MirrorCharge.Imp.Imp.
 Require Import MirrorCharge.Imp.Syntax.
-Require Import MirrorCharge.Imp.STacSimplify.
-(*Require Import MirrorCharge.Imp.STacCancel. *)
-Require Import MirrorCharge.Imp.STacCancelEx.
+Require Import MirrorCharge.Imp.ImpTac.
+Require Import MirrorCharge.Imp.STacCancel.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -37,19 +35,6 @@ Local Existing Instance SU.
 Local Existing Instance RSym_ilfunc.
 Local Existing Instance RS.
 Local Existing Instance Expr_expr.
-
-Let EAPPLY lem tac :=
-  @EAPPLY typ (expr typ func) subst _ _ ExprLift.vars_to_uvars
-                (fun tus tvs n e1 e2 t s =>
-                   @exprUnify subst typ func _ _ RS SS SU 3
-                              tus tvs n s e1 e2 t)
-                (@ExprSubst.instantiate typ func) SS SU
-                lem (apply_to_all tac).
-
-(*
-Definition texp (t : typ) : Type :=
-  expr typ func.
-*)
 
 Fixpoint get_alls (e : expr typ func) : list typ * expr typ func :=
   match e with
@@ -110,7 +95,10 @@ Theorem Skip_rule2
     ILogic.lentails G (triple P Skip P).
 Proof.
   intros. eapply Skip_rule.
-  (** TODO: How do I solve this? **)
+  Local Existing Instance Embed_Prop_SProp.
+  Local Existing Instance Embed_Prop_HProp.
+  apply ILEmbed.embedPropR.
+
 Admitted.
 
 Definition Skip_lemma2 : lemma typ (expr typ func) (expr typ func).
@@ -226,8 +214,7 @@ Abort.
 Definition solve_find_spec : stac typ (expr typ func) subst := FAIL.
 
 Definition solve_entailment :=
-  THEN (SIMPLIFY (fun _ _ _ => beta_all simplify nil nil))
-       stac_cancel.
+  THEN SIMPLIFY stac_cancel.
 
 Definition all_cases : stac typ (expr typ func) subst :=
   REC 2 (fun rec =>
@@ -282,7 +269,7 @@ Definition test_read :=
   let uvars := tyLProp :: nil in
   let vars := tySProp :: nil in
   let goal :=
-      (Inj (inr (ilf_entails tySProp)))
+      (Inj (inr (ILogicFunc.ilf_entails tySProp)))
       @ Var 0
       @ mkTriple (lap tyNat tyHProp (lap tyNat (tyArr tyNat tyHProp) (lpure (tyArr tyNat (tyArr tyNat tyHProp)) fPtsTo)
                                        (flocals_get @ fVar "p"))%string
@@ -337,8 +324,6 @@ Definition test_swap :=
   @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
 
 Eval vm_compute in test_swap.
-Check @EAPPLY.
-Check @APPLY.
 (** This is not the strongest post condition because we forgot the pure facts.
  ** This is likely a problem with the cancellation algorithm.
  **)

@@ -43,12 +43,17 @@ Local Instance Applicative_Fun A : Applicative (Fun A) :=
 
 Local Instance ILogicOps_lprop : ILogicOps lprop :=
   @ILFun_Ops locals HProp _.
+Local Instance ILogic_lprop : ILogic lprop. Admitted.
 Local Instance BILOps : BILOperators lprop :=
   @BILFun_Ops _ _ _.
+Local Instance BILogic : BILogic lprop. Admitted.
 Local Instance EmbedOp_Prop_HProp : EmbedOp Prop HProp. Admitted.
+Local Instance Embed_Prop_HProp : Embed Prop HProp. Admitted.
 Local Instance EmbedOp_HProp_lprop : EmbedOp HProp lprop :=
   @EmbedILFunDropOp HProp _ (@EmbedOpId _) _.
+Local Instance Embed_HProp_lprop : Embed HProp lprop. Admitted.
 Local Instance EmbedOp_Prop_SProp : EmbedOp Prop SProp. Admitted.
+Local Instance Embed_Prop_SProp : Embed Prop SProp. Admitted.
 
 
 Parameter eval_iexpr : iexpr -> locals -> value.
