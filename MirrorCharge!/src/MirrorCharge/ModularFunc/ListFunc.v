@@ -22,12 +22,15 @@ Open Scope string.
 Open Scope list.
 
 Fixpoint zip {A} {B} (lst1 : list A) (lst2 : list B) : list (A * B) :=
-  match (lst1, lst2) with
-    | (nil, nil) => nil
-    | (x::xs, nil) => nil
-    | (nil, y::ys) => nil
-    | (x::xs, y::ys) => (x, y) :: zip xs ys
+  match lst1, lst2 with
+    | nil, nil => nil
+    | x::xs, nil => nil
+    | nil, y::ys => nil
+    | x::xs, y::ys => (x, y) :: zip xs ys
   end.
+
+Print combine.
+
 
 Class ListFunc (typ func : Type) := {
   fNil  : typ -> func;

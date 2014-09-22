@@ -261,6 +261,6 @@ End OpenFuncInst.
 Section MakeOpen.
 	Context {typ func : Type} {H : OpenFunc typ func}.
 
-
+Print Typ2.
 
 End MakeOpen.
