@@ -22,9 +22,9 @@ Require Import MirrorCore.ExprSem.
 Require Import MirrorCore.Lambda.Expr.
 Require Import MirrorCore.Lambda.AppN.
 Require Import MirrorCore.Lambda.TypedFoldApp.
-Require Import Iterated.
-Require Import MirrorCharge.ILogicFunc SepLogFold.
-Require Import SynSepLog.
+Require Import MirrorCharge.Iterated.
+Require Import MirrorCharge.ILogicFunc MirrorCharge.SepLogFold.
+Require Import MirrorCharge.SynSepLog.
 
 Set Implicit Arguments.
 Set Strict Implicit.
