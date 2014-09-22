@@ -1,17 +1,16 @@
 Require Import MirrorCore.Ext.Expr.
 (** Charge **)
 Require Import ILogic BILogic ILEmbed.
-(** MirrorCharge **)
-Require Import ILogicFunc.
-Require Import OrderedCanceller.
-Require Import CancellerTac.
+Require Import MirrorCharge.ILogicFunc.
+Require Import MirrorCharge.OrderedCanceller.
+Require Import MirrorCharge.CancellerTac.
 
 Add ML Path "../plugins".
 Add ML Path "plugins".
 Declare ML Module "reify_ILogicFunc_plugin".
 
 Require Import Checkless.Checkless.
-Require Import Reify. (** Note: this is from MirrorCharge **)
+Require Import MirrorCharge.Reify. (** Note: this is from MirrorCharge **)
 
 Set Implicit Arguments.
 Set Strict Implicit.

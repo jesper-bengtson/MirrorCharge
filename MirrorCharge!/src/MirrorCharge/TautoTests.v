@@ -1,13 +1,13 @@
 Require Import MirrorCore.Ext.Expr.
 Require Import ExtLib.Tactics.
-Require Import ILogicFunc.
-Require Import Tauto.
+Require Import MirrorCharge.ILogicFunc.
+Require Import MirrorCharge.Tauto.
 
 Add ML Path "../plugins".
 Add ML Path "plugins".
 Declare ML Module "reify_ILogicFunc_plugin".
 
-Require Import Reify.
+Require Import MirrorCharge.Reify.
 
 Set Implicit Arguments.
 Set Strict Implicit.

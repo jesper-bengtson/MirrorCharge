@@ -13,9 +13,9 @@ Require Import MirrorCore.Lambda.Expr.
 Require Import MirrorCore.Lambda.AppN.
 (* Require Import MirrorCore.Lambda.AppFull. *)
 Require Import ILogic BILogic Pure.
-Require Import BILNormalize.
-Require Import Iterated.
-Require Import SynSepLog.
+Require Import MirrorCharge.BILNormalize.
+Require Import MirrorCharge.Iterated.
+Require Import MirrorCharge.SynSepLog.
 
 Set Implicit Arguments.
 Set Strict Implicit.

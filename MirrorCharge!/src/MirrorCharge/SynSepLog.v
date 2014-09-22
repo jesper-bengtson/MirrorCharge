@@ -12,7 +12,7 @@ Require Import MirrorCore.Lambda.Expr.
 Require Import MirrorCore.Ext.Expr.
 Require Import MirrorCore.ExprSem.
 *)
-Require Import SepLogFold.
+Require Import MirrorCharge.SepLogFold.
 
 Set Implicit Arguments.
 Set Strict Implicit.

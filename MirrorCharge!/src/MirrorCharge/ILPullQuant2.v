@@ -1,3 +1,4 @@
+(*
 Require Import MirrorCore.Lambda.ExprCore.
 Require Import MirrorCore.Lambda.ExprD.
 Require Import MirrorCore.Lambda.Red.
@@ -434,3 +435,4 @@ Fixpoint crazy_goal n :=
 	end.
 
 Time Eval vm_compute in my_quant_pull tyProp (crazy_goal 6).
+*)

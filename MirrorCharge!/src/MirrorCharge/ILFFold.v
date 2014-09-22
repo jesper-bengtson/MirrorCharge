@@ -65,44 +65,44 @@ Section fold.
   Variable RSymOk_func : RSymOk _.
 
   Hypothesis Hvar
-  : forall ts tus tvs v t,
-      typeof_expr ts tus tvs (Var v) = Some t ->
+  : forall tus tvs v t,
+      typeof_expr tus tvs (Var v) = Some t ->
       R_t t (Var v) (do_var v tus tvs) tus tvs.
   Hypothesis Huvar
-  : forall ts tus tvs v t,
-      typeof_expr ts tus tvs (UVar v) = Some t ->
+  : forall tus tvs v t,
+      typeof_expr tus tvs (UVar v) = Some t ->
       R_t t (UVar v) (do_uvar v tus tvs) tus tvs.
   Hypothesis Hinj
-  : forall ts tus tvs v t,
-      typeof_expr ts tus tvs (Inj v) = Some t ->
+  : forall tus tvs v t,
+      typeof_expr tus tvs (Inj v) = Some t ->
       R_t t (Inj v) (do_inj v tus tvs) tus tvs.
   Hypothesis Habs
-  : forall ts tus tvs t t' e e_res,
-      typeof_expr ts tus tvs (Abs t e) = Some (typ2 t t') ->
+  : forall tus tvs t t' e e_res,
+      typeof_expr tus tvs (Abs t e) = Some (typ2 t t') ->
       R_t t' e (e_res tus (t :: tvs)) tus (t :: tvs) ->
       R_t (typ2 t t') (Abs t e) (do_abs t e e_res tus tvs) tus tvs.
   Hypothesis Happ
-  : forall tus tvs l l_res rs t ts,
-      typeof_expr nil tus tvs (apps l (map fst rs)) = Some t ->
-      let ft := fold_right (@typ2 _ _ _ Typ2_Fun) t ts in
+  : forall tus tvs (l : expr) l_res rs t ts,
+      typeof_expr tus tvs (apps l (map fst rs)) = Some t ->
+      let ft : typ := fold_right (@typ2 _ _ _ Typ2_Fun) t ts in
       R_t ft l (l_res tus tvs) tus tvs ->
       Forall2 (fun t x =>
-                    typeof_expr nil tus tvs (fst x) = Some t
+                    typeof_expr tus tvs (fst x) = Some t
                  /\ R_t t (fst x) (snd x tus tvs) tus tvs)
               ts rs ->
       R_t t (apps l (map fst rs)) (do_app l l_res rs tus tvs) tus tvs.
   Hypothesis Hex
-  : forall ts tus tvs t t_logic e e_res s,
+  : forall tus tvs t t_logic e e_res s,
       as_ilfunc s = Some (ilf_exists t t_logic) ->
-      typeof_expr ts tus tvs (App (Inj s) (Abs t e)) = Some t_logic ->
+      typeof_expr tus tvs (App (Inj s) (Abs t e)) = Some t_logic ->
       R_t t_logic e (e_res tus (t :: tvs)) tus (t :: tvs) ->
       R_t t_logic
           (App (Inj s) (Abs t e))
           (do_ex t t_logic e e_res tus tvs) tus tvs.
   Hypothesis Hall
-  : forall ts tus tvs t t_logic e e_res s,
+  : forall tus tvs t t_logic e e_res s,
       as_ilfunc s = Some (ilf_forall t t_logic) ->
-      typeof_expr ts tus tvs (App (Inj s) (Abs t e)) = Some t_logic ->
+      typeof_expr tus tvs (App (Inj s) (Abs t e)) = Some t_logic ->
       R_t t_logic e (e_res tus (t :: tvs)) tus (t :: tvs) ->
       R_t t_logic
           (App (Inj s) (Abs t e))
@@ -114,11 +114,11 @@ Section fold.
 
   Lemma app_fold_sound_do_app
   : forall e,
-    forall ts e2 tus tvs (t : typ),
-      match typeof_expr ts tus tvs e with
+    forall e2 tus tvs (t : typ),
+      match typeof_expr tus tvs e with
         | Some tf =>
-          match typeof_expr ts tus tvs e2 with
-            | Some tx => type_of_apply ts tf tx
+          match typeof_expr tus tvs e2 with
+            | Some tx => type_of_apply tf tx
             | None => None
           end
         | None => None
@@ -128,14 +128,14 @@ Section fold.
            (TransitiveClosure.leftTrans (@expr_acc _ _) y (App e e2)) ->
          forall (tus0 tvs0 : tenv typ) (t0 : typ) (result : T'),
            app_fold y tus0 tvs0 = result ->
-           typeof_expr ts tus0 tvs0 y = Some t0 -> R_t t0 y result tus0 tvs0) ->
+           typeof_expr tus0 tvs0 y = Some t0 -> R_t t0 y result tus0 tvs0) ->
       R_t t (App e e2)
           (do_app e (app_fold e) ((e2, app_fold e2) :: nil) tus tvs) tus tvs.
   Proof.
     intros. unfold type_of_apply in *.
     forwardy; inv_all; subst.
     assert (Forall2 (fun t x =>
-                          typeof_expr ts tus tvs (fst x) = Some y0
+                          typeof_expr tus tvs (fst x) = Some y0
                        /\ R_t t (fst x) (snd x tus tvs) tus tvs)
                     (y0 :: nil)
                     ((e2, app_fold e2) :: nil)).
@@ -172,7 +172,7 @@ Section fold.
   Theorem app_fold_sound
   : forall e tus tvs t result,
       app_fold e tus tvs = result ->
-      typeof_expr nil tus tvs e = Some t ->
+      typeof_expr tus tvs e = Some t ->
       R_t t e result tus tvs.
   Proof.
 (*

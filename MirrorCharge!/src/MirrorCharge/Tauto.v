@@ -11,7 +11,7 @@ Require Import ExtLib.Tactics.EqDep.
 Require Import ExtLib.Tactics.Consider.
 Require Import MirrorCore.EnvI.
 Require Import MirrorCore.ExprI.
-Require Import ILogicFunc.
+Require Import MirrorCharge.ILogicFunc.
 
 Set Implicit Arguments.
 Set Strict Implicit.
