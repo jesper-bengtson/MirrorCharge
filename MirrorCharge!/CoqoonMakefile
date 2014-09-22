@@ -59,9 +59,9 @@ OBJECTS = \
 	bin/MirrorCharge/ModularFunc/LaterFunc.vo \
 	bin/MirrorCharge/ModularFunc/ListFunc.vo \
 	bin/MirrorCharge/ModularFunc/ListType.vo \
+	bin/MirrorCharge/ModularFunc/OpenFunc.vo \
+	bin/MirrorCharge/ModularFunc/SubstType.vo \
 	bin/MirrorCharge/ModularFunc/Sum.vo \
-	bin/MirrorCharge/ModularFunc/Test.vo \
-	bin/MirrorCharge/ModularFunc/Typ.vo \
 	bin/MirrorCharge/MonadicCanceller.vo \
 	bin/MirrorCharge/OrderedCanceller.vo \
 	bin/MirrorCharge/QuantCancel.vo \
@@ -79,7 +79,7 @@ clean:
 	rm -f $(OBJECTS)
 
 bin/MirrorCharge/AutoSetoidRewrite.vo: src/MirrorCharge/AutoSetoidRewrite.v
-bin/MirrorCharge/BILNormalize.vo: src/MirrorCharge/BILNormalize.v bin/MirrorCharge/Iterated.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/SynSepLog.vo
+bin/MirrorCharge/BILNormalize.vo: src/MirrorCharge/BILNormalize.v bin/MirrorCharge/Iterated.vo bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/SynSepLog.vo
 bin/MirrorCharge/BILNormalizeEx.vo: src/MirrorCharge/BILNormalizeEx.v bin/MirrorCharge/Iterated.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/SepLogFoldEx.vo bin/MirrorCharge/SynSepLog.vo
 bin/MirrorCharge/CancellerTac.vo: src/MirrorCharge/CancellerTac.v
 bin/MirrorCharge/DependencyOrder.vo: src/MirrorCharge/DependencyOrder.v bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/OrderedCanceller.vo
@@ -116,9 +116,9 @@ bin/MirrorCharge/ModularFunc/ILogicFunc.vo: src/MirrorCharge/ModularFunc/ILogicF
 bin/MirrorCharge/ModularFunc/LaterFunc.vo: src/MirrorCharge/ModularFunc/LaterFunc.v bin/MirrorCharge/ModularFunc/ILogicFunc.vo
 bin/MirrorCharge/ModularFunc/ListFunc.vo: src/MirrorCharge/ModularFunc/ListFunc.v bin/MirrorCharge/ModularFunc/ListType.vo bin/MirrorCharge/ModularFunc/BaseType.vo
 bin/MirrorCharge/ModularFunc/ListType.vo: src/MirrorCharge/ModularFunc/ListType.v
+bin/MirrorCharge/ModularFunc/OpenFunc.vo: src/MirrorCharge/ModularFunc/OpenFunc.v bin/MirrorCharge/ModularFunc/BaseType.vo bin/MirrorCharge/ModularFunc/ListType.vo bin/MirrorCharge/ModularFunc/SubstType.vo
+bin/MirrorCharge/ModularFunc/SubstType.vo: src/MirrorCharge/ModularFunc/SubstType.v
 bin/MirrorCharge/ModularFunc/Sum.vo: src/MirrorCharge/ModularFunc/Sum.v
-bin/MirrorCharge/ModularFunc/Test.vo: src/MirrorCharge/ModularFunc/Test.v
-bin/MirrorCharge/ModularFunc/Typ.vo: src/MirrorCharge/ModularFunc/Typ.v
 bin/MirrorCharge/MonadicCanceller.vo: src/MirrorCharge/MonadicCanceller.v bin/MirrorCharge/BILNormalize.vo
 bin/MirrorCharge/OrderedCanceller.vo: src/MirrorCharge/OrderedCanceller.v bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/Iterated.vo bin/MirrorCharge/SynSepLog.vo
 bin/MirrorCharge/QuantCancel.vo: src/MirrorCharge/QuantCancel.v bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/ILFFold.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/ILPullQuantStar.vo bin/MirrorCharge/CancellerTac.vo bin/MirrorCharge/SynSepLog.vo
