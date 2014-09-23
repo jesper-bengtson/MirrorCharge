@@ -332,8 +332,8 @@ Section MakeILogic.
 	Context {typ func : Type} {H : ILogicFunc typ func}.
 
 	Definition mkEntails (t : typ) (P Q : expr typ func) := App (App (fEntails t) P) Q.
-	Definition mkTrue := fTrue.
-	Definition mkFalse := fFalse.
+	Definition mkTrue t : expr typ func := Inj (fTrue t).
+	Definition mkFalse t : expr typ func := Inj (fFalse t).
 	Definition mkAnd (t : typ) (P Q : expr typ func) := App (App (fAnd t) P) Q.
 	Definition mkOr (t : typ) (P Q : expr typ func) := App (App (fOr t) P) Q.
 	Definition mkImpl (t : typ) (P Q : expr typ func) := App (App (fImpl t) P) Q.

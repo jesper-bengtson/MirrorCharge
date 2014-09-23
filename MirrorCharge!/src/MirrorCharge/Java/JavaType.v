@@ -7,7 +7,16 @@ Require Import MirrorCharge.ModularFunc.BaseType.
 Require Import MirrorCharge.ModularFunc.ListType.
 Require Import MirrorCharge.ModularFunc.SubstType.
 
+Require Import MirrorCharge.ModularFunc.ILogicFunc.
+Require Import MirrorCharge.ModularFunc.BILogicFunc.
+Require Import MirrorCharge.ModularFunc.EmbedFunc.
+Require Import MirrorCharge.ModularFunc.LaterFunc.
+
 Require Import Charge.Open.Subst.
+Require Import Charge.Logics.ILInsts.
+Require Import Charge.Logics.BILInsts.
+Require Import Charge.Logics.ILogic.
+Require Import Charge.Logics.Later.
 
 Require Import Java.Logic.AssertionLogic.
 Require Import Java.Logic.SpecLogic.
@@ -228,6 +237,58 @@ Eval compute in (eq_rect_r id null eq_refl).
 
 Definition null' : TypesI.typD tyVal := null.
 
-Program Instance SubstTypeD_typ : @SubstTypeD typ _ _ tyString tyVal null' := {
+Program Instance SubstTypeD_typ : @SubstTypeD typ _ _ tyVar tyVal null' := {
 	stSubst := eq_refl
 }.
+
+Definition should_not_be_necessary : ILogicOps (TypesI.typD tySpec).
+Proof.
+  simpl.
+  apply _.
+Qed.
+
+Definition should_also_not_be_necessary : ILLOperators (TypesI.typD tySpec).
+Proof.
+  simpl.
+  apply _.
+Qed.
+
+  Definition ilops : @logic_ops _ RType_typ :=
+  fun t =>
+    match t
+          return option (ILogic.ILogicOps (TypesI.typD t))
+    with
+      | tyProp => Some _
+      | tyAsn => Some _
+      | tySasn => Some (@ILFun_Ops stack asn _)
+      | tySpec => Some should_not_be_necessary
+      | tyPure => Some ( @ILFun_Ops stack Prop _)
+      | _ => None
+    end.
+
+  Definition bilops : @bilogic_ops _ RType_typ :=
+  fun t =>
+    match t
+          return option (BILogic.BILOperators (TypesI.typD t))
+    with
+      | tyAsn => Some _
+      | tySasn => Some (@BILFun_Ops stack asn _)
+      | _ => None
+    end.
+
+Definition eops : @embed_ops _ RType_typ :=
+  fun t u =>
+    match t as t , u as u
+          return option
+                   (ILEmbed.EmbedOp (TypesI.typD t) (TypesI.typD u))
+    with
+      | tyPure, tySasn => Some _
+      | _ , _ => None
+    end.
+
+Definition lops : @later_ops _ RType_typ :=
+  fun t =>
+    match t return option (ILLOperators (TypesI.typD t)) with
+	  | tySpec => Some should_also_not_be_necessary
+	  | _ => None
+    end.

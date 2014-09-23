@@ -352,4 +352,20 @@ Definition func := (SymEnv.func + java_func + @ilfunc typ + @bilfunc typ +
                     @base_func typ + @list_func typ + @open_func typ + 
                     @embed_func typ + @later_func typ)%type.
 
+Definition fs : @SymEnv.functions typ _ := SymEnv.from_list nil.
+Instance RSym_env : RSym SymEnv.func := RSym_func fs.
+Instance RSym_ilfunc : RSym (@ilfunc typ) := 
+	RSym_ilfunc _ _ ilops.
+Instance RSym_bilfunc : RSym (@bilfunc typ) := 
+	RSym_bilfunc _ bilops.
+Instance RSym_embed_func : RSym (@embed_func typ) :=
+	RSym_embed_func _ eops.
+Instance RSym_later_func : RSym (@later_func typ) :=
+	RSym_later_func _ lops.
+	Check null.
+Instance RSym_open_func : RSym (@open_func typ) :=
+	@RSym_OpenFunc _ _ _ RType_typ _ _ tyVar tyVal _ null _ _ _ _.
 
+Existing Instance RSym_sum.
+
+Instance oee : RSym func := _.
