@@ -51,7 +51,7 @@ Inductive typ :=
 | tyFields : typ
 | tyExpr : typ
 | tySubst : typ. 
-Check @subst.
+
 Notation "'tyPure'" := (tyArr tyStack tyProp).
 Notation "'tySasn'" := (tyArr tyStack tyAsn). 
 

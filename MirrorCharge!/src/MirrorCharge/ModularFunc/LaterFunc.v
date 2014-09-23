@@ -22,8 +22,6 @@ Set Implicit Arguments.
 Set Strict Implicit.
 Set Maximal Implicit Insertion.
 
-Open Scope string.
-
 Class LaterFunc (typ func : Type) := {
   fLater : typ -> func
 }.
@@ -160,6 +158,6 @@ End LaterFuncInst.
 Section MakeLater.
 	Context {typ func : Type} {H : LaterFunc typ func}.
 
-	Definition mkLater (t : typ) P := App (fLater t) P.
+	Definition mkLater (t : typ) (P : expr typ func) : expr typ func := App (fLater t) P.
 
 End MakeLater.

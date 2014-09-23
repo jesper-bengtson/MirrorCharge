@@ -19,7 +19,12 @@ Set Implicit Arguments.
 Set Strict Implicit.
 Set Maximal Implicit Insertion.
 
-Open Scope string.
+Inductive base_func typ :=
+  | pNat : nat -> base_func typ
+  | pBool : bool -> base_func typ
+  | pString : string -> base_func typ
+  | pEq : typ -> base_func typ
+  | pPair : typ -> typ -> base_func typ.
 
 Class BaseFunc (typ func : Type) := {
   fNat  : nat -> func;
@@ -27,8 +32,11 @@ Class BaseFunc (typ func : Type) := {
   fString : string -> func;
   
   fEq : typ -> func;
-  fPair : typ -> typ -> func
+  fPair : typ -> typ -> func;
+  
+  baseS : func -> option (base_func typ)
 }.
+
     
 Section BaseFuncSum.
 	Context {typ func : Type} {H : BaseFunc typ func}.
@@ -40,6 +48,10 @@ Section BaseFuncSum.
 	    ; fString s := inl (fString s)
         ; fEq t := inl (fEq t)
         ; fPair t1 t2 := inl (fPair t1 t2)
+        ; baseS f := match f with
+        			   | inl a => baseS a
+        			   | inr _ => None
+        			 end
         }.
 
 	Global Instance BaseFuncSumR (A : Type) : 
@@ -49,6 +61,10 @@ Section BaseFuncSum.
 	    ; fString s := inr (fString s)
         ; fEq t := inr (fEq t)
         ; fPair t1 t2 := inr (fPair t1 t2)
+        ; baseS f := match f with
+        			   | inr a => baseS a
+        			   | inl _ => None
+        			 end
         }.
         
     Global Instance BaseFuncExpr :
@@ -57,9 +73,13 @@ Section BaseFuncSum.
     	  fBool b := Inj (fBool b);
     	  fString s := Inj (fString s);
     	  fEq t := Inj (fEq t);
-    	  fPair t1 t2 := Inj (fPair t1 t2)
+    	  fPair t1 t2 := Inj (fPair t1 t2);
+    	  baseS f := match f with
+    	  			   | Inj f => baseS f
+    	  			   | _     => None
+    	  			 end
     }.
-        
+
 End BaseFuncSum.
 
 Section BaseFuncInst.
@@ -74,19 +94,13 @@ Section BaseFuncInst.
     Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
     Let tyProp : typ := @typ0 _ _ _ _.
 
-	Inductive base_func :=
-	  | pNat : nat -> base_func
-	  | pBool : bool -> base_func
-	  | pString : string -> base_func
-	  | pEq : typ -> base_func
-	  | pPair : typ -> typ -> base_func.
-
-	Global Instance BaseFuncInst : BaseFunc typ base_func := {
-	  fNat := pNat;
-	  fBool := pBool;
-	  fString := pString;
+	Global Instance BaseFuncInst : BaseFunc typ (base_func typ) := {
+	  fNat := pNat typ;
+	  fBool := pBool typ;
+	  fString := pString typ;
 	  fEq := pEq;
-	  fPair := pPair
+	  fPair := pPair;
+	  baseS f := Some f 
 	}.
 
 	Definition typeof_base_func bf :=
@@ -98,7 +112,7 @@ Section BaseFuncInst.
 		  | pPair t1 t2 => Some (tyArr t1 (tyArr t2 (tyPair t1 t2)))
 		end.
 
-	Definition base_func_eq (a b : base_func) : option bool :=
+	Definition base_func_eq (a b : base_func typ) : option bool :=
 	  match a , b with
 	    | pNat a, pNat b => Some (a ?[ eq ] b)
 	    | pBool a, pBool b => Some (a ?[ eq ] b)
@@ -109,7 +123,7 @@ Section BaseFuncInst.
 	    | _, _ => None
 	  end.
 
-    Global Instance RelDec_base_func : RelDec (@eq base_func) := {
+    Global Instance RelDec_base_func : RelDec (@eq (base_func typ)) := {
       rel_dec a b := match base_func_eq a b with 
     	  		       | Some b => b 
     		 	       | None => false 
@@ -148,7 +162,7 @@ Section BaseFuncInst.
              (typ2_cast t1 (typ2 t2 (tyPair t1 t2)))
 	end.
 
-	Global Instance RSym_BaseFunc : SymI.RSym base_func := {
+	Global Instance RSym_BaseFunc : SymI.RSym (base_func typ) := {
 	  typeof_sym := typeof_base_func;
 	  symD := base_func_symD;
 	  sym_eqb := base_func_eq
@@ -167,3 +181,14 @@ Section BaseFuncInst.
 	Qed.
 
 End BaseFuncInst.
+
+Section MakeBase.
+	Context {typ func : Type} {H : BaseFunc typ func}.
+
+	Definition mkNat n : expr typ func := Inj (fNat n).
+	Definition mkBool b : expr typ func := Inj (fBool b).
+	Definition mkString s : expr typ func := Inj (fString s).
+	Definition mkEq (t : typ) (a b : expr typ func) := App (App (fEq t) a) b.
+	Definition mkPair t u a b := App (App (fPair t u) a) b.
+
+End MakeBase.

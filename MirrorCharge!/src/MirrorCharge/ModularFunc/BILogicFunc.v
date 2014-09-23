@@ -22,12 +22,17 @@ Set Implicit Arguments.
 Set Strict Implicit.
 Set Maximal Implicit Insertion.
 
-Open Scope string.
+Inductive bilfunc typ :=
+  | bilf_emp (logic : typ)
+  | bilf_star (logic : typ)
+  | bilf_wand (logic : typ).
+ 
 
 Class BILogicFunc (typ func : Type) := {
   fEmp : typ -> func;
   fStar : typ -> func;
-  fWand : typ -> func
+  fWand : typ -> func;
+  bilogicS : func -> option (bilfunc typ)
 }.
     
 Section BILogicFuncSum.
@@ -37,21 +42,33 @@ Section BILogicFuncSum.
 		BILogicFunc typ (func + A) := {
 		  fEmp l := inl (fEmp l);
 		  fStar l := inl (fStar l);
-		  fWand l := inl (fWand l)
+		  fWand l := inl (fWand l);
+		  bilogicS f := match f with
+		  				  | inl a => bilogicS a
+		  				  | _     => None
+		  				end 
        }.
 
 	Global Instance BILogicFuncSumR (A : Type) : 
 		BILogicFunc typ (A + func) := {
 		  fEmp l := inr (fEmp l);
 		  fStar l := inr (fStar l);
-		  fWand l := inr (fWand l)
+		  fWand l := inr (fWand l);
+		  bilogicS f := match f with
+		  				  | inr a => bilogicS a
+		  				  | _     => None
+		  				end 
        }.
 
 	Global Instance BILogicFuncExpr : 
 		BILogicFunc typ (expr typ func) := {
 		  fEmp l := Inj (fEmp l);
 		  fStar l := Inj (fStar l);
-		  fWand l := Inj (fWand l)
+		  fWand l := Inj (fWand l);
+		  bilogicS f := match f with
+		  				  | Inj a => bilogicS a
+		  				  | _ => None
+		  				end 
         }.
 
 End BILogicFuncSum.
@@ -67,15 +84,11 @@ Section BILogicFuncInst.
     Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
     Let tyProp : typ := @typ0 _ _ _ _.
 
-  Inductive bilfunc :=
-    | bilf_emp (logic : typ)
-    | bilf_star (logic : typ)
-    | bilf_wand (logic : typ).
- 
-	Global Instance BaseFuncInst : BILogicFunc typ bilfunc := {
+	Global Instance BaseFuncInst : BILogicFunc typ (bilfunc typ) := {
 	  fEmp := bilf_emp;
 	  fStar := bilf_star;
-	  fWand := bilf_wand
+	  fWand := bilf_wand;
+	  bilogicS f := Some f 
 	}.
 	
   Variable is : logic_ops.
@@ -90,7 +103,7 @@ Section BILogicFuncInst.
 
   Variable gs : bilogic_ops.
   
-  Definition typeof_bilfunc (f : bilfunc) : option typ :=
+  Definition typeof_bilfunc (f : bilfunc typ) : option typ :=
     match f with
       | bilf_emp t => match gs t with
   				   	     | Some _ => Some t
@@ -103,7 +116,7 @@ Section BILogicFuncInst.
 				  	  end
   	end.
 
-  Global Instance RelDec_bilfunc : RelDec (@eq bilfunc) :=
+  Global Instance RelDec_bilfunc : RelDec (@eq (bilfunc typ)) :=
   { rel_dec := fun a b =>
 	         match a, b with
 		   | bilf_emp t, bilf_emp t'
@@ -131,7 +144,7 @@ Section BILogicFuncInst.
                      end
         end.
 
- Definition funcD (f : bilfunc) : match typeof_bilfunc f with
+ Definition funcD (f : bilfunc typ) : match typeof_bilfunc f with
 							       | Some t => typD t
 							       | None => unit
 							      end :=
@@ -177,7 +190,7 @@ Section BILogicFuncInst.
         end
     end.
 
-  Global Instance RSym_bilfunc : SymI.RSym bilfunc :=
+  Global Instance RSym_bilfunc : SymI.RSym (bilfunc typ) :=
   { typeof_sym := typeof_bilfunc
   ; sym_eqb := fun a b => Some (rel_dec a b)
   ; symD := funcD
@@ -195,7 +208,7 @@ End BILogicFuncInst.
 Section MakeBILogic.
 	Context {typ func : Type} {H : BILogicFunc typ func}.
 
-	Definition mkEmp := fEmp.
+	Definition mkEmp t : expr typ func:= Inj (fEmp t).
 	Definition mkStar (t : typ) (P Q : expr typ func) := App (App (fStar t) P) Q.
 	Definition mkWand (t : typ) (P Q : expr typ func) := App (App (fWand t) P) Q.
 

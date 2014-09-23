@@ -1,7 +1,16 @@
 Require Import MirrorCore.Reify.Reify.
 Require Import MirrorCore.Lambda.Expr.
 
-Require Import MirrorCharge.Java.Syntax.
+Require Import MirrorCharge.Java.JavaFunc.
+Require Import MirrorCharge.Java.JavaType.
+Require Import MirrorCharge.ModularFunc.ILogicFunc.
+Require Import MirrorCharge.ModularFunc.BILogicFunc.
+Require Import MirrorCharge.ModularFunc.LaterFunc.
+Require Import MirrorCharge.ModularFunc.BaseFunc.
+Require Import MirrorCharge.ModularFunc.ListFunc.
+Require Import MirrorCharge.ModularFunc.OpenFunc.
+Require Import MirrorCharge.ModularFunc.EmbedFunc.
+
 
 Require Import Charge.Open.Stack.
 Require Import Charge.Open.Subst.
@@ -18,9 +27,9 @@ Require Import Java.Semantics.OperationalSemantics.
 
 Require Import ExtLib.Structures.Applicative.
 
-Reify Declare Patterns patterns_java_typ := Syntax.typ.
+Reify Declare Patterns patterns_java_typ := typ.
 
-Reify Declare Patterns patterns_java := (ExprCore.expr Syntax.typ Syntax.func).
+Reify Declare Patterns patterns_java := (ExprCore.expr typ func).
 
 Local Instance Applicative_Fun A : Applicative (Fun A) :=
 { pure := fun _ x _ => x
@@ -31,8 +40,8 @@ Local Instance Applicative_Fun A : Applicative (Fun A) :=
 Reify Declare Patterns const_for_cmd += ((RHasType cmd ?0) => (fun (c : id cmd) => mkCmd [c] : expr typ func)).
 *)
 Reify Declare Syntax reify_imp_typ :=
-  { (@Patterns.CPatterns Syntax.typ patterns_java_typ
-     (@Patterns.CFail Syntax.typ))
+  { (@Patterns.CPatterns typ patterns_java_typ
+     (@Patterns.CFail typ))
   }.
 
 
@@ -44,6 +53,7 @@ Definition field_lookup2 : Program -> String.string -> SS.t -> Prop := field_loo
 Definition typeof2 (C : String.string) (x : sval) := typeof C x.
 Definition method_spec2 : String.string -> String.string -> list String.string -> String.string -> sasn -> sasn -> spec := method_spec.
 
+(*
 Notation "'ap_eq' '[' x ',' y ']'" := (ap (T := Fun stack) (ap (pure (@eq sval)) x) y).
 Notation "'ap_pointsto' '[' x ',' f ',' e ']'" := 
 	(ap (T := Fun stack) (ap (ap (pure pointsto2) (stack_get x)) (pure f)) e).
@@ -54,25 +64,27 @@ Notation "'ap_typeof' '[' e ',' C ']'" :=
 	        (pure (T := Fun stack) C))
 	    e).
 
+
 Definition set_fold_fun (x f : String.string) (P : sasn) :=
 	ap_pointsto [x, f, pure null] ** P.
+*)
 
 Reify Declare Typed Table term_table : BinNums.positive => reify_imp_typ.
 
-Let Ext x := @ExprCore.Inj Syntax.typ Syntax.func (inl (inl x)).
+Let Ext x := @ExprCore.Inj typ func (inl (inl (inl (inl (inl (inl (inl (inl x)))))))).
 
 Check Ext.
 
 Reify Declare Syntax reify_imp :=
-  { (@Patterns.CVar _ (@ExprCore.Var Syntax.typ Syntax.func)
+  { (@Patterns.CVar _ (@ExprCore.Var typ func)
     (@Patterns.CPatterns _ patterns_java
-    (@Patterns.CApp _ (@ExprCore.App Syntax.typ Syntax.func)
-    (@Patterns.CAbs _ reify_imp_typ (@ExprCore.Abs Syntax.typ Syntax.func)
+    (@Patterns.CApp _ (@ExprCore.App typ func)
+    (@Patterns.CAbs _ reify_imp_typ (@ExprCore.Abs typ func)
     (@Patterns.CTypedTable _ _ _ term_table Ext
-    (@Patterns.CFail (ExprCore.expr Syntax.typ Syntax.func)))))))
+    (@Patterns.CFail (ExprCore.expr typ func)))))))
   }.
 
-Let _Inj := @ExprCore.Inj Syntax.typ Syntax.func.
+Let _Inj := @ExprCore.Inj typ func.
 
 Local Notation "x @ y" := (@RApp x y) (only parsing, at level 30).
 Local Notation "'!!' x" := (@RExact _ x) (only parsing, at level 25).
@@ -104,18 +116,20 @@ Reify Pattern patterns_java_typ += (!! @Subst.subst (String.string) SVal) => tyS
 
 Reify Pattern patterns_java_typ += (!! Fun @ ?0 @ ?1) => (fun (a b : function reify_imp_typ) => tyArr a b).
 
-Reify Pattern patterns_java += (RHasType String.string (?0)) => (fun (s : id String.string) => mkString s).
-Reify Pattern patterns_java += (RHasType field (?0)) => (fun (f : id field) => mkString f).
-Reify Pattern patterns_java += (RHasType Lang.var (?0)) => (fun (f : id Lang.var) => mkString f).
+Reify Pattern patterns_java += (RHasType String.string (?0)) => (fun (s : id String.string) => mkString (typ := typ) s).
+Reify Pattern patterns_java += (RHasType field (?0)) => (fun (f : id field) => mkField f).
+Reify Pattern patterns_java += (RHasType Lang.var (?0)) => (fun (f : id Lang.var) => mkVar f).
 Reify Pattern patterns_java += (RHasType sval (?!0)) => (fun (v : id sval) => mkVal v).
 Reify Pattern patterns_java += (RHasType Stack.val (?0)) => (fun (v : id Stack.val) => mkVal v).
 Reify Pattern patterns_java += (RHasType (@val SVal) (?0)) => (fun (v : id (@val SVal)) => mkVal v).
 Reify Pattern patterns_java += (RHasType cmd (?0)) => (fun (c : id cmd) => mkCmd c).
-Reify Pattern patterns_java += (RHasType dexpr (?0)) => (fun (e : id dexpr) => mkExpr e).
+Reify Pattern patterns_java += (RHasType dexpr (?0)) => (fun (e : id dexpr) => mkDExpr e).
 Reify Pattern patterns_java += (RHasType Prog_wf (?0)) => (fun (P : id Prog_wf) => mkProg P).
 Reify Pattern patterns_java += (RHasType SS.t (?0)) => (fun (fs : id SS.t) => mkFields fs).
-Reify Pattern patterns_java += (RHasType class (?0)) => (fun (c : id class) => mkString c).
-Reify Pattern patterns_java += (RHasType (@list dexpr) (?0)) => (fun (es : id (@list dexpr)) => mkExprList es).
+Reify Pattern patterns_java += (RHasType class (?0)) => (fun (c : id class) => mkClass c).
+Check @mkExprList.
+
+Reify Pattern patterns_java += (RHasType (@list dexpr) (?0)) => (fun (es : id (@list dexpr)) => mkExprList (func := func) es).
 Reify Pattern patterns_java += (RHasType (@list String.string) (?0)) => (fun (vs : id (@list String.string)) => mkVarList vs).
 Reify Pattern patterns_java += (!! (@eq) @ ?0) => (fun (x : function reify_imp_typ) => fEq x).
 
@@ -157,10 +171,12 @@ Reify Pattern patterns_java += (!! method_spec2) => (fMethodSpec).
 
 (** Program Logic **)
 
+Definition stack_get (x : var) (s : stack) := s x.
+
 Reify Pattern patterns_java += (!! triple) => (fTriple).
 Reify Pattern patterns_java += (!! eval2) => (fEval).
-Reify Pattern patterns_java += (!! stack_get) => (fStackGet).
-Reify Pattern patterns_java += (!! stack_add) => (fStackSet).
+Reify Pattern patterns_java += (!! stack_get) => (fStackGet (typ := typ)).
+Reify Pattern patterns_java += (!! stack_add) => (fStackSet (typ := typ)).
 
 Reify Pattern patterns_java += (!! pointsto2) => (fPointsto).
 Reify Pattern patterns_java += (!! set_fold_fun) => (fSetFoldFun).
@@ -168,8 +184,8 @@ Reify Pattern patterns_java += (!! SS.fold @ ?0) => (fun (x : function reify_imp
 Reify Pattern patterns_java += (!! prog_eq) => (fProgEq).
 Reify Pattern patterns_java += (!! typeof2) => (fTypeOf).
 
-Reify Pattern patterns_java += (!! substl_trunc) => (fTruncSubst).
-Reify Pattern patterns_java += (!! substl) => (fSubst).
+Reify Pattern patterns_java += (!! substl_trunc) => (fTruncSubst (typ := typ)).
+Reify Pattern patterns_java += (!! substl) => (fSubst (typ := typ)).
 
 Reify Pattern patterns_java += (!! @nil @ ?0) => (fun (x : function reify_imp_typ) => (fNil x)).
 Reify Pattern patterns_java += (!! @cons @ ?0) => (fun (x : function reify_imp_typ) => (fCons x)).
@@ -184,7 +200,7 @@ Reify Pattern patterns_java += (!! @field_lookup2) => (fFieldLookup : expr typ f
 Reify Pattern patterns_java += (!! @Applicative.ap @ !! (Fun stack) @ # @ ?0 @ ?1) => (fun (x y : function reify_imp_typ) => fAp x y).
 Reify Pattern patterns_java += (!! @Applicative.pure @ !! (Fun stack) @ # @ ?0) => (fun (x : function reify_imp_typ) => fConst x).
 
-Let elem_ctor : forall x : Syntax.typ, typD x -> @SymEnv.function _ _ :=
+Let elem_ctor : forall x : typ, typD x -> @SymEnv.function _ _ :=
   @SymEnv.F _ _.
 
 Ltac reify_imp e :=
@@ -195,12 +211,17 @@ Ltac reify_imp e :=
              [ e ].
 
 Require Import ILogic.
-
+(*
 Goal True.
   generalize String.EmptyString. intro c.
+  (*reify_imp (ltrue |-- {[ ltrue ]} cread c c c {[ ltrue ]}).*)
   
-  reify_imp (ltrue |-- {[ ltrue ]} cread c c c {[ ltrue ]}).
+  
   reify_imp (forall P, P /\ P).
+  unfold reify_imp_typ in e.
+  unfold function in e.
+  (*
+
   reify_imp (forall x : nat, x = x).
   reify_imp (exists x : nat, x = x).
   reify_imp (@map nat nat).
@@ -215,5 +236,7 @@ Goal True.
   intro x.
   reify_imp (stack_get x).
   reify_imp (x = x).
+*)
   exact I.
 Defined.
+*)

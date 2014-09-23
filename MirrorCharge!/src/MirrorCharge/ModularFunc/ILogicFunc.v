@@ -19,7 +19,15 @@ Set Implicit Arguments.
 Set Strict Implicit.
 Set Maximal Implicit Insertion.
 
-Open Scope string.
+Inductive ilfunc typ :=
+  | ilf_entails (logic : typ)
+  | ilf_true (logic : typ)
+  | ilf_false (logic : typ)
+  | ilf_and (logic : typ)
+  | ilf_or (logic : typ)
+  | ilf_impl (logic : typ)
+  | ilf_exists (arg logic : typ)
+  | ilf_forall (arg logic : typ).
 
 Class ILogicFunc (typ func : Type) := {
   fEntails  : typ -> func;
@@ -29,7 +37,8 @@ Class ILogicFunc (typ func : Type) := {
   fOr : typ -> func;
   fImpl : typ -> func;
   fExists : typ -> typ -> func;
-  fForall : typ -> typ -> func
+  fForall : typ -> typ -> func;
+  ilogicS : func -> option (ilfunc typ)
 }.
     
 Section ILogicFuncSum.
@@ -44,7 +53,11 @@ Section ILogicFuncSum.
 		  fOr l := inl (fOr l);
 		  fImpl l := inl (fImpl l);
 		  fExists t l := inl (fExists t l);
-		  fForall t l := inl (fForall t l)
+		  fForall t l := inl (fForall t l);
+		  ilogicS f := match f with
+		  				 | inl a => ilogicS a
+		  		   	 	 | _     => None
+		  			   end 
         }.
 
 	Global Instance ILogicFuncSumR (A : Type) : 
@@ -56,7 +69,11 @@ Section ILogicFuncSum.
 		  fOr l := inr (fOr l);
 		  fImpl l := inr (fImpl l);
 		  fExists t l := inr (fExists t l);
-		  fForall t l := inr (fForall t l)
+		  fForall t l := inr (fForall t l);
+		  ilogicS f := match f with
+		  				 | inr a => ilogicS a
+		  		   	 	 | _     => None
+		  			   end 
         }.
         
 	Global Instance ILogicFuncExpr : 
@@ -68,7 +85,11 @@ Section ILogicFuncSum.
 		  fOr l := Inj (fOr l);
 		  fImpl l := Inj (fImpl l);
 		  fExists t l := Inj (fExists t l);
-		  fForall t l := Inj (fForall t l)
+		  fForall t l := Inj (fForall t l);
+		  ilogicS f := match f with
+		  				 | Inj a => ilogicS a
+		  		   	 	 | _     => None
+		  			   end 
         }.
 
 End ILogicFuncSum.
@@ -84,17 +105,7 @@ Section ILogicFuncInst.
     Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
     Let tyProp : typ := @typ0 _ _ _ _.
 
-  Inductive ilfunc :=
-    | ilf_entails (logic : typ)
-    | ilf_true (logic : typ)
-    | ilf_false (logic : typ)
-    | ilf_and (logic : typ)
-    | ilf_or (logic : typ)
-    | ilf_impl (logic : typ)
-    | ilf_exists (arg logic : typ)
-    | ilf_forall (arg logic : typ).
-
-	Global Instance BaseFuncInst : ILogicFunc typ ilfunc := {
+	Global Instance BaseFuncInst : ILogicFunc typ (ilfunc typ) := {
 	  fEntails := ilf_entails;
 	  fTrue := ilf_true;
 	  fFalse := ilf_false;
@@ -102,7 +113,8 @@ Section ILogicFuncInst.
 	  fOr := ilf_or;
 	  fImpl := ilf_impl;
 	  fExists := ilf_exists;
-	  fForall := ilf_forall
+	  fForall := ilf_forall;
+	  ilogicS f := Some f
 	}.
 
   Definition logic_ops := forall (t : typ),
@@ -115,7 +127,7 @@ Section ILogicFuncInst.
 
   Variable gs : logic_ops.
   
-  Definition typeof_func (f : ilfunc) : option typ :=
+  Definition typeof_func (f : ilfunc typ) : option typ :=
     match f with
       | ilf_true t
       | ilf_false t => match gs t with
@@ -139,7 +151,7 @@ Section ILogicFuncInst.
 					  	  end
   	end.
 
-  Global Instance RelDec_ilfunc : RelDec (@eq ilfunc) :=
+  Global Instance RelDec_ilfunc : RelDec (@eq (ilfunc typ)) :=
   { rel_dec := fun a b =>
 	         match a, b with
 		   | ilf_entails t, ilf_entails t'
@@ -184,7 +196,7 @@ Section ILogicFuncInst.
                      end
       end.
  
- Definition funcD (f : ilfunc) : match typeof_func f with
+ Definition funcD (f : ilfunc typ) : match typeof_func f with
 							       | Some t => typD t
 							       | None => unit
 							      end :=
@@ -301,7 +313,7 @@ Section ILogicFuncInst.
         end
     end.
 
-  Global Instance RSym_ilfunc : SymI.RSym ilfunc :=
+  Global Instance RSym_ilfunc : SymI.RSym (ilfunc typ) :=
   { typeof_sym := typeof_func
   ; sym_eqb := fun a b => Some (rel_dec a b)
   ; symD := funcD

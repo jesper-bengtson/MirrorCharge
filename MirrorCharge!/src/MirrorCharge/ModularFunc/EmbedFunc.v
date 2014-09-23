@@ -22,8 +22,6 @@ Set Implicit Arguments.
 Set Strict Implicit.
 Set Maximal Implicit Insertion.
 
-Open Scope string.
-
 Class EmbedFunc (typ func : Type) := {
   fEmbed : typ -> typ -> func
 }.

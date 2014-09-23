@@ -28,7 +28,9 @@ Definition sls : SepLogFoldEx.SepLogSpec typ func :=
                 match e with
                   | mTrue [_]
                   | mFalse [_] => true
-                  | App (App (Inj (inl (inr (pAp _ _)))) (App (Inj (inl (inr (pConst _)))) (Inj (inr (ilf_embed tyProp _))))) _ => true
+                  | App (App (Inj (inl (inr (pAp _ _)))) 
+                        (App (Inj (inl (inr (pConst _))))
+                             (Inj (inr (ilf_embed tyProp _))))) _ => true
                   | _ => false
                 end
  ; SepLogFoldEx.is_emp := fun e => false

@@ -17,21 +17,6 @@ Set Implicit Arguments.
 Set Strict Implicit.
 Set Maximal Implicit Insertion.
 
-Open Scope string.
-
-Open Scope list.
-
-Fixpoint zip {A} {B} (lst1 : list A) (lst2 : list B) : list (A * B) :=
-  match lst1, lst2 with
-    | nil, nil => nil
-    | x::xs, nil => nil
-    | nil, y::ys => nil
-    | x::xs, y::ys => (x, y) :: zip xs ys
-  end.
-
-Print combine.
-
-
 Class ListFunc (typ func : Type) := {
   fNil  : typ -> func;
   fCons : typ -> func;
@@ -156,7 +141,7 @@ Section ListFuncInst.
 	            (fun xs ys =>
 	              let xs := eq_rect _ id xs _ (btList t1) in
 	              let ys := eq_rect _ id ys _ (btList t2) in
-	                eq_rect_r id (zip xs ys) 
+	                eq_rect_r id (combine xs ys) 
 	                  (eq_ind_r (fun T => T = list ((typD t1 * typD t2)%type))
 	                    (eq_ind_r (fun T => list T = list ((typD t1 * typD t2)%type)) eq_refl
 	                  	  (btPair t1 t2))
@@ -187,7 +172,7 @@ End ListFuncInst.
 Section MakeList.
 	Context {typ func : Type} {H : ListFunc typ func}.
 
-	Definition mkNil := fNil.
+	Definition mkNil t : expr typ func := Inj (fNil t).
 	Definition mkCons (t : typ) (x xs : expr typ func) := App (App (fCons t) x) xs.
 	Definition mkLength (t : typ) (lst : expr typ func) := App (fLength t) lst.
 	Definition mkMap (t u : typ) (f lst : expr typ func) :=  App (App (fMap t u) f) lst.

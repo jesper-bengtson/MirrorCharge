@@ -18,19 +18,21 @@ Require Import Coq.Bool.Bool.
 Require Import MirrorCharge.ModularFunc.BaseType.
 Require Import MirrorCharge.ModularFunc.ListType.
 Require Import MirrorCharge.ModularFunc.SubstType.
+Require Import MirrorCharge.ModularFunc.ListFunc.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 Set Maximal Implicit Insertion.
 
 Class OpenFunc (typ func : Type) := {
-  fCons : typ -> func;
+  fConst : typ -> func;
   fAp : typ -> typ -> func;
   
   fStackGet : func;
   fStackSet : func;
   
   fApplySubst : typ -> func;
+  fSingleSubst : func;
   fSubst : func;
   fTruncSubst : func
 }.
@@ -40,39 +42,42 @@ Section OpenFuncSum.
 
 	Global Instance OpenFuncSumL (A : Type) : 
 	   OpenFunc typ (func + A) := {
-		  fCons t := inl (fCons t);
+		  fConst t := inl (fConst t);
 		  fAp t u := inl (fAp t u);
 		  
 		  fStackGet := inl fStackGet;
 		  fStackSet := inl fStackSet;
 		  
 		  fApplySubst t := inl (fApplySubst t);
+		  fSingleSubst := inl fSingleSubst;
 		  fSubst := inl fSubst;
 		  fTruncSubst := inl fTruncSubst
        }.
 
 	Global Instance OpenFuncSumR (A : Type) : 
 	   OpenFunc typ (A + func) := {
-		  fCons t := inr (fCons t);
+		  fConst t := inr (fConst t);
 		  fAp t u := inr (fAp t u);
 		  
 		  fStackGet := inr fStackGet;
 		  fStackSet := inr fStackSet;
 		  
 		  fApplySubst t := inr (fApplySubst t);
+		  fSingleSubst := inr fSingleSubst;
 		  fSubst := inr fSubst;
 		  fTruncSubst := inr fTruncSubst
        }.
 
-	Global Instance OpenFuncExpr (A : Type) : 
+	Global Instance OpenFuncExpr : 
 	   OpenFunc typ (expr typ func) := {
-		  fCons t := Inj (fCons t);
+		  fConst t := Inj (fConst t);
 		  fAp t u := Inj (fAp t u);
 		  
 		  fStackGet := Inj fStackGet;
 		  fStackSet := Inj fStackSet;
 		  
 		  fApplySubst t := Inj (fApplySubst t);
+		  fSingleSubst := Inj fSingleSubst;
 		  fSubst := Inj fSubst;
 		  fTruncSubst := Inj fTruncSubst
        }.
@@ -95,25 +100,28 @@ Section OpenFuncInst.
     Let tyProp : typ := @typ0 _ _ _ _.
 
 	Local Notation "'tyStack'" := (tyArr d r).
+	Local Notation "'tyExpr'" := (tyArr tyStack r).
 	Local Notation "'tySubstList'" := (tyList (tyPair d (tyArr tyStack r))).
 
 	Definition stack := @stack (typD d) (@VN typ _ r null).
 
   Inductive open_func :=
-    | of_cons (_ : typ)
+    | of_const (_ : typ)
     | of_ap (_ _ : typ)
     | of_stack_get
     | of_stack_set
     | of_apply_subst (_ : typ)
+    | of_single_subst
     | of_subst
     | of_trunc_subst.
     
 	Global Instance LaterFuncInst : OpenFunc typ open_func := {
-	  fCons := of_cons;
+	  fConst := of_const;
 	  fAp := of_ap;
 	  fStackGet := of_stack_get;
 	  fStackSet := of_stack_set;
 	  fApplySubst := of_apply_subst;
+	  fSingleSubst := of_single_subst;
 	  fSubst := of_subst;
 	  fTruncSubst := of_trunc_subst
 	}.
@@ -121,12 +129,13 @@ Section OpenFuncInst.
   
   Definition typeof_open_func (f : open_func) : option typ :=
     match f with
-    | of_cons t => Some (tyArr t (tyArr tyStack t))
+    | of_const t => Some (tyArr t (tyArr tyStack t))
     | of_ap t u => Some (tyArr (tyArr tyStack (tyArr t u)) (tyArr (tyArr tyStack t) (tyArr tyStack u)))
     | of_apply_subst t => Some (tyArr (tyArr tyStack t) (tyArr tySubst (tyArr tyStack t)))
 
-    | of_stack_get => Some (tyArr d (tyArr tyStack r))
+    | of_stack_get => Some (tyArr d tyExpr)
     | of_stack_set => Some (tyArr d (tyArr r (tyArr tyStack tyStack)))
+    | of_single_subst => Some (tyArr tyExpr (tyArr d tySubst))
     | of_subst => Some (tyArr tySubstList tySubst)
     | of_trunc_subst => Some (tyArr tySubstList tySubst)
 	end.
@@ -134,11 +143,12 @@ Section OpenFuncInst.
   Global Instance RelDec_open_func : RelDec (@eq open_func) :=
   { rel_dec := fun a b =>
 	         match a, b with
-	  	       | of_cons t, of_cons t'
+	  	       | of_const t, of_const t'
 	  	       | of_apply_subst t, of_apply_subst t' => t ?[eq] t'
 	  	       | of_ap t u, of_ap t' u' => (t ?[eq] t' && u ?[eq] u')%bool
 	  	       | of_stack_get, of_stack_get
 	  	       | of_stack_set, of_stack_set
+	  	       | of_single_subst, of_single_subst
 	  	       | of_subst, of_subst
 	  	       | of_trunc_subst, of_trunc_subst => true
 	  	       | _, _ => false
@@ -174,6 +184,7 @@ Section OpenFuncInst.
   unfold tyArr; repeat rewrite typ2_cast. unfold Fun. apply X.
   Defined.
 
+(*
 	 Program Definition open_func_symD bf :=
 		match bf as bf return match typeof_open_func bf with
 								| Some t => typD t
@@ -219,7 +230,8 @@ Section OpenFuncInst.
 		rewrite btList, btPair, stSubst. repeat rewrite typ2_cast.
 		apply (@substl_trunc_aux (typD d) _ (@VN typ _ r null)).
 	 Defined.
- Print open_func_symD_obligation_1.
+*)
+
 	Global Program Instance RSym_OpenFunc : SymI.RSym open_func := {
 	  typeof_sym := typeof_open_func;
 	  symD := _;
@@ -241,13 +253,16 @@ Section OpenFuncInst.
 		+ unfold tyArr; repeat rewrite typ2_cast; unfold Fun.
 	  	  rewrite stSubst.
 		  apply (@apply_subst (typD d) (@VN typ _ r null) (typD t)).
+		+ unfold tyArr; repeat rewrite typ2_cast; unfold Fun.
+		  rewrite stSubst.
+		  apply (@subst1 (typD d) _ (@VN typ _ r null)).
 		+ unfold tyArr; rewrite typ2_cast; unfold Fun.
 	      rewrite btList, btPair, stSubst; repeat rewrite typ2_cast.
 	      apply (@substl_aux (typD d) _ (@VN typ _ r null)).
 		+ unfold tyArr; rewrite typ2_cast; unfold Fun.
 		  rewrite btList, btPair, stSubst. repeat rewrite typ2_cast.
 		  apply (@substl_trunc_aux (typD d) _ (@VN typ _ r null)).
-	Qed.
+	Defined.
 
   Global Instance RSymOk_lopen_func : SymI.RSymOk RSym_OpenFunc.
   Proof.
@@ -259,8 +274,18 @@ Section OpenFuncInst.
 End OpenFuncInst.
 
 Section MakeOpen.
-	Context {typ func : Type} {H : OpenFunc typ func}.
+	Context {typ func : Type} {H : OpenFunc typ func} {H1 : ListFunc typ func}
+	        {HBT : BaseType typ}.
 
-Print Typ2.
+	Definition mkConst (t : typ) (e : expr typ func) := App (fConst t) e.
+	Definition mkAp (t u : typ) (f e : expr typ func) := App (App (fAp t u) f) e.
+	Definition mkStackGet (x s : expr typ func) := App (App fStackGet x) s.
+	Definition mkStackSet (x v s : expr typ func) := App (App (App fStackSet x) v) s.
+	Definition mkApplySubst (t : typ) (P s : expr typ func) := App (App (fApplySubst t) P) s.
+	Definition mkSingleSubst (e x : expr typ func) := App (App fSingleSubst e) x.
+	Definition mkApplySingleSubst t P x e := mkApplySubst t P (mkSingleSubst x e).	
+	Definition mkSubst (s : expr typ func) := App fSubst s.
+	Definition mkTruncSubst (s : expr typ func) := App fTruncSubst s.
+	Definition mkApplyTruncSubst t P s := mkApplySubst t P (mkTruncSubst s).
 
 End MakeOpen.
