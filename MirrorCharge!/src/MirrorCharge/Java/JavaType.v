@@ -195,6 +195,18 @@ Instance Typ2_Fun : Typ2 _ Fun :=
                   end
 }.
 
+Instance Typ2Ok_Fun : Typ2Ok Typ2_Fun.
+Proof.
+	split; intros.
+	+ reflexivity.
+	+ constructor.
+	+ constructor.
+	+ inversion H; subst; intuition.
+	+ destruct x; try (right; reflexivity).
+	  left. do 2 eexists. exists eq_refl. reflexivity.
+	+ destruct pf; reflexivity.
+Qed.
+	
 Instance Typ0_Prop : Typ0 _ Prop :=
 { typ0 := tyProp
 ; typ0_cast := eq_refl
@@ -204,6 +216,29 @@ Instance Typ0_Prop : Typ0 _ Prop :=
                     | _ => fun fa => fa
                   end
 }.
+
+Instance Typ0Ok_Prop : Typ0Ok Typ0_Prop.
+Proof.
+    constructor.
+    { reflexivity. }
+    { destruct x; try solve [ right ; reflexivity ].
+      { left. exists eq_refl. reflexivity. } }
+    { destruct pf. reflexivity. }
+Qed.
+
+Instance RTypeOk_typ : @RTypeOk _ RType_typ.
+Proof.
+	split; intros.
+	+ reflexivity.
+	+ unfold well_founded.
+	  intros. induction a; simpl; constructor; intros; inversion H; subst.
+	  assumption. assumption.
+	+ destruct pf; reflexivity.
+	+ destruct pf1, pf2; reflexivity.
+	+ apply type_cast_typ_refl.
+	+ intro H1. inversion H1; subst.
+	  rewrite type_cast_typ_refl in H. inversion H.
+Qed.
 
 Instance BaseType_typ : BaseType typ := {
   tyNat := tyNat;

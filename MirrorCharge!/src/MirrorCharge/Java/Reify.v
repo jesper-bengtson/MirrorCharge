@@ -44,7 +44,7 @@ Reify Declare Syntax reify_imp_typ :=
      (@Patterns.CFail typ))
   }.
 
-
+(*
 Definition eval2 : dexpr -> stack -> val := eval.
 Definition pointsto2 : sval -> String.string -> sval -> asn := pointsto.
 Definition subst2 : (stack -> sval) -> String.string -> @subst String.string _ := subst1.
@@ -52,7 +52,7 @@ Definition apply_subst2 (A : Type) : (stack -> A) -> @Subst.subst String.string 
 Definition field_lookup2 : Program -> String.string -> SS.t -> Prop := field_lookup.
 Definition typeof2 (C : String.string) (x : sval) := typeof C x.
 Definition method_spec2 : String.string -> String.string -> list String.string -> String.string -> sasn -> sasn -> spec := method_spec.
-
+*)
 (*
 Notation "'ap_eq' '[' x ',' y ']'" := (ap (T := Fun stack) (ap (pure (@eq sval)) x) y).
 Notation "'ap_pointsto' '[' x ',' f ',' e ']'" := 
@@ -96,7 +96,7 @@ Reify Pattern patterns_java_typ += (@RImpl (?0) (?1)) => (fun (a b : function re
 
 Reify Pattern patterns_java_typ += (!! asn)  => tyAsn.
 Reify Pattern patterns_java_typ += (!! sasn) => tySasn.
-Reify Pattern patterns_java_typ += (!! (@vlogic String.string _)) => tyPure.
+Reify Pattern patterns_java_typ += (!! (@vlogic var _)) => tyPure.
 Reify Pattern patterns_java_typ += (!! Prop) => tyProp.
 Reify Pattern patterns_java_typ += (!! spec) => tySpec.
 
@@ -104,14 +104,23 @@ Reify Pattern patterns_java_typ += (!! @prod @ ?0 @ ?1) => (fun (x y : function 
 Reify Pattern patterns_java_typ += (!! (@list String.string)) => tyVarList.
 Reify Pattern patterns_java_typ += (!! (@list (@Open.expr (Lang.var) SVal))) => tyVarList.
 Reify Pattern patterns_java_typ += (!! (@list (Lang.var * @Open.expr (Lang.var) SVal))) => tySubstList.
+Reify Pattern patterns_java_typ += (!! (@substlist var _)) => tySubstList.
 Reify Pattern patterns_java_typ += (!! nat) => tyNat.
 Reify Pattern patterns_java_typ += (!! sval) => tyVal.
+Reify Pattern patterns_java_typ += (!! field) => tyField.
+Reify Pattern patterns_java_typ += (!! class) => tyClass.
+Reify Pattern patterns_java_typ += (!! @Open.open var _ asn) => tySasn.
+Reify Pattern patterns_java_typ += (!! @Open.open var _ Prop) => tyPure.
+Reify Pattern patterns_java_typ += (!! (@val _)) => tyVal.
+Reify Pattern patterns_java_typ += (!! var) => tyVar.
 Reify Pattern patterns_java_typ += (!! String.string) => tyString.
 Reify Pattern patterns_java_typ += (!! Prog_wf) => tyProg.
 Reify Pattern patterns_java_typ += (!! stack) => tyStack.
+Reify Pattern patterns_java_typ += (!! @Stack.stack var _) => tyStack.
 Reify Pattern patterns_java_typ += (!! cmd) => tyCmd.
 Reify Pattern patterns_java_typ += (!! SS.t) => tyFields.
 Reify Pattern patterns_java_typ += (!! dexpr) => tyExpr.
+Reify Pattern patterns_java_typ += (!! (@Open.expr var _)) => tyExpr.
 Reify Pattern patterns_java_typ += (!! @Subst.subst (String.string) SVal) => tySubst.
 
 Reify Pattern patterns_java_typ += (!! Fun @ ?0 @ ?1) => (fun (a b : function reify_imp_typ) => tyArr a b).
@@ -120,14 +129,12 @@ Reify Pattern patterns_java += (RHasType String.string (?0)) => (fun (s : id Str
 Reify Pattern patterns_java += (RHasType field (?0)) => (fun (f : id field) => mkField (func := func) f).
 Reify Pattern patterns_java += (RHasType Lang.var (?0)) => (fun (f : id Lang.var) => mkVar (func := func) f).
 Reify Pattern patterns_java += (RHasType sval (?!0)) => (fun (v : id sval) => mkVal (func := func) v).
-Reify Pattern patterns_java += (RHasType Stack.val (?0)) => (fun (v : id Stack.val) => mkVal (func := func) v).
-Reify Pattern patterns_java += (RHasType (@val SVal) (?0)) => (fun (v : id (@val SVal)) => mkVal (func := func) v).
+Reify Pattern patterns_java += (RHasType (@val _) (?0)) => (fun (v : id (@val SVal)) => mkVal (func := func) v).
 Reify Pattern patterns_java += (RHasType cmd (?0)) => (fun (c : id cmd) => mkCmd (func := func) c).
 Reify Pattern patterns_java += (RHasType dexpr (?0)) => (fun (e : id dexpr) => mkDExpr (func := func) e).
 Reify Pattern patterns_java += (RHasType Prog_wf (?0)) => (fun (P : id Prog_wf) => mkProg (func := func) P).
 Reify Pattern patterns_java += (RHasType SS.t (?0)) => (fun (fs : id SS.t) => mkFields (func := func) fs).
 Reify Pattern patterns_java += (RHasType class (?0)) => (fun (c : id class) => mkClass (func := func) c).
-Check @mkExprList.
 
 Reify Pattern patterns_java += (RHasType (@list dexpr) (?0)) => (fun (es : id (@list dexpr)) => mkExprList (func := func) es).
 Reify Pattern patterns_java += (RHasType (@list String.string) (?0)) => (fun (vs : id (@list String.string)) => mkVarList (func := func) vs).
@@ -141,9 +148,9 @@ Reify Pattern patterns_java += (!! @ILogic.land @ ?0 @ #) => (fun (x : function 
 Reify Pattern patterns_java += (!! @ILogic.lor @ ?0 @ #) => (fun (x : function reify_imp_typ) => fOr (func := expr typ func) x).
 Reify Pattern patterns_java += (!! @ILogic.limpl @ ?0 @ #) => (fun (x : function reify_imp_typ) => fImpl (func := expr typ func) x).
 
-Reify Pattern patterns_java += (!! @ILogic.lexists @ ?0 @ # @ ?1) => (fun (x y : function reify_imp_typ) => fExists (func := expr typ func) x y).
+Reify Pattern patterns_java += (!! @ILogic.lexists @ ?0 @ # @ ?1) => (fun (x y : function reify_imp_typ) => fExists (func := expr typ func) y x).
 
-Reify Pattern patterns_java += (!! @ILogic.lforall @ ?0 @ # @ ?1) => (fun (x y : function reify_imp_typ) => fForall (func := expr typ func) x y).
+Reify Pattern patterns_java += (!! @ILogic.lforall @ ?0 @ # @ ?1) => (fun (x y : function reify_imp_typ) => fForall (func := expr typ func) y x).
 (** Embedding Operators **)
 Reify Pattern patterns_java += (!! @ILEmbed.embed @ ?0 @ ?1 @ #) => (fun (x y : function reify_imp_typ) => fEmbed (func := expr typ func) x y).
 
@@ -154,10 +161,10 @@ Reify Pattern patterns_java += (!! and) => (fAnd (func := expr typ func) tyProp)
 
 Reify Pattern patterns_java += (!! or) => (fOr (func := expr typ func) tyProp).
 
-Reify Pattern patterns_java += (!! ex @ ?0) => (fun (x : function reify_imp_typ) => fExists (func := expr typ func) tyProp x).
+Reify Pattern patterns_java += (!! ex @ ?0) => (fun (x : function reify_imp_typ) => fExists (func := expr typ func) x tyProp).
 
 Reify Pattern patterns_java += (RPi (?0) (?1)) => (fun (x : function reify_imp_typ) (y : function reify_imp) =>
-                                                   ExprCore.App (fForall (func := expr typ func) tyProp x) (ExprCore.Abs x y)).
+                                                   ExprCore.App (fForall (func := expr typ func) x tyProp) (ExprCore.Abs x y)).
 
 Reify Pattern patterns_java += (RImpl (?0) (?1)) => (fun (x y : function reify_imp) => ExprCore.App (ExprCore.App (fImpl (func := expr typ func) tyProp) x) y).
 
@@ -167,25 +174,25 @@ Reify Pattern patterns_java += (!! @BILogic.empSP @ ?0 @ #) => (fun (x : functio
 
 Reify Pattern patterns_java += (!! @Later.illater @ ?0 @ #) => (fun (x : function reify_imp_typ) => (fLater (func := expr typ func) x)).
 
-Reify Pattern patterns_java += (!! method_spec2) => (fMethodSpec (func := expr typ func)).
+Reify Pattern patterns_java += (!! method_spec) => (fMethodSpec (func := expr typ func)).
 
 (** Program Logic **)
 
 Definition stack_get (x : var) (s : stack) := s x.
 
 Reify Pattern patterns_java += (!! triple) => (fTriple (func := expr typ func)).
-Reify Pattern patterns_java += (!! eval2) => (fEval (func := expr typ func)).
+Reify Pattern patterns_java += (!! eval) => (fEval (func := expr typ func)).
 Reify Pattern patterns_java += (!! stack_get) => (fStackGet (func := expr typ func) (typ := typ)).
 Reify Pattern patterns_java += (!! stack_add) => (fStackSet (func := expr typ func) (typ := typ)).
 
-Reify Pattern patterns_java += (!! pointsto2) => (fPointsto (func := expr typ func)).
+Reify Pattern patterns_java += (!! pointsto) => (fPointsto (func := expr typ func)).
 Reify Pattern patterns_java += (!! set_fold_fun) => (fSetFoldFun (func := expr typ func)).
 Reify Pattern patterns_java += (!! SS.fold @ ?0) => (fun (x : function reify_imp_typ) => (fSetFold (func := expr typ func) x)).
 Reify Pattern patterns_java += (!! prog_eq) => (fProgEq (func := expr typ func)).
-Reify Pattern patterns_java += (!! typeof2) => (fTypeOf (func := expr typ func)).
+Reify Pattern patterns_java += (!! typeof) => (fTypeOf (func := expr typ func)).
 
-Reify Pattern patterns_java += (!! substl_trunc) => (fTruncSubst (func := expr typ func) (typ := typ)).
-Reify Pattern patterns_java += (!! substl) => (fSubst (func := expr typ func) (typ := typ)).
+Reify Pattern patterns_java += (!! (@substl_trunc var _ _)) => (fTruncSubst (func := expr typ func) (typ := typ)).
+Reify Pattern patterns_java += (!! (@substl var _ _)) => (fSubst (func := expr typ func) (typ := typ)).
 
 Reify Pattern patterns_java += (!! @nil @ ?0) => (fun (x : function reify_imp_typ) => (fNil (func := expr typ func) x)).
 Reify Pattern patterns_java += (!! @cons @ ?0) => (fun (x : function reify_imp_typ) => (fCons (func := expr typ func) x)).
@@ -193,9 +200,9 @@ Reify Pattern patterns_java += (!! @length @ ?0) => (fun (x : function reify_imp
 Reify Pattern patterns_java += (!! @zip @ ?0 @ ?1) => (fun (x y : function reify_imp_typ) => (fZip (func := expr typ func) x y)).
 Reify Pattern patterns_java += (!! @map @ ?0 @ ?1) => (fun (x y : function reify_imp_typ) => (fMap (func := expr typ func) x y)).
 
-Reify Pattern patterns_java += (!! @apply_subst2 @ ?0) => (fun (x : function reify_imp_typ) => fApplySubst (func := expr typ func) x).
-Reify Pattern patterns_java += (!! @subst2) => (fSingleSubst (func := expr typ func)).
-Reify Pattern patterns_java += (!! @field_lookup2) => (fFieldLookup (func := expr typ func)).
+Reify Pattern patterns_java += (!! (@apply_subst var _) @ ?0) => (fun (x : function reify_imp_typ) => fApplySubst (func := expr typ func) x).
+Reify Pattern patterns_java += (!! @subst1 var _ _) => (fSingleSubst (func := expr typ func)).
+Reify Pattern patterns_java += (!! @field_lookup) => (fFieldLookup (func := expr typ func)).
 (** Applicative **)
 Reify Pattern patterns_java += (!! @Applicative.ap @ !! (Fun stack) @ # @ ?0 @ ?1) => (fun (x y : function reify_imp_typ) => fAp (func := expr typ func) x y).
 Reify Pattern patterns_java += (!! @Applicative.pure @ !! (Fun stack) @ # @ ?0) => (fun (x : function reify_imp_typ) => fConst (func := expr typ func) x).
@@ -207,22 +214,39 @@ Ltac reify_imp e :=
   let k fs e :=
       pose e in
   reify_expr reify_imp k
-             [ (fun (y : @mk_dvar_map_abs _ _ _ (list Type) _ term_table elem_ctor) => True) ]
+             [ (fun (y : @mk_dvar_map _ _ _ _ term_table elem_ctor) => True) ]
              [ e ].
 
 Require Import ILogic.
 
 Goal True.
+  pose ((fun (_ : @Stack.stack var _) => null) : @Open.expr var _) as e1.
+  pose ((fun (_ : stack) => null) : stack -> sval) as e2.
+
+
+  reify_imp (pure (T := Fun stack) pointsto).
+
+  reify_imp e1.
+
+  reify_imp e2.
+     
+  reify_imp (ap (T := Fun stack) (ap (T := Fun stack) (pure (@eq sval)) e1) e1).
+
+  pose (E_val (vint 3)) as d.
+
+  reify_imp ((ap (ap (T := Fun stack) (pure (@eq sval)) (eval d)) (pure (vbool true)))).
+  
   generalize String.EmptyString. intro c.
    reify_imp (ltrue |-- {[ ltrue ]} cread c c c {[ ltrue ]}).
 
   reify_imp cskip.
+
   reify_imp (forall P, P /\ P).
 
   reify_imp (forall x : nat, x = x).
   reify_imp (exists x : nat, x = x).
   reify_imp (@map nat nat).
-  reify_imp subst2.
+  reify_imp (@subst1 var _ _).
   reify_imp (cseq cskip cskip).
   
   reify_imp (ILogic.lentails True True).
@@ -233,6 +257,7 @@ Goal True.
   reify_imp (forall (G : spec) (P Q : sasn), ILogic.lentails G (triple P Q cskip)).
   generalize (String.EmptyString : String.string).
   intro x.
+  reify_imp stack_get.
   reify_imp (stack_get x).
   reify_imp (x = x).
 

@@ -1,5 +1,3 @@
-oeu
-
 Require Import Coq.Strings.String.
 Require Import Coq.PArith.BinPos.
 Require Import ExtLib.Core.RelDec.
@@ -26,10 +24,11 @@ Require Import MirrorCharge.OrderedCanceller.
 Require Import MirrorCharge.BILNormalize.
 Require Import MirrorCharge.SynSepLog.
 Require Import MirrorCharge.SepLogFold.
-Require Import MirrorCharge.Java.Cancelation.
-Require Import MirrorCharge.Java.Syntax.
+Require Import MirrorCharge.Java.Cancelation2.
 Require Import MirrorCharge.Java.Semantics.
-
+Require Import MirrorCharge.Java.JavaType.
+Require Import MirrorCharge.Java.JavaFunc.
+Require Import MirrorCharge.ModularFunc.ILogicFunc.
 Require Import MirrorCore.Reify.Reify.
 
 Require Import MirrorCharge.Java.Reify.
@@ -41,12 +40,14 @@ Require Import Java.Language.Lang.
 Require Import Java.Language.Program.
  
 Require Import Coq.Arith.Peano_dec.
-    
+
+(*    
 Local Existing Instance SS.
 Local Existing Instance SU.
 Local Existing Instance RSym_ilfunc.
 Local Existing Instance RS.
 Local Existing Instance Expr_expr.
+*)
 
 Fixpoint search_NoDup
     {A} (A_dec: forall a b: A, {a=b}+{a=b->False}) (l: list A) : option (NoDup l) :=
@@ -107,18 +108,21 @@ Definition method_specI : stac typ (expr typ func) subst :=
 
 Fixpoint get_alls (e : expr typ func) : list typ * expr typ func :=
   match e with
-    | ExprCore.App (@ExprCore.Inj (inr (ILogicFunc.ilf_forall t tyProp)))
-                   (ExprCore.Abs _ e) =>
-      let (alls,e) := get_alls e in
-      (t :: alls, e)
+    | App f (Abs _ e) =>
+      match ilogicS f with
+      	| Some (ilf_forall t tyProp) => let (alls, e) := get_alls e in (t :: alls, e)
+      	| _ => (nil, e)
+      end
     | _ => (nil, e)
   end.
 
 Fixpoint get_impls (e : expr typ func) : list (expr typ func) * expr typ func :=
   match e with
-    | ExprCore.App (ExprCore.App (Inj (inr (ILogicFunc.ilf_impl tyProp))) P) Q =>
-      let (impls,e) := get_impls Q in
-      (P :: impls,e)
+    | App (App f P) Q =>
+      match ilogicS f with
+        | Some (ilf_impl tyProp) => let (impls,e) := get_impls Q in (P :: impls,e)
+        | _ => (nil, e)
+      end
     | _ => (nil, e)
   end.
 
@@ -131,10 +135,10 @@ Definition convert_to_lemma (e : expr typ func)
    ; concl := e |}.
 
 Ltac reify_lemma_aux T :=
-(let k e :=
-           let e := constr:(convert_to_lemma e) in
-           let e := eval unfold convert_to_lemma in e in
-           let e := eval simpl in e in
+(let k e := 
+         let e := constr:(convert_to_lemma e) in
+         let e := eval unfold convert_to_lemma in e in 
+         let e := eval simpl in e in
            refine e
        in
        reify_expr Reify.reify_imp k [ True ] [ T ]).
@@ -163,10 +167,14 @@ reify_lemma rule_skip.
 Defined.
 Print skip_lemma.
 
+Example test_skip_lemma : test_lemma skip_lemma. Admitted.
+
 Definition skip_lemma2 : lemma typ (expr typ func) (expr typ func).
 reify_lemma rule_skip2.
 Defined.
 Print skip_lemma2.
+
+Example test_skip_lemma2 : test_lemma skip_lemma2. Admitted.
 
 Definition seq_lemma (c1 c2 : cmd) : lemma typ (expr typ func) (expr typ func).
 Proof.
@@ -174,32 +182,27 @@ Proof.
 Defined.
 Print seq_lemma.
 
-Ltac reify_lemma2 e :=
-  match type of e with
-    | ?T =>
-      (let k e :=
-           let e := constr:(convert_to_lemma e) in
-           let e := eval unfold convert_to_lemma in e in
-           let e := eval simpl in e in
-           refine e
-       in
-       reify_imp T)
- (*     reify_expr Reify.reify_imp k [ True ] [ T ])*)
-  end.
+Example test_seq_lemma (c1 c2 : cmd) : test_lemma (seq_lemma c1 c2). Admitted.
 
 Definition if_lemma (e : dexpr) (c1 c2 : cmd) : lemma typ (expr typ func) (expr typ func).
 Proof.
   reify_lemma (@rule_if e c1 c2).
 Defined.
+
 Print if_lemma.
 
-Definition read_lemma (x y f : String.string) : lemma typ (expr typ func) (expr typ func).
+Example test_if_lemma e (c1 c2 : cmd) : test_lemma (if_lemma e c1 c2). Admitted.
+
+Definition read_lemma (x y : var) (f : field) : lemma typ (expr typ func) (expr typ func).
 Proof.  
   reify_lemma (@rule_read_fwd x y f).
 Defined.
-Print read_lemma.
 
-Definition write_lemma (x f : String.string) (e : dexpr) : lemma typ (expr typ func) (expr typ func).
+Example test_read_lemma x y f : test_lemma (read_lemma x y f). Admitted.
+
+Set Printing Width 140.
+
+Definition write_lemma (x : var) (f : field) (e : dexpr) : lemma typ (expr typ func) (expr typ func).
 Proof.
   reify_lemma (@rule_write_fwd x f e).
 Defined.
@@ -207,11 +210,12 @@ Print write_lemma.
 
 Example test_write x f e : test_lemma (write_lemma x f e). Admitted.
 
-Definition assign_lemma (x : String.string) (e : dexpr) : lemma typ (expr typ func) (expr typ func).
+Definition assign_lemma (x : var) (e : dexpr) : lemma typ (expr typ func) (expr typ func).
 Proof.
   reify_lemma (@rule_assign_fwd x e).
 Defined.
 Print assign_lemma.
+Example test_assign x e : test_lemma (assign_lemma x e). Admitted.
 
 Definition pull_exists_lemma : lemma typ (expr typ func) (expr typ func).
 Proof.
@@ -219,6 +223,8 @@ Proof.
 Defined.
 
 Print pull_exists_lemma.
+
+Example test_pull_exists : test_lemma (pull_exists_lemma). Admitted.
 
 (*
 Definition fieldLookupTac : stac typ (expr typ func) subst :=
@@ -241,7 +247,7 @@ Definition fieldLookupTac : stac typ (expr typ func) subst :=
 Let EAPPLY :=
   @EAPPLY typ (expr typ func) subst _ _ SS SU ExprLift.vars_to_uvars
                 (fun tus tvs n e1 e2 t s =>
-                   @exprUnify subst typ func _ _ RS SS SU 3
+                   @exprUnify subst typ func _ _ _ SS SU 3
                               tus tvs n s e1 e2 t)
                 (@ExprSubst.instantiate typ func)
 (*                lem (apply_to_all tac)*).
@@ -250,7 +256,7 @@ Let EAPPLY :=
     @APPLY typ (expr typ func) subst _ Typ0_Prop SS SU
            ExprLift.vars_to_uvars
            (fun tus tvs n e1 e2 t s =>
-              @exprUnify subst typ func _ _ RS SS SU 3
+              @exprUnify subst typ func _ _ _ SS SU 3
                          tus tvs n s e1 e2 t)
            (@ExprSubst.instantiate typ func)
           (* lem (apply_to_all tac)*).
@@ -264,9 +270,17 @@ Require Import MirrorCore.RTac.RTac.
 
 Definition fintro e : option (OpenAs typ (expr typ func)) :=
 	match e with
-		| App (Inj (inr (ilf_forall t tyProp))) P => Some (AsAl t (fun x => beta (App P x)))
-		| App (Inj (inr (ilf_exists t tyProp))) P => Some (AsEx t (fun x => beta (App P x)))
-		| App (App (Inj (inr (ilf_impl tyProp))) P) Q => Some (AsHy typ P Q)
+		| App (Inj f) P =>
+			match ilogicS f with
+			  | Some (ilf_forall t tyProp) => Some (AsAl t (fun x => beta (App P x)))
+			  | Some (ilf_exists t tyProp) => Some (AsAl t (fun x => beta (App P x)))
+			  | _ => None
+			end
+		| App (App (Inj f) P) Q =>
+			match ilogicS f with
+			  | Some (ilf_impl tyProp) => Some (AsHy typ P Q)
+			  | _ => None
+			end
 		| _ => None
 	end.
 
@@ -275,6 +289,8 @@ Let INTRO := @INTRO typ (expr typ func) subst (@Var typ func) (@UVar typ func) f
 (*
 Let FINISH := @finish typ (expr typ func) subst SU.
 *)
+
+Definition stac_cancel := @stac_cancel typ func _ _ _ _ _ _ _ tySasn.
 
 Definition solve_entailment : rtac typ (expr typ func) subst := 
    (*   (THEN INSTANTIATE
@@ -301,9 +317,13 @@ Fixpoint tripleE (c : cmd) : rtac typ (expr typ func) subst :=
 Definition symE : rtac typ (expr typ func) subst :=
 	(fun ctx s e => 
 		(match e return rtac typ (expr typ func) subst with 
-			| App (App (Inj (inr (ilf_entails tySpec))) G) 
-			      (App (App (App (Inj (inl (inr pTriple))) P) Q) (Inj (inl (inr (pCmd c))))) => 
-			  (tripleE c)
+			| App (App (Inj f) G) H =>
+			  match ilogicS f, H with
+			  	| Some (ilf_entails tySpec), 
+			  	  App (App (App (Inj (inr pTriple)) P) Q) (Inj (inr (pCmd c))) =>
+			  	  	tripleE c
+			  	| _, _ => @FAIL _ _ _
+			  end
 			| _ => @FAIL _ _ _
 		end) ctx s e).  
 		
@@ -319,12 +339,15 @@ Definition typecheck_goal g :=
     | Some _ => true
   end.
 
-Definition testSkip := 
-      mkForall tyProp tySpec
-      (mkForall tyProp tySasn
+Definition testSkip : expr typ func := 
+      mkForall tySpec tyProp
+      (mkForall tySasn tyProp
                 (mkEntails tySpec (Var 1)
                 (mkTriple (Var 0) (mkCmd cskip) (Var 0)))).
 Time Eval vm_compute in typeof_expr nil nil testSkip.
+
+Eval vm_compute in typeof_expr nil (tySasn::tySpec::nil) 
+	(mkTriple (Var 0) (mkCmd cskip) (Var 0)).
 
 Time Eval vm_compute in 
   (THEN (REPEAT 10 INTRO) symE) CTop (SubstI.empty (expr := expr typ func)) testSkip.

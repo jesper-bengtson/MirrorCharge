@@ -10,9 +10,11 @@ Require Import ExtLib.Tactics.Consider.
 
 Require Import MirrorCore.TypesI.
 Require Import MirrorCore.SymI.
+Require Import MirrorCore.Lemma.
 Require Import MirrorCore.Lambda.Expr.
 Require Import MirrorCore.syms.SymEnv.
 Require Import MirrorCore.syms.SymSum.
+Require Import MirrorCore.Subst.FMapSubst.
 
 Require Import Java.Logic.AssertionLogic.
 Require Import Java.Logic.SpecLogic.
@@ -348,9 +350,13 @@ Section MakeJavaFunc.
 
 End MakeJavaFunc.
 
-Definition func := (SymEnv.func + java_func + @ilfunc typ + @bilfunc typ + 
+Definition func := (SymEnv.func + @ilfunc typ + @bilfunc typ + 
                     @base_func typ + @list_func typ + @open_func typ + 
-                    @embed_func typ + @later_func typ)%type.
+                    @embed_func typ + @later_func typ + java_func)%type.
+
+Example test : expr typ func := mkStar tySasn (mkFalse tySasn) (mkTrue tySasn).
+
+Eval vm_compute in test.
 
 Definition fs : @SymEnv.functions typ _ := SymEnv.from_list nil.
 Instance RSym_env : RSym SymEnv.func := RSym_func fs.
@@ -367,5 +373,22 @@ Instance RSym_open_func : RSym (@open_func typ) :=
 	@RSym_OpenFunc _ _ _ RType_typ _ _ tyVar tyVal _ null _ _ _ _.
 
 Existing Instance RSym_sum.
+Existing Instance RSymOk_sum.
 
-Instance oee : RSym func := _.
+Instance Expr_expr : ExprI.Expr _ (expr typ func) := @Expr_expr typ func _ _ _.
+Instance Expr_ok : @ExprI.ExprOk typ RType_typ (expr typ func) Expr_expr := ExprOk_expr.
+
+Definition subst : Type :=
+  FMapSubst.SUBST.raw (expr typ func).
+Instance SS : SubstI.Subst subst (expr typ func) :=
+  @FMapSubst.SUBST.Subst_subst _.
+Instance SU : SubstI.SubstUpdate subst (expr typ func) :=
+  FMapSubst.SUBST.SubstUpdate_subst (@instantiate typ func).
+Instance SO : SubstI.SubstOk Expr_expr SS := 
+  @FMapSubst.SUBST.SubstOk_subst typ RType_typ (expr typ func) _ _.
+
+Definition test_lemma :=
+  @lemmaD typ RType_typ (expr typ func) Expr_expr (expr typ func)
+          (fun tus tvs e => exprD' tus tvs tyProp e)
+          tyProp
+          (fun x => x) nil nil.
