@@ -337,7 +337,7 @@ Section MakeILogic.
 	Definition mkAnd (t : typ) (P Q : expr typ func) := App (App (fAnd t) P) Q.
 	Definition mkOr (t : typ) (P Q : expr typ func) := App (App (fOr t) P) Q.
 	Definition mkImpl (t : typ) (P Q : expr typ func) := App (App (fImpl t) P) Q.
-	Definition mkExists (t l : typ) (f : expr typ func) := App (fExists t l) f.
-	Definition mkForall (t l : typ) (f : expr typ func) := App (fForall t l) f.
+	Definition mkExists (t l : typ) (f : expr typ func) := App (fExists t l) (Abs t f).
+	Definition mkForall (t l : typ) (f : expr typ func) := App (fForall t l) (Abs t f).
 
 End MakeILogic.

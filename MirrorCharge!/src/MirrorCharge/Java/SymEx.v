@@ -29,6 +29,7 @@ Require Import MirrorCharge.Java.Semantics.
 Require Import MirrorCharge.Java.JavaType.
 Require Import MirrorCharge.Java.JavaFunc.
 Require Import MirrorCharge.ModularFunc.ILogicFunc.
+Require Import MirrorCharge.ModularFunc.ReifyLemma.
 Require Import MirrorCore.Reify.Reify.
 
 Require Import MirrorCharge.Java.Reify.
@@ -106,71 +107,18 @@ Definition method_specI : stac typ (expr typ func) subst :=
     end.
 *)
 
-Fixpoint get_alls (e : expr typ func) : list typ * expr typ func :=
-  match e with
-    | App f (Abs _ e) =>
-      match ilogicS f with
-      	| Some (ilf_forall t tyProp) => let (alls, e) := get_alls e in (t :: alls, e)
-      	| _ => (nil, e)
-      end
-    | _ => (nil, e)
-  end.
-
-Fixpoint get_impls (e : expr typ func) : list (expr typ func) * expr typ func :=
-  match e with
-    | App (App f P) Q =>
-      match ilogicS f with
-        | Some (ilf_impl tyProp) => let (impls,e) := get_impls Q in (P :: impls,e)
-        | _ => (nil, e)
-      end
-    | _ => (nil, e)
-  end.
-
-Definition convert_to_lemma (e : expr typ func)
-: lemma typ (expr typ func) (expr typ func) :=
-  let (alls, e) := get_alls e in
-  let (impls, e) := get_impls e in
-  {| vars := rev alls
-   ; premises := impls
-   ; concl := e |}.
-
-Ltac reify_lemma_aux T :=
-(let k e := 
-         let e := constr:(convert_to_lemma e) in
-         let e := eval unfold convert_to_lemma in e in 
-         let e := eval simpl in e in
-           refine e
-       in
-       reify_expr Reify.reify_imp k [ True ] [ T ]).
-
-Ltac reify_lemma e :=
-	let T := type of e in reify_lemma_aux T.
-(*
-Ltac reify_lemma e :=
-  match type of e with
-    | ?T =>
-      (let k e :=
-           let e := constr:(convert_to_lemma e) in
-           let e := eval unfold convert_to_lemma in e in
-           let e := eval simpl in e in
-           refine e
-       in
-       reify_expr Reify.reify_imp k [ True ] [ T ])
-  end.
-*)
-
 Require Import MirrorCharge.Java.Semantics.
   
 (** Skip **)
 Definition skip_lemma : lemma typ (expr typ func) (expr typ func).
-reify_lemma rule_skip.
+reify_lemma reify_imp rule_skip.
 Defined.
 Print skip_lemma.
 
 Example test_skip_lemma : test_lemma skip_lemma. Admitted.
 
 Definition skip_lemma2 : lemma typ (expr typ func) (expr typ func).
-reify_lemma rule_skip2.
+reify_lemma reify_imp rule_skip2.
 Defined.
 Print skip_lemma2.
 
@@ -178,7 +126,7 @@ Example test_skip_lemma2 : test_lemma skip_lemma2. Admitted.
 
 Definition seq_lemma (c1 c2 : cmd) : lemma typ (expr typ func) (expr typ func).
 Proof.
-  reify_lemma (@rule_seq c1 c2).
+  reify_lemma reify_imp (@rule_seq c1 c2).
 Defined.
 Print seq_lemma.
 
@@ -346,8 +294,11 @@ Definition testSkip : expr typ func :=
                 (mkTriple (Var 0) (mkCmd cskip) (Var 0)))).
 Time Eval vm_compute in typeof_expr nil nil testSkip.
 
-Eval vm_compute in typeof_expr nil (tySasn::tySpec::nil) 
-	(mkTriple (Var 0) (mkCmd cskip) (Var 0)).
+Eval vm_compute in
+(mkForall tyProp tySpec
+      (mkForall tyProp tySasn
+                (mkEntails tySpec (Var 1)
+                (mkTriple (Var 0) (mkCmd cskip) (Var 0)))) : expr typ func).
 
 Time Eval vm_compute in 
   (THEN (REPEAT 10 INTRO) symE) CTop (SubstI.empty (expr := expr typ func)) testSkip.

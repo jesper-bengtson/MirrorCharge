@@ -298,13 +298,13 @@ Definition set_fold_fun (x : String.string) (f : field) (P : sasn) :=
               | pNull => null
 	end.
 
-	Global Instance RSym_BaseFunc : SymI.RSym java_func := {
+	Global Instance RSym_JavaFunc : SymI.RSym java_func := {
 	  typeof_sym := typeof_java_func;
 	  symD := java_func_symD;
 	  sym_eqb := java_func_eq
 	}.
 
-	Global Instance RSymOk_BaseFunc : SymI.RSymOk RSym_BaseFunc.
+	Global Instance RSymOk_JavaFunc : SymI.RSymOk RSym_JavaFunc.
 	Proof.
 		admit.
 
@@ -358,8 +358,12 @@ Example test : expr typ func := mkStar tySasn (mkFalse tySasn) (mkTrue tySasn).
 
 Eval vm_compute in test.
 
+Print RSym.
+
 Definition fs : @SymEnv.functions typ _ := SymEnv.from_list nil.
+Locate RSym_func.
 Instance RSym_env : RSym SymEnv.func := RSym_func fs.
+
 Instance RSym_ilfunc : RSym (@ilfunc typ) := 
 	RSym_ilfunc _ _ ilops.
 Instance RSym_bilfunc : RSym (@bilfunc typ) := 

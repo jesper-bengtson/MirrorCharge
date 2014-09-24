@@ -20,50 +20,16 @@ Require Import MirrorCharge.ModularFunc.BILogicFunc.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-(*
-Local Existing Instance SS.
-Local Existing Instance SU.
-Local Existing Instance RSym_ilfunc.
-Local Existing Instance RS.
-Local Existing Instance Expr_expr.
-
-
-Local Notation "a @ b" := (@App typ _ a b) (at level 30).
-Local Notation "\ t -> e" := (@Abs typ _ t e) (at level 40).
-Local Notation "'Ap' '[' x , y ']'" := (Inj (inl (inr (pAp x y)))) (at level 0).
-Local Notation "'Pure' '[' x ']'" := (Inj (inl (inr (pPure x)))) (at level 0).
-Local Notation "x '|-' y" :=
-  (App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) x) y) (at level 10).
-Local Notation "'{{'  P  '}}'  c  '{{'  Q  '}}'" :=
-  (Inj (inl (inl 1%positive)) @ P @ c @ Q) (at level 20).
-Local Notation "c1 ;; c2" := (Inj (inl (inl 2%positive)) @ c1 @ c2) (at level 30).
-*)
-
-(** NOTE: this is for [locals -> HProp] **)
-
 Section Canceller.
-	Context {typ func : Type} {HIL : ILogicFunc typ func} {HBIL : BILogicFunc typ func}.
+	Context {typ func subst : Type} {tyLogic : typ}.
+	Context {HIL : ILogicFunc typ func} {HBIL : BILogicFunc typ func}.
 	Context {RType_typ : RType typ} {RelDec_typ : RelDec (@eq typ)}.
-	Context {Expr_expr : Expr RType_typ (expr typ func)}.
-	Context {ExprOk_expr : ExprOk Expr_expr}.
 	Context {Typ2_typ : Typ2 RType_typ Fun}.
 	Context {RSym_func : @RSym _ RType_typ func}.
-
-Definition subst : Type :=
-  FMapSubst.SUBST.raw (expr typ func).
-Definition SS : SubstI.Subst subst (expr typ func) :=
-  @FMapSubst.SUBST.Subst_subst _.
-Definition SU : SubstI.SubstUpdate subst (expr typ func) :=
-  FMapSubst.SUBST.SubstUpdate_subst (@instantiate typ func).
-
-Definition SO : SubstI.SubstOk Expr_expr SS := 
-  @FMapSubst.SUBST.SubstOk_subst typ RType_typ (expr typ func) _ _.
-
-Local Existing Instance SS.
-Local Existing Instance SU.
-Local Existing Instance SO.
-
-
+	Context {SS : SubstI.Subst subst (expr typ func)}.
+	Context {SU : SubstI.SubstUpdate subst (expr typ func)}.
+	Context {SO : SubstI.SubstOk Expr_expr SS}.
+	
 Definition sls : SepLogSpec typ func :=
 {| is_pure := fun e : expr typ func =>
 				match ilogicS e with
@@ -78,8 +44,6 @@ Definition sls : SepLogSpec typ func :=
  				  | _ => false
  				end
  |}.
-
-Variable tyLogic : typ.
 
 Let doUnifySepLog (tus tvs : EnvI.tenv typ) (s : subst) (e1 e2 : expr typ func)
 : option subst :=
