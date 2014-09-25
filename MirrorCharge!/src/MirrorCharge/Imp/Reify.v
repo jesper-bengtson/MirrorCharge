@@ -1,3 +1,4 @@
+Require Import Coq.Lists.List.
 Require Import MirrorCore.Reify.Reify.
 Require Import MirrorCharge.Imp.Imp.
 Require Import MirrorCharge.Imp.Syntax.
@@ -7,9 +8,7 @@ Reify Declare Patterns patterns_imp_typ := Syntax.typ.
 Reify Declare Patterns patterns_imp := (ExprCore.expr Syntax.typ Syntax.func).
 
 Reify Declare Syntax reify_imp_typ :=
-  { (@Patterns.CPatterns Syntax.typ patterns_imp_typ
-     (@Patterns.CFail Syntax.typ))
-  }.
+  { (@Patterns.CPatterns Syntax.typ patterns_imp_typ) }.
 
 
 Reify Declare Typed Table term_table : BinNums.positive => reify_imp_typ.
@@ -17,12 +16,11 @@ Reify Declare Typed Table term_table : BinNums.positive => reify_imp_typ.
 Let Ext x := @ExprCore.Inj Syntax.typ Syntax.func (inl (inl x)).
 
 Reify Declare Syntax reify_imp :=
-  { (@Patterns.CVar _ (@ExprCore.Var Syntax.typ Syntax.func)
-    (@Patterns.CPatterns _ patterns_imp
-    (@Patterns.CApp _ (@ExprCore.App Syntax.typ Syntax.func)
-    (@Patterns.CAbs _ reify_imp_typ (@ExprCore.Abs Syntax.typ Syntax.func)
-    (@Patterns.CTypedTable _ _ _ term_table Ext
-    (@Patterns.CFail (ExprCore.expr Syntax.typ Syntax.func)))))))
+  { (@Patterns.CFirst _ ((@Patterns.CVar _ (@ExprCore.Var Syntax.typ Syntax.func)) ::
+                         (@Patterns.CPatterns _ patterns_imp) ::
+                         (@Patterns.CApp _ (@ExprCore.App Syntax.typ Syntax.func)) ::
+                         (@Patterns.CAbs _ reify_imp_typ (@ExprCore.Abs Syntax.typ Syntax.func)) ::
+                         (@Patterns.CTypedTable _ _ _ term_table Ext) :: nil))
   }.
 
 Let _Inj := @ExprCore.Inj Syntax.typ Syntax.func.
