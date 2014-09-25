@@ -6,6 +6,7 @@ Require Import Charge.Logics.BILogic.
 Require Import ExtLib.Core.RelDec.
 Require Import ExtLib.Data.Fun.
 Require Import ExtLib.Data.String.
+Require Import ExtLib.Data.Sum.
 Require Import ExtLib.Tactics.Consider.
 
 Require Import MirrorCore.TypesI.
@@ -378,6 +379,8 @@ Instance RSym_open_func : RSym (@open_func typ) :=
 
 Existing Instance RSym_sum.
 Existing Instance RSymOk_sum.
+
+Instance RelDec_expr : RelDec (@eq (expr typ func)) := _.
 
 Instance Expr_expr : ExprI.Expr _ (expr typ func) := @Expr_expr typ func _ _ _.
 Instance Expr_ok : @ExprI.ExprOk typ RType_typ (expr typ func) Expr_expr := ExprOk_expr.

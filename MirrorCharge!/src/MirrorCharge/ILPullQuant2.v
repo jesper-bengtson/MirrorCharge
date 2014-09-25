@@ -1,4 +1,3 @@
-(*
 Require Import MirrorCore.Lambda.ExprCore.
 Require Import MirrorCore.Lambda.ExprD.
 Require Import MirrorCore.Lambda.Red.
@@ -16,6 +15,8 @@ Require Import MirrorCore.syms.SymSum.
 Require Import MirrorCharge.AutoSetoidRewrite.
 
 Require Import MirrorCharge.ILogicFunc.
+
+Require Import Charge.Logics.ILogic.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -38,15 +39,10 @@ Section ILPullQuant.
   
   Variable inhabited : typ -> bool.
   
-Require Import Charge.Logics.ILogic.
-  
   Variable inhabited_sound : forall t, inhabited t = true -> Inhabited (typD t).
 
 Let Rbase := expr typ func.
 
-(*
-Let Rbase := expr typ (ilfunc typ).
-*)
 Definition m (T : Type) : Type :=
   rsubst Rbase -> option (T * rsubst Rbase).
 
@@ -179,7 +175,7 @@ Definition rewrite_respects (e : Rbase) (_ : list (RG Rbase))
 			| Some (ilf_exists l t) => 
 				rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg 
 				                 (RGrespects (RGrespects (RGinj (Inj (Eq t)))
-							                 (RGinj (Inj (ilfunc_to_func (ilf_entails l))))) 
+							                 (RGinj (Inj (ilfunc_to_func (ilf_entails l)))) 
 							                 (RGinj (Inj (ilfunc_to_func (ilf_entails l))))))
 					(fun _ => rg_ret (Inj (ilfunc_to_func (ilf_exists l t))))
 			| Some (ilf_true l) => rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGinj (Inj (ilfunc_to_func (ilf_entails l)))))
@@ -435,4 +431,4 @@ Fixpoint crazy_goal n :=
 	end.
 
 Time Eval vm_compute in my_quant_pull tyProp (crazy_goal 6).
-*)
+

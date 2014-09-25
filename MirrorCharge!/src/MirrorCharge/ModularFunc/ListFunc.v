@@ -106,6 +106,13 @@ Section ListFuncInst.
 	    | _, _ => None
 	  end.
 
+    Global Instance RelDec_list_func : RelDec (@eq (list_func)) := {
+      rel_dec a b := match list_func_eq a b with 
+    	  		       | Some b => b 
+    		 	       | None => false 
+    			     end
+    }.
+
 	 Definition list_func_symD lf :=
 		match lf as lf return match typeof_list_func lf with
 								| Some t => typD t
