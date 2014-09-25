@@ -29,7 +29,8 @@ Require Import MirrorCharge.Java.Semantics.
 Require Import MirrorCharge.Java.JavaType.
 Require Import MirrorCharge.Java.JavaFunc.
 Require Import MirrorCharge.ModularFunc.ILogicFunc.
-Require Import MirrorCharge.ModularFunc.ReifyLemma.
+Require Import MirrorCharge.ModularFunc.BILogicFunc.
+Require Import MirrorCharge.RTac.ReifyLemma.
 Require Import MirrorCore.Reify.Reify.
 
 Require Import MirrorCharge.Java.Reify.
@@ -40,15 +41,30 @@ Require Import MirrorCharge.Java.Subst.
 Require Import Java.Language.Lang.
 Require Import Java.Language.Program.
  
+Require Import MirrorCharge.RTac.Apply.
+Require Import MirrorCharge.RTac.Cancellation.
+Require Import MirrorCharge.RTac.Intro.
+Require Import MirrorCharge.RTac.EApply.
+Require Import MirrorCharge.RTac.Instantiate.
+ 
 Require Import Coq.Arith.Peano_dec.
 
-(*    
-Local Existing Instance SS.
-Local Existing Instance SU.
-Local Existing Instance RSym_ilfunc.
-Local Existing Instance RS.
-Local Existing Instance Expr_expr.
-*)
+Fixpoint mkStars n P Q : expr typ func := 
+	match n with
+		| 0 => mkStar tySasn P Q
+		| S n => mkStar tySasn (mkStars n P Q) (mkStars n P Q)
+	end.
+	
+Definition cancelTest n :=
+      mkForall tySasn tyProp
+      (mkForall tySasn tyProp
+          (mkEntails tySasn (mkStars n (Var 0) (Var 1)) (mkStars n (Var 1) (Var 0)))).
+Time Eval vm_compute in typeof_expr nil nil (cancelTest 10).
+
+Time Eval vm_compute in 
+	(THEN (REPEAT 10 (INTRO typ func subst)) 
+	(CANCELLATION typ func subst tySasn)) 
+		CTop (SubstI.empty (expr := expr typ func)) (cancelTest 10).
 
 Fixpoint search_NoDup
     {A} (A_dec: forall a b: A, {a=b}+{a=b->False}) (l: list A) : option (NoDup l) :=
@@ -134,7 +150,7 @@ Example test_seq_lemma (c1 c2 : cmd) : test_lemma (seq_lemma c1 c2). Admitted.
 
 Definition if_lemma (e : dexpr) (c1 c2 : cmd) : lemma typ (expr typ func) (expr typ func).
 Proof.
-  reify_lemma (@rule_if e c1 c2).
+  reify_lemma reify_imp (@rule_if e c1 c2).
 Defined.
 
 Print if_lemma.
@@ -143,7 +159,7 @@ Example test_if_lemma e (c1 c2 : cmd) : test_lemma (if_lemma e c1 c2). Admitted.
 
 Definition read_lemma (x y : var) (f : field) : lemma typ (expr typ func) (expr typ func).
 Proof.  
-  reify_lemma (@rule_read_fwd x y f).
+  reify_lemma reify_imp (@rule_read_fwd x y f).
 Defined.
 
 Example test_read_lemma x y f : test_lemma (read_lemma x y f). Admitted.
@@ -152,7 +168,7 @@ Set Printing Width 140.
 
 Definition write_lemma (x : var) (f : field) (e : dexpr) : lemma typ (expr typ func) (expr typ func).
 Proof.
-  reify_lemma (@rule_write_fwd x f e).
+  reify_lemma reify_imp (@rule_write_fwd x f e).
 Defined.
 Print write_lemma.
 
@@ -160,14 +176,14 @@ Example test_write x f e : test_lemma (write_lemma x f e). Admitted.
 
 Definition assign_lemma (x : var) (e : dexpr) : lemma typ (expr typ func) (expr typ func).
 Proof.
-  reify_lemma (@rule_assign_fwd x e).
+  reify_lemma reify_imp (@rule_assign_fwd x e).
 Defined.
 Print assign_lemma.
 Example test_assign x e : test_lemma (assign_lemma x e). Admitted.
 
 Definition pull_exists_lemma : lemma typ (expr typ func) (expr typ func).
 Proof.
-  reify_lemma (@pull_exists sval).
+  reify_lemma reify_imp (@pull_exists sval).
 Defined.
 
 Print pull_exists_lemma.
@@ -192,73 +208,25 @@ Definition fieldLookupTac : stac typ (expr typ func) subst :=
 		end.
 *)
 
-Let EAPPLY :=
-  @EAPPLY typ (expr typ func) subst _ _ SS SU ExprLift.vars_to_uvars
-                (fun tus tvs n e1 e2 t s =>
-                   @exprUnify subst typ func _ _ _ SS SU 3
-                              tus tvs n s e1 e2 t)
-                (@ExprSubst.instantiate typ func)
-(*                lem (apply_to_all tac)*).
-
-  Let APPLY :=
-    @APPLY typ (expr typ func) subst _ Typ0_Prop SS SU
-           ExprLift.vars_to_uvars
-           (fun tus tvs n e1 e2 t s =>
-              @exprUnify subst typ func _ _ _ SS SU 3
-                         tus tvs n s e1 e2 t)
-           (@ExprSubst.instantiate typ func)
-          (* lem (apply_to_all tac)*).
-
-Require Import MirrorCharge.Java.Subst.
-
-Let INSTANTIATE := 
-	@INSTANTIATE typ (expr typ func) subst SS (@ExprSubst.instantiate typ func).
-
-Require Import MirrorCore.RTac.RTac.
-
-Definition fintro e : option (OpenAs typ (expr typ func)) :=
-	match e with
-		| App (Inj f) P =>
-			match ilogicS f with
-			  | Some (ilf_forall t tyProp) => Some (AsAl t (fun x => beta (App P x)))
-			  | Some (ilf_exists t tyProp) => Some (AsAl t (fun x => beta (App P x)))
-			  | _ => None
-			end
-		| App (App (Inj f) P) Q =>
-			match ilogicS f with
-			  | Some (ilf_impl tyProp) => Some (AsHy typ P Q)
-			  | _ => None
-			end
-		| _ => None
-	end.
-
-Let INTRO := @INTRO typ (expr typ func) subst (@Var typ func) (@UVar typ func) fintro.
-
-(*
-Let FINISH := @finish typ (expr typ func) subst SU.
-*)
-
-Definition stac_cancel := @stac_cancel typ func _ _ _ _ _ _ _ tySasn.
-
 Definition solve_entailment : rtac typ (expr typ func) subst := 
    (*   (THEN INSTANTIATE
              (THEN (SIMPLIFY (fun _ _ => beta_all simplify nil nil))*)
-                   (STAC_no_hyps (@ExprSubst.instantiate typ func) stac_cancel).
+                   CANCELLATION typ func subst tySasn.
 
 Definition simStep (r : rtac typ (expr typ func) subst) : 
 	rtac typ (expr typ func) subst :=
-	THEN INSTANTIATE
-	     (THEN (TRY (THEN (APPLY pull_exists_lemma) (REPEAT 10 INTRO)))
+	THEN (INSTANTIATE typ func subst)
+	     (THEN (TRY (THEN (APPLY typ func subst pull_exists_lemma) (REPEAT 10 (INTRO typ func subst))))
 	           r).
 
 Fixpoint tripleE (c : cmd) : rtac typ (expr typ func) subst :=
 	match c with
-	    | cskip => THEN INSTANTIATE (THEN (APPLY skip_lemma) solve_entailment)
-		| cseq c1 c2 => simStep (THEN (EAPPLY (seq_lemma c1 c2))
+	    | cskip => THEN (INSTANTIATE typ func subst) (THEN (APPLY typ func subst skip_lemma) solve_entailment)
+		| cseq c1 c2 => simStep (THEN (EAPPLY typ func subst (seq_lemma c1 c2))
 						              (FIRST (tripleE c1::tripleE c2::nil)))
-		| cassign x e => simStep (THEN (EAPPLY (assign_lemma x e)) solve_entailment)
-		| cread x y f => simStep (THEN (EAPPLY (read_lemma x y f)) solve_entailment)
-		| cwrite x f e => simStep (THEN (EAPPLY (write_lemma x f e)) solve_entailment)
+		| cassign x e => simStep (THEN (EAPPLY typ func subst (assign_lemma x e)) solve_entailment)
+		| cread x y f => simStep (THEN (EAPPLY typ func subst (read_lemma x y f)) solve_entailment)
+		| cwrite x f e => simStep (THEN (EAPPLY typ func subst (write_lemma x f e)) solve_entailment)
 		| _ => @IDTAC _ _ _
 	end.
 
@@ -301,122 +269,67 @@ Eval vm_compute in
                 (mkTriple (Var 0) (mkCmd cskip) (Var 0)))) : expr typ func).
 
 Time Eval vm_compute in 
-  (THEN (REPEAT 10 INTRO) symE) CTop (SubstI.empty (expr := expr typ func)) testSkip.
+  (THEN (REPEAT 10 (INTRO typ func subst)) symE) CTop (SubstI.empty (expr := expr typ func)) testSkip.
   
 Time Eval vm_compute in testSkip.
 
-Open Scope string.
+Require Import MirrorCharge.ModularFunc.OpenFunc.
 
 Definition mkPointsto x f e : expr typ func :=
    mkAp tyVal tyAsn 
-        (mkAp tyString (tyArr tyVal tyAsn)
-              (mkAp tyVal (tyArr tyString (tyArr tyVal tyAsn))
-                    (mkConst (tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn))) 
+        (mkAp tyField (tyArr tyVal tyAsn)
+              (mkAp tyVal (tyArr tyField (tyArr tyVal tyAsn))
+                    (mkConst (tyArr tyVal (tyArr tyField (tyArr tyVal tyAsn))) 
                              fPointsto)
-                    (App fStackGet (mkString x)))
-              (mkConst tyString (mkString f)))
+                    (App fStackGet (mkVar x)))
+              (mkConst tyField (mkField f)))
         e.
 
+Require Import String.
+Open Scope string.
+
 Definition test_read :=
-    mkExists tyProp tySasn
+    mkExists tySasn tyProp
   	(mkEntails tySpec (mkTrue tySpec)
   	           (mkTriple (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 3))))
   	                     (mkCmd (cread "x" "o" "f"))
   	                     (Var 0))).
 Eval vm_compute in typeof_expr nil nil test_read.
 
-Definition runTac tac := (THEN (REPEAT 10 INTRO) symE)
+Definition runTac tac := (THEN (REPEAT 10 (INTRO typ func subst)) symE)
 	 CTop (SubstI.empty (expr :=expr typ func)) tac.
 
 Set Printing Width 140.
 
+(* Gregory: In this example the tyExpr is not unified, although the correct value does appear 
+  in the PositiveMap (pVal 3)
+
+  The read lemma states that 
+?P |-- o.f |-> ?e
+exists v, ?P[?e/x] /\ x = ?e[?e/x] |-- ?Q
+ ---------------------
+  ?G |-- {?P} read x o f {?Q}
+
+My goal states that 
+
+true |-- exists R, {o.f |-> 3} read x o f {R}
+
+What I expect to happen here is for P to be introduced into an existential variable (which does happen)
+EApply should introduce four more variables (?G ?P ?Q and ?R)
+?G should unify with true
+?e should unify with 3
+?P should unify with o.f |-> 3 (Is this where the problem is that, P has to unify twice)
+?R should unify with exists v, ?P[3/x] /\ x = 3[3/x]
+
+When the goal terminates, it does look like R has unified successfully. 
+But there is a dangling unification variable for e.
+
+*)
 Time Eval vm_compute in runTac test_read.
 
-Eval vm_compute in match runTac test_read with
-					| More _ g => Some (typecheck_goal g)
-					| _ => None
-				   end.
-
-Opaque the_canceller.
-
-(* GREGORY: This example test demonstrates the problem *)
-
-Example test : exists x, x = runTac test_read.
-Proof.
-  compute.
-  Check the_canceller.
-  match goal with
-  | |- context [the_canceller ?a ?b ?c ?d ?e] =>
-  	remember (the_canceller a b c d e)
-  end.
-  
-  Transparent the_canceller.
-
-  compute in Heqs.
-  rewrite Heqs.
-  clear.
-
-  match goal with
-  | |- context [the_canceller ?a ?b ?c ?d ?e] =>
- 	 pose c; pose d; remember (the_canceller a b c d e)
-  end.
-  (* Here c is an expression and d is a unification variable. I want this cancellation to succeed *)
-  clear e e0.
-  cbv in Heqs. (*But here it fails *)
-
-  rewrite Heqs.
-  
-  (* And we get a lot of new uninstantiated unification variables that I don't know where they are coming from *)
-  
-  
-  Opaque the_canceller.
-  
-  compute.
-  vm_compute.
-  Check nat.
-
-Definition read_result := Eval vm_compute in test_read.
-
-Eval vm_compute in 
-     match read_result with
-	   | More _ g => Some (typecheck_goal g)
-	   | _ => None
-	 end.
-
-Print More.
 Print read_lemma.
-Definition testWrite :=
-  let goal :=
-    mkExists [tyProp, tySasn,
-  	mkEntails [tySpec, mkTrue [tySpec], 
-  	           mkTriple [mkPointsto "o" "f" (mkConst [tyVal, mkVal [vint 3]]),
-  	                     mkCmd [cwrite "o" "f" (E_val (vint 0))],
-  	                     (Var 0)]]]
-  in
-  (THEN (REPEAT 10 INTRO) symE)
-  	    CTop (SubstI.empty (expr :=expr typ func)) goal.
 
-Set Printing Width 140.
-
-Time Eval vm_compute  in testWrite.
-
-(* GREGORY this fails *)
-
-Print write_lemma.
-Eval compute in typeof_expr nil nil (
-                              mkStar  [tySasn, mkEmp  [tySasn],
-                                      mkAp  [tyVal, tyAsn,
-                                            mkAp  [tyString, tyArr tyVal tyAsn,
-                                                  mkAp  [tyVal, tyArr tyString (tyArr tyVal tyAsn),
-                                                  mkConst  [tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn)), 
-                                                           fPointsto], 
-                                                  App fStackGet mkString  ["o"]], 
-                                            mkConst  [tyString, mkString  ["f"]]], 
-                                      mkConst  [tyVal, mkVal  [3%Z]]]] ).
-
-Print write_lemma.
-
-
+(*
 Definition testSwap :=
   let goal := mkExists [tyProp, tySasn,
               mkEntails [tySpec, mkTrue [tySpec],
@@ -435,121 +348,4 @@ Definition testSwap :=
   (THEN (REPEAT 10 INTRO) symE)
   	    CTop (SubstI.empty (expr :=expr typ func)) goal.
 
-Print pull_exists_lemma.
- 
-Time Eval vm_compute in testSwap.
-Print seq_lemma.
-Definition test := Eval vm_compute in testSwap.
-
-Print Goal.
-Locate Goal.
-
-Check goalD.
-
-Print goalD.
-
-Eval vm_compute in 
-match test with
-	| More _ g => Some (goalD (typ := typ) (expr := expr typ func) nil nil g)
-	| _ => None
-end.
-
-Print Goal.
-
-Print Result.
-
-Print test.
-
-
-Lemma test : exists x, x = testSwap.
-Proof.
-  Opaque tripleE.
-  compute.
-  Transparent tripleE.
-  Opaque read_lemma.
-  unfold tripleE.
-  
-  unfold simStep.
-  Opaque EAPPLY.
-  unfold THEN.
-  unfold INSTANTIATE, Instantiate.INSTANTIATE, SIMPLIFY, TRY.
-  unfold runRTac, runRTac'.
-  
-  match goal with
-  	| |- context [APPLY ?a ?b ?c ?d] =>
-  		remember (APPLY a b c d)
-  end.
-  
-  compute in Heqr. rewrite Heqr.
-  clear.
-  
-  simpl.
-  
-  match goal with
-  	| |- context [EAPPLY ?a ?b ?c ?d] =>
-  		remember (EAPPLY a b c d)
-  end.
-  
-  Transparent EAPPLY.
-  
-  compute in Heqr.
-  
-  rewrite Heqr.
-  
-  clear.
-  
-  simpl.
-  
-  match goal with
-  	| |- context [EAPPLY ?a ?b ?c ?d] =>
-  		remember (EAPPLY a b c d)
-  end.
-  
-  unfold EAPPLY, EApply.EAPPLY in Heqr.
-  
-  Opaque LemmaApply.eapplicable.
-  simpl in Heqr.
-  
-   
- match goal with
-  	| H : context [LemmaApply.eapplicable ?a ?b ?c ?d ?e ?f ?g ?h] |- _ =>
-	remember (LemmaApply.eapplicable a b c d e f g h)
-  end.
-  
-  Transparent LemmaApply.eapplicable.
-  
-  unfold LemmaApply.eapplicable in Heqo.
-  
-  Transparent read_lemma.
-  
-  simpl in Heqo.
-  
-  Print read_lemma.
-  
-  compute in Heqo.
-  rewrite Heqo in Heqr.
-  
-  Opaque read_lemma.
-  
-  simpl in Heqo.
-  
-  Transparent read_lemma.
-  
-  simpl in Heqo.
-  
-  cbv in Heqo.
-  
-  cbv in Heqo.
-    
-  compute in Heqr0.
-  unfold EAPPLY in Heqr.
-  
-  compute in Heqr.
-  
-  Check FIRST.
-  
-  Opaque seq_lemma.
-  unfold tripleE.
-  Opaque
-  unfold solve_entailment.
-  compute.
+*)

@@ -52,7 +52,7 @@ Section ReifyLemma.
 	   ; concl := e |}.
 
 End ReifyLemma.
-	
+
 Ltac reify_lemma_aux reify T :=
   let k e := 
     let e := constr:(convert_to_lemma e) in

@@ -40,11 +40,17 @@ Local Instance Applicative_Fun A : Applicative (Fun A) :=
 Reify Declare Patterns const_for_cmd += ((RHasType cmd ?0) => (fun (c : id cmd) => mkCmd [c] : expr typ func)).
 *)
 Reify Declare Syntax reify_imp_typ :=
+  { 
+  	(@Patterns.CPatterns typ patterns_java_typ)
+  }.
+
+(*
+Reify Declare Syntax reify_imp_typ :=
   { (@Patterns.CPatterns typ patterns_java_typ
      (@Patterns.CFail typ))
   }.
 
-(*
+
 Definition eval2 : dexpr -> stack -> val := eval.
 Definition pointsto2 : sval -> String.string -> sval -> asn := pointsto.
 Definition subst2 : (stack -> sval) -> String.string -> @subst String.string _ := subst1.
@@ -76,12 +82,12 @@ Let Ext x := @ExprCore.Inj typ func (inl (inl (inl (inl (inl (inl (inl (inl x)))
 Check Ext.
 
 Reify Declare Syntax reify_imp :=
-  { (@Patterns.CVar _ (@ExprCore.Var typ func)
-    (@Patterns.CPatterns _ patterns_java
-    (@Patterns.CApp _ (@ExprCore.App typ func)
-    (@Patterns.CAbs _ reify_imp_typ (@ExprCore.Abs typ func)
-    (@Patterns.CTypedTable _ _ _ term_table Ext
-    (@Patterns.CFail (ExprCore.expr typ func)))))))
+  { (@Patterns.CFirst _
+  		((@Patterns.CVar _ (@ExprCore.Var typ func)) ::
+  	     (@Patterns.CPatterns _ patterns_java) ::
+         (@Patterns.CApp _ (@ExprCore.App typ func)) ::
+    	 (@Patterns.CAbs _ reify_imp_typ (@ExprCore.Abs typ func)) ::
+    	 (@Patterns.CTypedTable _ _ _ term_table Ext) :: nil))
   }.
 
 Let _Inj := @ExprCore.Inj typ func.
