@@ -76,7 +76,7 @@ Proof.
   eapply rule_if; unfold vlogic_eval, Open.liftn, Open.lift; simpl in *;
   	[apply Hc1|apply Hc2].
 Qed.
-Check @apply_subst.
+
   Lemma rule_read_fwd (x y : var) (f : field) (e : stack -> sval) (P Q : sasn) (G : spec)
     (HP : P |-- ap_pointsto [y, f, e])
     (HQ : Exists v : sval, embed (ap_eq [stack_get x, apply_subst e (subst1 (pure (T := Fun stack) v) x)]) //\\ 

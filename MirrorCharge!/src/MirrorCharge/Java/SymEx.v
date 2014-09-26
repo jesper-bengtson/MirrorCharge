@@ -24,7 +24,6 @@ Require Import MirrorCharge.OrderedCanceller.
 Require Import MirrorCharge.BILNormalize.
 Require Import MirrorCharge.SynSepLog.
 Require Import MirrorCharge.SepLogFold.
-Require Import MirrorCharge.Java.Cancelation2.
 Require Import MirrorCharge.Java.Semantics.
 Require Import MirrorCharge.Java.JavaType.
 Require Import MirrorCharge.Java.JavaFunc.
