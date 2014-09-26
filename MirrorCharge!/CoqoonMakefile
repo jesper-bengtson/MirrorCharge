@@ -29,7 +29,6 @@ OBJECTS = \
 	bin/MirrorCharge/IEmbedFunc.vo \
 	bin/MirrorCharge/ILFFold.vo \
 	bin/MirrorCharge/ILPullQuant.vo \
-	bin/MirrorCharge/ILPullQuant2.vo \
 	bin/MirrorCharge/ILPullQuantStar.vo \
 	bin/MirrorCharge/ILaterFunc.vo \
 	bin/MirrorCharge/ILogicFunc.vo \
@@ -94,7 +93,6 @@ bin/MirrorCharge/DependencyOrder.vo: src/MirrorCharge/DependencyOrder.v bin/Mirr
 bin/MirrorCharge/IEmbedFunc.vo: src/MirrorCharge/IEmbedFunc.v
 bin/MirrorCharge/ILFFold.vo: src/MirrorCharge/ILFFold.v bin/MirrorCharge/ILogicFunc.vo
 bin/MirrorCharge/ILPullQuant.vo: src/MirrorCharge/ILPullQuant.v
-bin/MirrorCharge/ILPullQuant2.vo: src/MirrorCharge/ILPullQuant2.v bin/MirrorCharge/AutoSetoidRewrite.vo bin/MirrorCharge/ILogicFunc.vo
 bin/MirrorCharge/ILPullQuantStar.vo: src/MirrorCharge/ILPullQuantStar.v
 bin/MirrorCharge/ILaterFunc.vo: src/MirrorCharge/ILaterFunc.v
 bin/MirrorCharge/ILogicFunc.vo: src/MirrorCharge/ILogicFunc.v
