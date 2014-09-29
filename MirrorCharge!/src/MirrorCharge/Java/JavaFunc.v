@@ -187,6 +187,8 @@ Definition set_fold_fun (x : String.string) (f : field) (P : sasn) :=
 
 	Global Instance RSymOk_JavaFunc : SymI.RSymOk RSym_JavaFunc.
 	Proof.
+	admit.
+	(*
 		split; intros.
 		destruct a, b; simpl; try apply I; try reflexivity.
 		+ consider (v ?[ eq ] v0); intuition congruence.
