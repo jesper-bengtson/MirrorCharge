@@ -83,7 +83,6 @@ Qed.
     					      (apply_subst P (subst1 (pure (T := Fun stack) v) x)) |-- Q) :
     G |-- {[ P ]} cread x y f {[ Q ]}.
   Proof.
-    reify_imp (ap_pointsto [y, f, e]).
     pose proof @rule_read_fwd x y f e P. 
     unfold Open.liftn, Open.lift, open_eq, stack_get, Open.var_expr in *; simpl in *.
     rewrite <- HQ , <- H; [apply ltrueR | apply HP].
@@ -120,7 +119,7 @@ Require Import Charge.Logics.BILogic.
 Definition set_fold_fun (x f : String.string) (P : sasn) :=
 	ap_pointsto [x, f, pure null] ** P.
 
-  Lemma rule_alloc_fwd (x C : String.string) (G : spec) (P : sasn) (fields : SS.t) (Pr : Prog_wf) 
+  Lemma rule_alloc_fwd (x : var) (C : class) (G : spec) (P : sasn) (fields : SS.t) (Pr : Prog_wf) 
 	(Heq : G |-- prog_eq Pr)
 	(Hf : field_lookup Pr C fields) :
 	G |-- {[ P ]} calloc x C {[ Exists p : ptr, embed (ap_typeof [stack_get x, C] //\\
@@ -128,6 +127,7 @@ Definition set_fold_fun (x f : String.string) (P : sasn) :=
 	                                            SS.fold (set_fold_fun x) fields 
 	                                                    (apply_subst P (subst1 (pure (T := Fun stack) p) x)) ]}.
   Proof.
+    reify_imp (field_lookup Pr C fields).
   	admit.
   Qed.
 

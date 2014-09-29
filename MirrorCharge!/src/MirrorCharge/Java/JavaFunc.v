@@ -38,104 +38,6 @@ Require Import MirrorCharge.ModularFunc.EmbedFunc.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Class JavaFunc func := {
-	fVar : var -> func;
-	fField : field -> func;
-	fClass : class -> func;
-	fVal : sval -> func;
-	fVarList : list var -> func;
-	fProg : Prog_wf -> func;
-	fCmd : cmd -> func;
-	fDExpr : dexpr -> func;
-	fFields : SS.t -> func;
-	fMethodSpec : func;
-	fProgEq : func;
-	fTriple : func;
-	fTypeOf : func;
-	fEval : func;
-	fFieldLookup : func;
-	fSetFold : typ -> func;
-	fSetFoldFun : func;
-	fPointsto : func;
-	fNull : func
-}.
-
-Section JavaFuncSum.
-	Context {func : Type} {H : JavaFunc func}.
-
-	Global Instance JavaFuncSumL (A : Type) : 
-		JavaFunc (func + A) := {
-			fVar v := inl (fVar v);
-			fField f := inl (fField f);
-			fClass c := inl (fClass c);
-			fVal v := inl (fVal v);
-			fVarList vs := inl (fVarList vs);
-			fProg P := inl (fProg P);
-			fCmd c := inl (fCmd c);
-			fDExpr e := inl (fDExpr e);
-			fFields fs := inl (fFields fs);
-			fMethodSpec := inl fMethodSpec;
-			fProgEq := inl fProgEq;
-			fTriple := inl fTriple;
-			fTypeOf := inl fTypeOf;
-			fEval := inl fEval;
-			fFieldLookup := inl fFieldLookup;
-			fSetFold t := inl (fSetFold t);
-			fSetFoldFun := inl fSetFoldFun;
-			fPointsto := inl fPointsto;
-			fNull := inl fNull
-		}.
-
-	Global Instance JavaFuncSumR (A : Type) : 
-		JavaFunc (A + func) := {
-			fVar v := inr (fVar v);
-			fField f := inr (fField f);
-			fClass c := inr (fClass c);
-			fVal v := inr (fVal v);
-			fVarList vs := inr (fVarList vs);
-			fProg P := inr (fProg P);
-			fCmd c := inr (fCmd c);
-			fDExpr e := inr (fDExpr e);
-			fFields fs := inr (fFields fs);
-			fMethodSpec := inr fMethodSpec;
-			fProgEq := inr fProgEq;
-			fTriple := inr fTriple;
-			fTypeOf := inr fTypeOf;
-			fEval := inr fEval;
-			fFieldLookup := inr fFieldLookup;
-			fSetFold t := inr (fSetFold t);
-			fSetFoldFun := inr fSetFoldFun;
-			fPointsto := inr fPointsto;
-			fNull := inr fNull
-		}.
-		
-	Global Instance JavaFuncExpr : 
-		JavaFunc (expr typ func) := {
-			fVar v := Inj (fVar v);
-			fField f := Inj (fField f);
-			fClass c := Inj (fClass c);
-			fVal v := Inj (fVal v);
-			fVarList vs := Inj (fVarList vs);
-			fProg P := Inj (fProg P);
-			fCmd c := Inj (fCmd c);
-			fDExpr e := Inj (fDExpr e);
-			fFields fs := Inj (fFields fs);
-			fMethodSpec := Inj fMethodSpec;
-			fProgEq := Inj fProgEq;
-			fTriple := Inj fTriple;
-			fTypeOf := Inj fTypeOf;
-			fEval := Inj fEval;
-			fFieldLookup := Inj fFieldLookup;
-			fSetFold t := Inj (fSetFold t);
-			fSetFoldFun := Inj fSetFoldFun;
-			fPointsto := Inj fPointsto;
-			fNull := Inj fNull
-		}.
-
-End JavaFuncSum.
-	
-Section JavaFuncInst.
-	Context {func : Type} {H : JavaFunc func}.
 
 	Inductive java_func :=
 	| pVar (_ : var)
@@ -160,28 +62,6 @@ Section JavaFuncInst.
 	
 	| pPointsto
 	| pNull.
-
-	Global Instance JavaFuncInst : JavaFunc java_func := {
-		fVar := pVar;
-		fField := pField;
-		fClass := pClass;
-		fVal := pVal;
-		fVarList := pVarList;
-		fProg := pProg;
-		fCmd := pCmd;
-		fDExpr := pDExpr;
-		fFields := pFields;
-		fMethodSpec := pMethodSpec;
-		fProgEq := pProgEq;
-		fTriple := pTriple;
-		fTypeOf := pTypeOf;
-		fEval := pEval;
-		fFieldLookup := pFieldLookup;
-		fSetFold := pSetFold;
-		fSetFoldFun := pSetFoldFun;
-		fPointsto := pPointsto;
-		fNull := pNull
-	}.
 
 	Fixpoint beq_list {A} (f : A -> A -> bool) (xs ys : list A) :=
 		match xs, ys with
@@ -307,38 +187,47 @@ Definition set_fold_fun (x : String.string) (f : field) (P : sasn) :=
 
 	Global Instance RSymOk_JavaFunc : SymI.RSymOk RSym_JavaFunc.
 	Proof.
-		admit.
-
-		(*
 		split; intros.
-		destruct a, b; simpl; try apply I.
+		destruct a, b; simpl; try apply I; try reflexivity.
 		+ consider (v ?[ eq ] v0); intuition congruence.
 		+ consider (f ?[ eq ] f0); intuition congruence.
 		+ consider (c ?[ eq ] c0); intuition congruence.
-		+ consider (t ?[ eq ] t0); intuition congruence.
+		+ consider (s ?[ eq ] s0); intuition congruence.
 		+ consider (t ?[ eq ] t1 && t0 ?[ eq ] t2)%bool; 
 		  intuition congruence.
 *)
 	Qed.
 
-End JavaFuncInst.
+Definition func := (SymEnv.func + @ilfunc typ + @bilfunc typ + 
+                    @base_func typ + @list_func typ + @open_func typ + 
+                    @embed_func typ + @later_func typ + java_func)%type.
 
 Section MakeJavaFunc.
-	Context {func : Type} {H : JavaFunc func} {HT : ListFunc typ func}.
+	Definition mkVar v : expr typ func := Inj (inr (pVar v)).
+	Definition mkField f : expr typ func := Inj (inr (pField f)).
+	Definition mkClass c : expr typ func := Inj (inr (pClass c)).
+	Definition mkVal v : expr typ func := Inj (inr (pVal v)).
+	Definition mkVarList vs : expr typ func := Inj (inr (pVarList vs)).
+	Definition mkProg P : expr typ func := Inj (inr (pProg P)).
+	Definition mkCmd c : expr typ func := Inj (inr (pCmd c)).
+	Definition mkDExpr e : expr typ func := Inj (inr (pDExpr e)).
+	Definition mkFields fs : expr typ func := Inj (inr (pFields fs)).
 
-	Definition mkTriple P c Q := App (App (App fTriple P) Q) c.
-	Definition mkFieldLookup P C f := App (App (App fFieldLookup P) C) f.
-	Definition mkSetFold t x f P:= (App (App (App (fSetFold t) (App fSetFoldFun x)) f) P). 
-	Definition mkTypeOf C x := App (App fTypeOf C) x.
-	Definition mkVal v : expr typ func := Inj (fVal v).
-	Definition mkField f : expr typ func := Inj (fField f).
-	Definition mkVar f : expr typ func := Inj (fVar f).
-	Definition mkClass c : expr typ func := Inj (fClass c).
-	Definition mkVarList vs : expr typ func := Inj (fVarList vs).
-	Definition mkProg P : expr typ func := Inj (fProg P).
-	Definition mkCmd c : expr typ func := Inj (fCmd c).
-	Definition mkDExpr e : expr typ func := Inj (fDExpr e).
-	Definition mkFields fs : expr typ func := Inj (fFields fs).
+	Definition fMethodSpec : expr typ func := Inj (inr pMethodSpec).
+	Definition fProgEq : expr typ func := Inj (inr pProgEq).
+	Definition fTriple : expr typ func := Inj (inr pTriple).
+	Definition fTypeOf : expr typ func := Inj (inr pTypeOf).
+	Definition fEval : expr typ func := Inj (inr pEval).
+	Definition fFieldLookup : expr typ func := Inj (inr pFieldLookup).
+	Definition fSetFold t : expr typ func := Inj (inr (pSetFold t)).
+	Definition fSetFoldFun : expr typ func := Inj (inr pSetFoldFun).
+	Definition fPointsto : expr typ func := Inj (inr pPointsto).
+	Definition mkNull : expr typ func := Inj (inr pNull).
+
+	Definition mkTriple P c Q : expr typ func := App (App (App fTriple P) Q) c.
+	Definition mkFieldLookup P C f : expr typ func := App (App (App fFieldLookup P) C) f.
+	Definition mkSetFold t x f P : expr typ func := (App (App (App (fSetFold t) (App fSetFoldFun x)) f) P). 
+	Definition mkTypeOf C x : expr typ func := App (App fTypeOf C) x.
 	Definition mkProgEq P := App fProgEq P.
 	
 	Definition mkExprList es :=
@@ -346,14 +235,8 @@ Section MakeJavaFunc.
 			mkCons tyExpr (mkDExpr e) acc) (mkNil tyExpr) es).
 	
 	Definition mkEval e s := App (App fEval e) s.
-	
-	Definition mkNull : expr typ func := fNull.
 
 End MakeJavaFunc.
-
-Definition func := (SymEnv.func + @ilfunc typ + @bilfunc typ + 
-                    @base_func typ + @list_func typ + @open_func typ + 
-                    @embed_func typ + @later_func typ + java_func)%type.
 
 Example test : expr typ func := mkStar tySasn (mkFalse tySasn) (mkTrue tySasn).
 

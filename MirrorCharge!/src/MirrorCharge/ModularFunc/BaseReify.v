@@ -29,7 +29,7 @@ Section ReifyBase.
          (@Patterns.CApp _ (@App typ func)) ::
     	 (@Patterns.CAbs _ reify_base_typ (@Abs typ func)) ::nil))
   	}.
-Print reify_base.
+
 	Local Notation "x @ y" := (@RApp x y) (only parsing, at level 30).
 	Local Notation "'!!' x" := (@RExact _ x) (only parsing, at level 25).
 	Local Notation "'?' n" := (@RGet n RIgnore) (only parsing, at level 25).
@@ -54,12 +54,13 @@ Print reify_base.
 	  @SymEnv.F _ _.
 	
 	Ltac reify_base e :=
-	  let k fs e :=
+	  let k _ e :=
 	      pose e in
 	  reify_expr reify_base k
 	             [ (fun (y : @mk_dvar_map _ _ _ _ term_table elem_ctor) => True) ]
 	             [ e ].
 	Goal True.
+	  reify_base 5.
 	  reify_base (5, 3).
 	  reify_base (3, true).
 	  reify_base (5 = 3).
@@ -68,4 +69,3 @@ Print reify_base.
 	Defined.
 
 End ReifyBase.
-

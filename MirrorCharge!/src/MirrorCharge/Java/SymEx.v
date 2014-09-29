@@ -4,7 +4,7 @@ Require Import ExtLib.Core.RelDec.
 Require Import ExtLib.Data.String.
 Require Import ExtLib.Data.Nat.
 Require Import ExtLib.Data.HList.
-Require Import MirrorCore.Lemma.
+Require Import MirrorCore.Lemma. 
 Require Import MirrorCore.TypesI.
 Require Import MirrorCore.Lambda.Expr.
 Require Import MirrorCore.STac.STac.
@@ -213,7 +213,7 @@ Definition solve_entailment : rtac typ (expr typ func) subst :=
                    CANCELLATION typ func subst tySasn.
 
 Definition simStep (r : rtac typ (expr typ func) subst) : 
-	rtac typ (expr typ func) subst :=
+	rtac typ (expr typ func) subst := 
 	THEN (INSTANTIATE typ func subst)
 	     (THEN (TRY (THEN (APPLY typ func subst pull_exists_lemma) (REPEAT 10 (INTRO typ func subst))))
 	           r).
@@ -298,36 +298,16 @@ Eval vm_compute in typeof_expr nil nil test_read.
 Definition runTac tac := (THEN (REPEAT 10 (INTRO typ func subst)) symE)
 	 CTop (SubstI.empty (expr :=expr typ func)) tac.
 
-Set Printing Width 140.
+Definition runTac2 tac :=
+  runRTac' (THEN (REPEAT 10 (INTRO typ func subst))
+                 (THEN (EAPPLY typ _ _ (read_lemma "x" "o" "f")) (CANCELLATION typ func subst tySasn)))
+	   CTop (SubstI.empty (expr :=expr typ func)) (GGoal tac) 0 0.
 
-(* Gregory: In this example the tyExpr is not unified, although the correct value does appear 
-  in the PositiveMap (pVal 3)
+Time Eval vm_compute in runTac2	 test_read.
 
-  The read lemma states that 
-?P |-- o.f |-> ?e
-exists v, ?P[?e/x] /\ x = ?e[?e/x] |-- ?Q
- ---------------------
-  ?G |-- {?P} read x o f {?Q}
 
-My goal states that 
-
-true |-- exists R, {o.f |-> 3} read x o f {R}
-
-What I expect to happen here is for P to be introduced into an existential variable (which does happen)
-EApply should introduce four more variables (?G ?P ?Q and ?R)
-?G should unify with true
-?e should unify with 3
-?P should unify with o.f |-> 3 (Is this where the problem is that, P has to unify twice)
-?R should unify with exists v, ?P[3/x] /\ x = 3[3/x]
-
-When the goal terminates, it does look like R has unified successfully. 
-But there is a dangling unification variable for e.
-
-*)
-Time Eval vm_compute in runTac test_read.
 
 Print read_lemma.
-
 (*
 Definition testSwap :=
   let goal := mkExists [tyProp, tySasn,

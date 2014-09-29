@@ -266,10 +266,6 @@ Instance SubstType_typ : SubstType typ := {
 	tySubst := tySubst
 }.
 
-Eval simpl in (TypesI.typD tyVal).
-Check eq_rect_r.
-Eval compute in (eq_rect_r id null eq_refl).
-
 Definition null' : TypesI.typD tyVal := null.
 
 Program Instance SubstTypeD_typ : @SubstTypeD typ _ _ tyVar tyVal null' := {

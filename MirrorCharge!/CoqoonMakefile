@@ -55,7 +55,6 @@ OBJECTS = \
 	bin/MirrorCharge/ModularFunc/BaseFunc.vo \
 	bin/MirrorCharge/ModularFunc/BaseReify.vo \
 	bin/MirrorCharge/ModularFunc/BaseType.vo \
-	bin/MirrorCharge/ModularFunc/CombineReify.vo \
 	bin/MirrorCharge/ModularFunc/EmbedFunc.vo \
 	bin/MirrorCharge/ModularFunc/ILogicFunc.vo \
 	bin/MirrorCharge/ModularFunc/LaterFunc.vo \
@@ -120,7 +119,6 @@ bin/MirrorCharge/ModularFunc/BILogicFunc.vo: src/MirrorCharge/ModularFunc/BILogi
 bin/MirrorCharge/ModularFunc/BaseFunc.vo: src/MirrorCharge/ModularFunc/BaseFunc.v bin/MirrorCharge/ModularFunc/BaseType.vo
 bin/MirrorCharge/ModularFunc/BaseReify.vo: src/MirrorCharge/ModularFunc/BaseReify.v bin/MirrorCharge/ModularFunc/BaseFunc.vo bin/MirrorCharge/ModularFunc/BaseType.vo
 bin/MirrorCharge/ModularFunc/BaseType.vo: src/MirrorCharge/ModularFunc/BaseType.v
-bin/MirrorCharge/ModularFunc/CombineReify.vo: src/MirrorCharge/ModularFunc/CombineReify.v bin/MirrorCharge/ModularFunc/BaseReify.vo bin/MirrorCharge/ModularFunc/ListReify.vo bin/MirrorCharge/ModularFunc/BaseFunc.vo bin/MirrorCharge/ModularFunc/ListFunc.vo bin/MirrorCharge/ModularFunc/BaseType.vo bin/MirrorCharge/ModularFunc/ListType.vo
 bin/MirrorCharge/ModularFunc/EmbedFunc.vo: src/MirrorCharge/ModularFunc/EmbedFunc.v bin/MirrorCharge/ModularFunc/ILogicFunc.vo
 bin/MirrorCharge/ModularFunc/ILogicFunc.vo: src/MirrorCharge/ModularFunc/ILogicFunc.v
 bin/MirrorCharge/ModularFunc/LaterFunc.vo: src/MirrorCharge/ModularFunc/LaterFunc.v bin/MirrorCharge/ModularFunc/ILogicFunc.vo
