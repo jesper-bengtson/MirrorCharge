@@ -54,7 +54,7 @@ Proof.
 Qed.
 
 Notation "'ap_eq' '[' x ',' y ']'" :=
-	 (ap (T := Fun stack) (ap (T := Fun stack) (pure (T := Fun stack) (@eq sval)) x) y).
+	 (ap (T := Fun stack) (ap (T := Fun stack) (pure (T := Fun stack) (@eq val)) x) y).
 Notation "'ap_pointsto' '[' x ',' f ',' e ']'" := 
 	(ap (T := Fun stack) (ap (T := Fun stack) (ap (T := Fun stack) 
 		(pure (T := Fun stack) pointsto) (stack_get x)) 
@@ -67,7 +67,7 @@ Notation "'ap_typeof' '[' e ',' C ']'" :=
 	    e).
 
 Lemma rule_if (e : dexpr) c1 c2 (P Q : sasn) G
-      (Hc1 : G |-- {[(@embed (@vlogic var _) sasn _ 
+      (Hc1 : G |-- {[(@embed (@vlogic var val) sasn _ 
                       (ap_eq [eval e, pure (vbool true)])) //\\ P]} c1 {[Q]})
       (Hc2 : G |-- {[(@embed (@vlogic var _) sasn _ 
                       (ap_eq [eval (E_not e), pure (vbool true)])) //\\ P]} c2 {[Q]}) : 
@@ -77,9 +77,9 @@ Proof.
   	[apply Hc1|apply Hc2].
 Qed.
 
-  Lemma rule_read_fwd (x y : var) (f : field) (e : stack -> sval) (P Q : sasn) (G : spec)
+  Lemma rule_read_fwd (x y : var) (f : field) (e : stack -> val) (P Q : sasn) (G : spec)
     (HP : P |-- ap_pointsto [y, f, e])
-    (HQ : Exists v : sval, embed (ap_eq [stack_get x, apply_subst e (subst1 (pure (T := Fun stack) v) x)]) //\\ 
+    (HQ : Exists v : val, embed (ap_eq [stack_get x, apply_subst e (subst1 (pure (T := Fun stack) v) x)]) //\\ 
     					      (apply_subst P (subst1 (pure (T := Fun stack) v) x)) |-- Q) :
     G |-- {[ P ]} cread x y f {[ Q ]}.
   Proof.
@@ -90,7 +90,7 @@ Qed.
 
 Require Import Charge.Logics.BILogic.
 
-  Lemma rule_write_fwd (x : var) (f : field) (e : dexpr) G (P Q F : sasn) (e' : stack -> sval)
+  Lemma rule_write_fwd (x : var) (f : field) (e : dexpr) G (P Q F : sasn) (e' : stack -> val)
         (HP : P |-- ap_pointsto [x, f, e'] ** F) 
         (HQ : ap_pointsto [x, f, eval e] ** F |-- Q) :
     G |-- ({[ P ]} cwrite x f e {[ Q ]}).
@@ -107,7 +107,7 @@ Require Import Charge.Logics.BILogic.
   Qed.
 
   Lemma rule_assign_fwd (x : var) (e : dexpr) G P :
-    G |-- {[ P ]} cassign x e {[ Exists v : sval,
+    G |-- {[ P ]} cassign x e {[ Exists v : val,
                                  embed (ap_eq [stack_get x, 
                                                apply_subst (eval e) (subst1 (pure (T := Fun stack) v) x)]) //\\ 
     							   (apply_subst P (subst1 (pure (T := Fun stack) v) x)) ]}.

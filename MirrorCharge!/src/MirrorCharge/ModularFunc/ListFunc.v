@@ -17,12 +17,21 @@ Set Implicit Arguments.
 Set Strict Implicit.
 Set Maximal Implicit Insertion.
 
+Inductive list_func (typ : Type) :=
+  | pNil : typ -> list_func typ
+  | pCons : typ -> list_func typ
+  | pLength : typ -> list_func typ
+  | pMap : typ -> typ -> list_func typ
+  | pZip : typ -> typ -> list_func typ.
+
 Class ListFunc (typ func : Type) := {
   fNil  : typ -> func;
   fCons : typ -> func;
   fLength : typ -> func;
   fMap : typ -> typ -> func;
-  fZip : typ -> typ -> func
+  fZip : typ -> typ -> func;
+  
+  listS : func -> option (list_func typ)
 }.
 
 Section ListFuncSum.
@@ -34,7 +43,12 @@ Section ListFuncSum.
 	      fCons t := inl (fCons t);
 	      fLength t := inl (fLength t);
           fMap t1 t2 := inl (fMap t1 t2);
-          fZip t1 t2 := inl (fZip t1 t2)
+          fZip t1 t2 := inl (fZip t1 t2);
+          
+          listS f := match f with
+          			   | inl f => listS f
+          			   | inr _ => None
+          			 end
         }.
 
 	Global Instance ListFuncSumR (A : Type) : 
@@ -43,7 +57,12 @@ Section ListFuncSum.
 	      fCons t := inr (fCons t);
 	      fLength t := inr (fLength t);
           fMap t1 t2 := inr (fMap t1 t2);
-          fZip t1 t2 := inr (fZip t1 t2)
+          fZip t1 t2 := inr (fZip t1 t2);
+         
+          listS f := match f with
+          			   | inr f => listS f
+          			   | inl _ => None
+          			 end
         }.
 
     Global Instance ListFuncExpr :
@@ -52,8 +71,13 @@ Section ListFuncSum.
     	  fCons t := Inj (fCons t);
     	  fLength t := Inj (fLength t);
     	  fMap t1 t2 := Inj (fMap t1 t2);
-    	  fZip t1 t2 := Inj (fZip t1 t2)
-    }.
+    	  fZip t1 t2 := Inj (fZip t1 t2);
+         
+          listS f := match f with
+          			   | Inj f => listS f
+          			   | _ => None
+          			 end
+     }.
         
 End ListFuncSum.
 
@@ -70,19 +94,14 @@ Section ListFuncInst.
     Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
     Let tyProp : typ := @typ0 _ _ _ _.
 
-	Inductive list_func :=
-	  | pNil : typ -> list_func
-	  | pCons : typ -> list_func
-	  | pLength : typ -> list_func
-	  | pMap : typ -> typ -> list_func
-	  | pZip : typ -> typ -> list_func.
-
-	Global Instance ListFuncInst : ListFunc typ list_func := {
+	Global Instance ListFuncInst : ListFunc typ (list_func typ) := {
 	  fNil := pNil;
 	  fCons := pCons;
 	  fLength := pLength;
 	  fMap := pMap;
-	  fZip := pZip
+	  fZip := pZip;
+	  
+	  listS f := Some f
 	}.
 
 	Definition typeof_list_func lf :=
@@ -94,7 +113,7 @@ Section ListFuncInst.
 		  | pZip t1 t2 => Some (tyArr (tyList t1) (tyArr (tyList t2) (tyList (tyPair t1 t2))))
 		end.
 
-	Definition list_func_eq (a b : list_func) : option bool :=
+	Definition list_func_eq (a b : list_func typ) : option bool :=
 	  match a , b with
 	    | pNil t1, pNil t2 => Some (t1 ?[ eq ] t2)
 	    | pCons t1, pCons t2 => Some (t1 ?[ eq ] t2)
@@ -106,7 +125,7 @@ Section ListFuncInst.
 	    | _, _ => None
 	  end.
 
-    Global Instance RelDec_list_func : RelDec (@eq (list_func)) := {
+    Global Instance RelDec_list_func : RelDec (@eq (list_func typ)) := {
       rel_dec a b := match list_func_eq a b with 
     	  		       | Some b => b 
     		 	       | None => false 
@@ -157,7 +176,7 @@ Section ListFuncInst.
 	          (typ2_cast (tyList t1) (typ2 (tyList t2) (tyList (tyPair t1 t2))))
 	 end.
 
-	Global Instance RSym_ListFunc : SymI.RSym list_func := {
+	Global Instance RSym_ListFunc : SymI.RSym (list_func typ) := {
 	  typeof_sym := typeof_list_func;
 	  symD := list_func_symD;
 	  sym_eqb := list_func_eq

@@ -91,12 +91,12 @@ Definition is_solved (e1 e2 : conjunctives typ func) : bool :=
                              end
     | _ , _ => false
   end.
-
+Check @normalize.
 Definition the_canceller tus tvs (lhs rhs : expr typ func)
            (s : subst)
 : (expr typ func * expr typ func * subst) + subst:=
-  match @normalize typ _ _ func _ sls nil tus tvs tyLogic lhs
-      , @normalize typ _ _ func _ sls nil tus tvs tyLogic rhs
+  match @normalize typ _ _ func _ sls tus tvs tyLogic lhs
+      , @normalize typ _ _ func _ sls tus tvs tyLogic rhs
   with
     | Some lhs_norm , Some rhs_norm =>
       match lhs_norm tt , rhs_norm tt with

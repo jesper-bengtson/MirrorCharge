@@ -34,7 +34,7 @@ Require Import MirrorCore.Reify.Reify.
 
 Require Import MirrorCharge.Java.Reify.
 
-Require Import MirrorCharge.Java.Subst.
+Require Import MirrorCharge.RTac.Subst.
 
 
 Require Import Java.Language.Lang.
@@ -171,18 +171,18 @@ Proof.
 Defined.
 Print write_lemma.
 
-Example test_write x f e : test_lemma (write_lemma x f e). Admitted.
+Example test_write_lemma x f e : test_lemma (write_lemma x f e). Admitted.
 
 Definition assign_lemma (x : var) (e : dexpr) : lemma typ (expr typ func) (expr typ func).
 Proof.
   reify_lemma reify_imp (@rule_assign_fwd x e).
 Defined.
 Print assign_lemma.
-Example test_assign x e : test_lemma (assign_lemma x e). Admitted.
+Example test_assign_lemma x e : test_lemma (assign_lemma x e). Admitted.
 
 Definition pull_exists_lemma : lemma typ (expr typ func) (expr typ func).
 Proof.
-  reify_lemma reify_imp (@pull_exists sval).
+  reify_lemma reify_imp (@pull_exists val).
 Defined.
 
 Print pull_exists_lemma.
@@ -208,9 +208,9 @@ Definition fieldLookupTac : stac typ (expr typ func) subst :=
 *)
 
 Definition solve_entailment : rtac typ (expr typ func) subst := 
-   (*   (THEN INSTANTIATE
-             (THEN (SIMPLIFY (fun _ _ => beta_all simplify nil nil))*)
-                   CANCELLATION typ func subst tySasn.
+      THEN (INSTANTIATE typ func subst)
+             (THEN (SUBST typ func subst)
+                   (CANCELLATION typ func subst tySasn)).
 
 Definition simStep (r : rtac typ (expr typ func) subst) : 
 	rtac typ (expr typ func) subst := 
@@ -293,38 +293,40 @@ Definition test_read :=
   	           (mkTriple (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 3))))
   	                     (mkCmd (cread "x" "o" "f"))
   	                     (Var 0))).
-Eval vm_compute in typeof_expr nil nil test_read.
+
+Definition test_read2 :=
+  	(mkEntails tySpec (mkTrue tySpec)
+  	           (mkTriple (mkPointsto "x" "f" (mkConst tyVal (mkVal (vint 3))))
+  	                     (mkCmd (cread "x" "o" "f"))
+  	                     (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 4)))))).
 
 Definition runTac tac := (THEN (REPEAT 10 (INTRO typ func subst)) symE)
 	 CTop (SubstI.empty (expr :=expr typ func)) tac.
 
-Definition runTac2 tac :=
-  runRTac' (THEN (REPEAT 10 (INTRO typ func subst))
-                 (THEN (EAPPLY typ _ _ (read_lemma "x" "o" "f")) (CANCELLATION typ func subst tySasn)))
-	   CTop (SubstI.empty (expr :=expr typ func)) (GGoal tac) 0 0.
+Time Eval vm_compute in runTac test_read.
+Time Eval vm_compute in runTac test_read2.
 
-Time Eval vm_compute in runTac2	 test_read.
+Definition test_write :=
+  	(mkEntails tySpec (mkTrue tySpec)
+  	           (mkTriple (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 3))))
+  	                     (mkCmd (cwrite "o" "f" (E_val (vint 4))))
+  	                     (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 4)))))).
 
+Time Eval vm_compute in runTac test_write.
 
-
-Print read_lemma.
-(*
 Definition testSwap :=
-  let goal := mkExists [tyProp, tySasn,
-              mkEntails [tySpec, mkTrue [tySpec],
-  	                     mkTriple [mkStar [tySasn,
-  		                                   mkPointsto "o" "f1" (mkConst [tyVal, mkVal [vint 1]]),
-	  	                                   mkPointsto "o" "f2" (mkConst [tyVal, mkVal [vint 2]])],                                           	                      
-  	                               mkCmd [cseq (cread "x1" "o" "f1")
+	mkForall tyVal tyProp
+		(mkForall tyVal tyProp
+		  	(mkEntails tySpec (mkTrue tySpec)
+		  	           (mkTriple (mkStar tySasn 
+		  	           			    (mkPointsto "o" "f1" (mkConst tyVal (Var 0)))
+		  	           			    (mkPointsto "o" "f2" (mkConst tyVal (Var 1))))
+		  	           			 (mkCmd (cseq (cread "x1" "o" "f1")
   	                                           (cseq (cread "x2" "o" "f2")
   	                                                 (cseq (cwrite "o" "f1" (E_var "x2"))
-  	                                                       (cwrite "o" "f2" (E_var "x1"))))], 
-			                       
-			                       mkStar [tySasn,
-			                               mkPointsto "o" "f1" (mkConst [tyVal, mkVal [vint 2]]),
-			                               mkPointsto "o" "f2" (mkConst [tyVal, mkVal [vint 1]])]]]]
-  in
-  (THEN (REPEAT 10 INTRO) symE)
-  	    CTop (SubstI.empty (expr :=expr typ func)) goal.
-
-*)
+  	                                                       (cwrite "o" "f2" (E_var "x1"))))))
+		  	           			 (mkStar tySasn 
+		  	           			    (mkPointsto "o" "f1" (mkConst tyVal (Var 1)))
+		  	           			    (mkPointsto "o" "f2" (mkConst tyVal (Var 0))))))).
+			
+Time Eval vm_compute in runTac testSwap.

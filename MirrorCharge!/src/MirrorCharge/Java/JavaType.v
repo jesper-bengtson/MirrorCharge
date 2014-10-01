@@ -163,16 +163,16 @@ Fixpoint typD (t : typ) : Type :=
     | tyBool => bool
     | tySpec => spec
     | tyAsn => asn
-    | tyVal => sval
+    | tyVal => val
     | tyString => string
     | tyField => field
     | tyVar => var
     | tyClass => class
-    | tyProg => Prog_wf
+    | tyProg => Program
     | tyCmd => cmd
     | tyFields => SS.t
     | tyDExpr => dexpr
-    | tySubst => @subst (String.string) SVal
+    | tySubst => @subst var val
   end.
 
 Inductive tyAcc_typ : typ -> typ -> Prop :=
@@ -263,12 +263,14 @@ Instance ListTypeD_typ : ListTypeD := {
 }.
 
 Instance SubstType_typ : SubstType typ := {
+	tyVar := tyVar;
+	tyVal := tyVal;
 	tySubst := tySubst
 }.
 
 Definition null' : TypesI.typD tyVal := null.
 
-Program Instance SubstTypeD_typ : @SubstTypeD typ _ _ tyVar tyVal null' := {
+Program Instance SubstTypeD_typ : @SubstTypeD typ _ _ := {
 	stSubst := eq_refl
 }.
 

@@ -8,13 +8,6 @@ Require Import MirrorCore.TypesI.
 Require Import MirrorCore.SubstI.
 Require Import MirrorCore.Lambda.ExprUnify_simul.
 
-Check @EAPPLY.
-Check @ASSUMPTION.
-Print ASSUMPTION.
-Print rtac.
-Print THEN.
-Check @INSTANTIATE.
-Check @ASSUMPTION.
 Section EAutoTac.
 	Context {typ func subst : Type}.
 	Context {RType_typ : RType typ}.
