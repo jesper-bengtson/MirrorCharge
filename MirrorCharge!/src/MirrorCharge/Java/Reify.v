@@ -56,6 +56,24 @@ Reify Declare Syntax reify_imp :=
     	 (@Patterns.CTypedTable _ _ _ term_table Ext) :: nil))
   }.
 
+Definition stack_get (x : var) (s : stack) := s x.
+
+Notation "'ap_eq' '[' x ',' y ']'" :=
+	 (ap (T := Fun stack) (ap (T := Fun stack) (pure (T := Fun stack) (@eq val)) x) y).
+Notation "'ap_pointsto' '[' x ',' f ',' e ']'" := 
+	(ap (T := Fun stack) (ap (T := Fun stack) (ap (T := Fun stack) 
+		(pure (T := Fun stack) pointsto) (stack_get x)) 
+			(pure (T := Fun stack) f)) e).
+Notation "'ap_typeof' '[' e ',' C ']'" :=
+	(ap (T := Fun stack) 
+	    (ap (T := Fun stack) 
+	        (pure (T := Fun stack) typeof) 
+	        (pure (T := Fun stack) C))
+	    e).
+
+Definition set_fold_fun (x f : String.string) (P : sasn) :=
+	ap_pointsto [x, f, pure null] ** P.
+
 Let _Inj := @ExprCore.Inj typ func.
 
 Local Notation "x @ y" := (@RApp x y) (only parsing, at level 30).
@@ -136,7 +154,8 @@ Reify Pattern patterns_java += (!! ex @ ?0) => (fun (x : function reify_imp_typ)
 Reify Pattern patterns_java += (RPi (?0) (?1)) => (fun (x : function reify_imp_typ) (y : function reify_imp) =>
                                                    ExprCore.App (fForall (func := expr typ func) x tyProp) (ExprCore.Abs x y)).
 
-Reify Pattern patterns_java += (RImpl (?0) (?1)) => (fun (x y : function reify_imp) => ExprCore.App (ExprCore.App (fImpl (func := expr typ func) tyProp) x) y).
+Reify Pattern patterns_java += (RImpl (?0) (?1)) => (fun (x y : function reify_imp) => 
+	ExprCore.App (ExprCore.App (fImpl (func := expr typ func) tyProp) x) y).
 
 (** Separation Logic Operators **)
 Reify Pattern patterns_java += (!! @BILogic.sepSP @ ?0 @ #) => (fun (x : function reify_imp_typ) => (fStar (func := expr typ func) x)).
@@ -148,7 +167,6 @@ Reify Pattern patterns_java += (!! method_spec) => (fMethodSpec).
 
 (** Program Logic **)
 
-Definition stack_get (x : var) (s : stack) := s x.
 
 Reify Pattern patterns_java += (!! triple) => (fTriple).
 Reify Pattern patterns_java += (!! eval @ (RHasType dexpr (?0))) => (fun e : id dexpr => evalDExpr e).

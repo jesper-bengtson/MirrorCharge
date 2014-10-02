@@ -130,10 +130,11 @@ Definition stac_cancel : stac typ (expr typ func) subst :=
 	     	  | true =>
 		        match the_canceller tus tvs L R s with
 		          | inl (l,r,s') =>
-		            let e' :=
-		            	mkEntails tyLogic l r
-		            in
-		            More nil nil s hyps e'
+		          	match bilogicS r with (* This is for intuitionistic logics only *)
+		          		| Some (bilf_emp _) => @Solved _ _ _ nil nil s'
+		          		| _ => let e' := mkEntails tyLogic l r in					            
+					               More nil nil s hyps e'
+					end
 		          | inr s' => @Solved _ _ _ nil nil s'
 		        end
 		      | false => More nil nil s hyps e

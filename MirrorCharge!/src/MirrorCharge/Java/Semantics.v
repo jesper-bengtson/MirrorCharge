@@ -28,7 +28,7 @@ Local Instance Applicative_Fun A : Applicative (Fun A) :=
 
 Lemma pull_exists {A} {P : A -> sasn} c Q G
 	(H : forall x, G |-- {[P x]} c {[Q]}) :
-	G |-- {[Exists x, P x]} c {[Q]}.
+	G |-- {[lexists P]} c {[Q]}.
 Proof.
   rewrite <- exists_into_precond2.
   apply lforallR. apply H.
@@ -53,19 +53,6 @@ Proof.
   apply rule_skip. reflexivity.
 Qed.
 
-Notation "'ap_eq' '[' x ',' y ']'" :=
-	 (ap (T := Fun stack) (ap (T := Fun stack) (pure (T := Fun stack) (@eq val)) x) y).
-Notation "'ap_pointsto' '[' x ',' f ',' e ']'" := 
-	(ap (T := Fun stack) (ap (T := Fun stack) (ap (T := Fun stack) 
-		(pure (T := Fun stack) pointsto) (stack_get x)) 
-			(pure (T := Fun stack) f)) e).
-Notation "'ap_typeof' '[' e ',' C ']'" :=
-	(ap (T := Fun stack) 
-	    (ap (T := Fun stack) 
-	        (pure (T := Fun stack) typeof) 
-	        (pure (T := Fun stack) C))
-	    e).
-
 Lemma rule_if (e : dexpr) c1 c2 (P Q : sasn) G
       (Hc1 : G |-- {[(@embed (@vlogic var val) sasn _ 
                       (ap_eq [eval e, pure (vbool true)])) //\\ P]} c1 {[Q]})
@@ -73,22 +60,25 @@ Lemma rule_if (e : dexpr) c1 c2 (P Q : sasn) G
                       (ap_eq [eval (E_not e), pure (vbool true)])) //\\ P]} c2 {[Q]}) : 
   G |-- {[P]} cif e c1 c2 {[Q]}. 
 Proof.
+  reify_imp (G |-- {[P]} cif e c1 c2 {[Q]}).
   eapply rule_if; unfold vlogic_eval, Open.liftn, Open.lift; simpl in *;
   	[apply Hc1|apply Hc2].
 Qed.
 
+Require Import Charge.Logics.BILogic.
+
   Lemma rule_read_fwd (x y : var) (f : field) (e : stack -> val) (P Q : sasn) (G : spec)
     (HP : P |-- ap_pointsto [y, f, e])
-    (HQ : Exists v : val, embed (ap_eq [stack_get x, apply_subst e (subst1 (pure (T := Fun stack) v) x)]) //\\ 
+    (HQ : Exists v : val, (embed (ap_eq [stack_get x, apply_subst e (subst1 (pure (T := Fun stack) v) x)])) **
     					      (apply_subst P (subst1 (pure (T := Fun stack) v) x)) |-- Q) :
     G |-- {[ P ]} cread x y f {[ Q ]}.
   Proof.
     pose proof @rule_read_fwd x y f e P. 
     unfold Open.liftn, Open.lift, open_eq, stack_get, Open.var_expr in *; simpl in *.
-    rewrite <- HQ , <- H; [apply ltrueR | apply HP].
+admit.
+(*    rewrite <- HQ , <- H; [apply ltrueR | apply HP].*)
   Qed.
 
-Require Import Charge.Logics.BILogic.
 
   Lemma rule_write_fwd (x : var) (f : field) (e : dexpr) G (P Q F : sasn) (e' : stack -> val)
         (HP : P |-- ap_pointsto [x, f, e'] ** F) 
@@ -116,8 +106,6 @@ Require Import Charge.Logics.BILogic.
     apply H. reflexivity.
   Qed.
 
-Definition set_fold_fun (x f : String.string) (P : sasn) :=
-	ap_pointsto [x, f, pure null] ** P.
 
   Lemma rule_alloc_fwd (x : var) (C : class) (G : spec) (P : sasn) (fields : SS.t) (Pr : Prog_wf) 
 	(Heq : G |-- prog_eq Pr)
@@ -127,6 +115,11 @@ Definition set_fold_fun (x f : String.string) (P : sasn) :=
 	                                            SS.fold (set_fold_fun x) fields 
 	                                                    (apply_subst P (subst1 (pure (T := Fun stack) p) x)) ]}.
   Proof.
+	reify_imp (	G |-- {[ P ]} calloc x C {[ Exists p : ptr, embed (ap_typeof [stack_get x, C] //\\
+	                                            ap_eq [stack_get x, pure (vptr p)]) //\\
+	                                            SS.fold (set_fold_fun x) fields 
+	                                                    (apply_subst P (subst1 (pure (T := Fun stack) p) x)) ]}).
+   
     reify_imp (field_lookup Pr C fields).
   	admit.
   Qed.

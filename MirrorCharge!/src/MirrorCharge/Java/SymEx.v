@@ -180,32 +180,54 @@ Defined.
 Print assign_lemma.
 Example test_assign_lemma x e : test_lemma (assign_lemma x e). Admitted.
 
+Definition alloc_lemma (x : var) (C : class) : lemma typ (expr typ func) (expr typ func).
+Proof.
+  reify_lemma reify_imp (@rule_alloc_fwd x C).
+Qed.
+Print alloc_lemma.
+
 Definition pull_exists_lemma : lemma typ (expr typ func) (expr typ func).
 Proof.
   reify_lemma reify_imp (@pull_exists val).
 Defined.
 
+Eval vm_compute in pull_exists_lemma.
+
+Definition pull_exists_lemma2 : lemma typ (expr typ func) (expr typ func) :=
+	{|
+       vars := tySpec :: tySasn :: tyCmd :: tyArr tyVal tySasn :: nil;
+       premises := App (Inj (inl (inl (inl (inl (inl (inl (inl (inr (ilf_forall tyVal tyProp))))))))))
+                     (Abs tyVal
+                        (App (App (Inj (inl (inl (inl (inl (inl (inl (inl (inr (ilf_entails tySpec)))))))))) (Var 1))
+                           (App (App (App (Inj (inr pTriple)) (App (Var 4) (Var 0))) (Var 2)) (Var 3)))) :: nil;
+       concl := App (App (Inj (inl (inl (inl (inl (inl (inl (inl (inr (ilf_entails tySpec)))))))))) (Var 0))
+                  (App
+                     (App
+                        (App (Inj (inr pTriple))
+                           (App (Inj (inl (inl (inl (inl (inl (inl (inl (inr (ilf_exists tyVal tySasn)))))))))) (Var 3))) 
+                        (Var 1)) (Var 2)) |}.
+
 Print pull_exists_lemma.
 
 Example test_pull_exists : test_lemma (pull_exists_lemma). Admitted.
 
-(*
 Definition fieldLookupTac : stac typ (expr typ func) subst :=
 	fun tus tvs s lst e =>
 		match e with
-		  | mkFieldLookup [mkProg [P], mkString [C], X] =>
+		  | App (App (App (Inj (inr pFieldLookup)) (Inj (inr (pProg P)))) (Inj (inr (pClass C)))) f =>
 		  	match SM.find C (p_classes P) with
     	      | Some Class =>
-    	        match @exprUnify subst typ func _ _ RS SS SU 3
-                                 tus tvs 0 s X (mkFields[c_fields Class]) tyVarList with
-                  | Some s => Solved nil nil s
-                  | None   => Fail
+    	        match @exprUnify subst typ func _ _ _ SS SU 3
+                                 tus tvs 0 s f (mkFields (c_fields Class)) tyVarList with
+                  | Some s => STac.Core.Solved nil nil s
+                  | None   => STac.Core.Fail
                 end
-    	      | None => Fail 
+    	      | None => STac.Core.Fail 
 		    end
-		  | _ => Fail
+		  | _ => STac.Core.Fail
 		end.
-*)
+
+Definition BETA := SIMPLIFY (typ := typ) (subst := subst) (fun _ _ => beta_all (@apps typ func) nil nil).
 
 Definition solve_entailment : rtac typ (expr typ func) subst := 
       THEN (INSTANTIATE typ func subst)
@@ -215,14 +237,24 @@ Definition solve_entailment : rtac typ (expr typ func) subst :=
 Definition simStep (r : rtac typ (expr typ func) subst) : 
 	rtac typ (expr typ func) subst := 
 	THEN (INSTANTIATE typ func subst)
-	     (THEN (TRY (THEN (APPLY typ func subst pull_exists_lemma) (REPEAT 10 (INTRO typ func subst))))
+	     (THEN (TRY (THEN (THEN (APPLY typ func subst pull_exists_lemma)
+	     	(REPEAT 10 (INTRO typ func subst))) BETA))
 	           r).
 
+
+
+Definition half_step1 := INSTANTIATE typ func subst.
+Definition half_step2 := THEN (INSTANTIATE typ func subst) (TRY (APPLY typ func subst pull_exists_lemma)).
+Definition half_step3 := 
+	THEN (INSTANTIATE typ func subst)
+	     (THEN (TRY (THEN (APPLY typ func subst pull_exists_lemma) BETA))
+	     	(REPEAT 10 (INTRO typ func subst))).
+		
 Fixpoint tripleE (c : cmd) : rtac typ (expr typ func) subst :=
 	match c with
-	    | cskip => THEN (INSTANTIATE typ func subst) (THEN (APPLY typ func subst skip_lemma) solve_entailment)
+	    | cskip => simStep (THEN (EAPPLY typ func subst skip_lemma) solve_entailment)
 		| cseq c1 c2 => simStep (THEN (EAPPLY typ func subst (seq_lemma c1 c2))
-						              (FIRST (tripleE c1::tripleE c2::nil)))
+						              (THEN (FIRST (tripleE c1::tripleE c2::nil)) solve_entailment))
 		| cassign x e => simStep (THEN (EAPPLY typ func subst (assign_lemma x e)) solve_entailment)
 		| cread x y f => simStep (THEN (EAPPLY typ func subst (read_lemma x y f)) solve_entailment)
 		| cwrite x f e => simStep (THEN (EAPPLY typ func subst (write_lemma x f e)) solve_entailment)
@@ -234,14 +266,15 @@ Definition symE : rtac typ (expr typ func) subst :=
 		(match e return rtac typ (expr typ func) subst with 
 			| App (App (Inj f) G) H =>
 			  match ilogicS f, H with
-			  	| Some (ilf_entails tySpec), 
+			  	| Some (ilf_entails tySpec), (* tySpec is a pattern, should be checked for equality with tySpec *)
 			  	  App (App (App (Inj (inr pTriple)) P) Q) (Inj (inr (pCmd c))) =>
 			  	  	tripleE c
 			  	| _, _ => @FAIL _ _ _
 			  end
 			| _ => @FAIL _ _ _
 		end) ctx s e).  
-		
+
+
 Require Import Java.Semantics.OperationalSemantics.
 Require Import Java.Logic.SpecLogic.
 Require Import Java.Logic.AssertionLogic.
@@ -287,18 +320,18 @@ Definition mkPointsto x f e : expr typ func :=
 Require Import String.
 Open Scope string.
 
-Definition test_read :=
+Definition test_read := 
     mkExists tySasn tyProp
   	(mkEntails tySpec (mkTrue tySpec)
   	           (mkTriple (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 3))))
-  	                     (mkCmd (cread "x" "o" "f"))
+  	                     (mkCmd (cseq (cread "x" "o" "f") cskip))
   	                     (Var 0))).
 
 Definition test_read2 :=
   	(mkEntails tySpec (mkTrue tySpec)
-  	           (mkTriple (mkPointsto "x" "f" (mkConst tyVal (mkVal (vint 3))))
-  	                     (mkCmd (cread "x" "o" "f"))
-  	                     (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 4)))))).
+  	           (mkTriple (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 3))))
+  	                     (mkCmd (cseq (cread "x" "o" "f") cskip))
+  	                     (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 3)))))).
 
 Definition runTac tac := (THEN (REPEAT 10 (INTRO typ func subst)) symE)
 	 CTop (SubstI.empty (expr :=expr typ func)) tac.
@@ -319,14 +352,16 @@ Definition testSwap :=
 		(mkForall tyVal tyProp
 		  	(mkEntails tySpec (mkTrue tySpec)
 		  	           (mkTriple (mkStar tySasn 
-		  	           			    (mkPointsto "o" "f1" (mkConst tyVal (Var 0)))
-		  	           			    (mkPointsto "o" "f2" (mkConst tyVal (Var 1))))
+		  	           			    (mkPointsto "o" "f1" (mkConst tyVal (Var 1)))
+		  	           			    (mkPointsto "o" "f2" (mkConst tyVal (Var 0))))
 		  	           			 (mkCmd (cseq (cread "x1" "o" "f1")
-  	                                           (cseq (cread "x2" "o" "f2")
-  	                                                 (cseq (cwrite "o" "f1" (E_var "x2"))
-  	                                                       (cwrite "o" "f2" (E_var "x1"))))))
+  	                                          (cseq (cread "x2" "o" "f2")
+  	                                                (cseq (cwrite "o" "f1" (E_var "x2"))
+  	                                                      (cseq (cwrite "o" "f2" (E_var "x1")) cskip)))))
 		  	           			 (mkStar tySasn 
 		  	           			    (mkPointsto "o" "f1" (mkConst tyVal (Var 1)))
 		  	           			    (mkPointsto "o" "f2" (mkConst tyVal (Var 0))))))).
 			
 Time Eval vm_compute in runTac testSwap.
+Print pull_exists_lemma.
+Print Goal.
