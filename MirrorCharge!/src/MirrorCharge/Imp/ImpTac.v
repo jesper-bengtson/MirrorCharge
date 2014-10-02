@@ -19,7 +19,7 @@ Local Existing Instance Expr_expr.
 Definition EAPPLY lem tac : stac typ (expr typ func) subst :=
   @EAPPLY typ (expr typ func) subst _ _ ExprLift.vars_to_uvars
                 (fun tus tvs n e1 e2 t s =>
-                   @exprUnify subst typ func _ _ RS SS SU 3
+                   @exprUnify subst typ func _ RS _ SS SU 3
                               tus tvs n s e1 e2 t)
                 (@ExprSubst.instantiate typ func) SS SU
                 lem (apply_to_all tac).
@@ -27,7 +27,7 @@ Definition EAPPLY lem tac : stac typ (expr typ func) subst :=
 Definition APPLY lem tac : stac typ (expr typ func) subst :=
   @APPLY typ (expr typ func) subst _ _ ExprLift.vars_to_uvars
                 (fun tus tvs n e1 e2 t s =>
-                   @exprUnify subst typ func _ _ RS SS SU 3
+                   @exprUnify subst typ func _ RS _ SS SU 3
                               tus tvs n s e1 e2 t)
                 (@ExprSubst.instantiate typ func) SS SU
                 lem (apply_to_all tac).

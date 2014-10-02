@@ -17,7 +17,7 @@ Set Implicit Arguments.
 Set Strict Implicit.
 
 Section Tauto.
-  Context (ts : types) (funcs : fun_map ts) (gs : logic_ops ts) (es : embed_ops ts).
+  Context (funcs : fun_map ts) (gs : logic_ops ts) (es : embed_ops ts).
   Context (H : logic_opsOk gs).
   Context (Hembed : embed_opsOk gs es).
 

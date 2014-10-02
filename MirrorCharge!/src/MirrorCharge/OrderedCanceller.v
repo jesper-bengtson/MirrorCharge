@@ -39,7 +39,7 @@ Section ordered_cancel.
 
   Variable subst : Type.
   Variable Subst_subst : Subst subst (expr typ func).
-  Hypothesis SubstOk_subst : SubstOk _ Subst_subst.
+  Hypothesis SubstOk_subst : SubstOk Subst_subst.
 
   Fixpoint findWithRest {T U} (f : T -> option U) (ls acc : list T) {struct ls}
   : option (T * U * list T) :=
