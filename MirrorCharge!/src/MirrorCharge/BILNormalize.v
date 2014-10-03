@@ -25,6 +25,7 @@ Require Import MirrorCore.Lambda.TypedFoldApp.
 Require Import MirrorCharge.Iterated.
 Require Import MirrorCharge.ILogicFunc.
 Require Import MirrorCharge.SepLogFold.
+Require Import MirrorCharge.SepLogFoldWithAnd.
 Require Import MirrorCharge.SynSepLog.
 
 Set Implicit Arguments.
@@ -111,12 +112,11 @@ Section conjunctives.
    ; pure := l.(pure) ++ r.(pure)
    |}.
 
-
   Definition SepLogArgs_normalize : SepLogArgs typ sym conjunctives :=
-  {| do_emp := mkEmpty
-   ; do_star := mkStar
-   ; do_other := fun f xs => mkSpatial f (List.map fst xs)
-   ; do_pure := mkPure
+  {| SepLogFold.do_emp := mkEmpty
+   ; SepLogFold.do_star := mkStar
+   ; SepLogFold.do_other := fun f xs => mkSpatial f (List.map fst xs)
+   ; SepLogFold.do_pure := mkPure
    |}.
 
   Variable SL : typ.
@@ -904,10 +904,41 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
     Qed.
 *)
 *)
+
+    Definition mkAnd (l r : conjunctives) : conjunctives :=
+      match l.(spatial) with
+        | nil => {| spatial := r.(spatial)
+                    ; pure := r.(pure) ++ l.(pure)
+                    ; star_true := r.(star_true)
+                 |}
+        | _ :: _ =>
+          match r.(spatial) with
+            | nil => {| spatial := l.(spatial)
+                        ; pure := l.(pure) ++ r.(pure)
+                        ; star_true := l.(star_true)
+                     |}
+            | _ :: _ =>
+              (** This is sub-optimal on several levels *)
+              mkSpatial (SSL.(e_and) (conjunctives_to_expr l) (conjunctives_to_expr r)) nil
+          end
+      end.
+
+    Definition SepLogAndArgs_normalize : SepLogAndArgs typ sym conjunctives :=
+    {| do_emp := mkEmpty
+     ; do_star := mkStar
+     ; do_other := fun f xs => mkSpatial f (List.map fst xs)
+     ; do_pure := mkPure
+     ; do_and := mkAnd
+     |}.
+
   End conjunctivesD.
 
   Definition normalize (sls : SepLogSpec typ sym) :=
     lazy_typed_mfold _ _ (AppFullFoldArgs_SepLogArgs SepLogArgs_normalize sls).
+
+  Definition normalize_and (ssl : SynSepLog typ sym) (sls : SepLogAndSpec typ sym) :=
+    lazy_typed_mfold _ _ (AppFullFoldArgs_SepLogAndArgs (SepLogAndArgs_normalize ssl) sls).
+
 
 (*
   Theorem normalizeOk
@@ -931,6 +962,7 @@ generalize (@iterated_base_cons _ SSL.(e_true) SSL.(e_and)
   Proof.
   Admitted.
 *)
+
 End conjunctives.
 
 (*
