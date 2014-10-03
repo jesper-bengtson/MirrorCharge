@@ -64,18 +64,24 @@ OBJECTS = \
 	bin/MirrorCharge/ModularFunc/SubstType.vo \
 	bin/MirrorCharge/ModularFunc/Sum.vo \
 	bin/MirrorCharge/OrderedCanceller.vo \
+	bin/MirrorCharge/PullQuant/BILPullQuant.vo \
+	bin/MirrorCharge/PullQuant/EmbedPullQuant.vo \
+	bin/MirrorCharge/PullQuant/ILPullQuant.vo \
 	bin/MirrorCharge/RTac/Apply.vo \
 	bin/MirrorCharge/RTac/Cancellation.vo \
 	bin/MirrorCharge/RTac/EApply.vo \
 	bin/MirrorCharge/RTac/Instantiate.vo \
 	bin/MirrorCharge/RTac/Intro.vo \
-	bin/MirrorCharge/RTac/PullQuant.vo \
 	bin/MirrorCharge/RTac/ReifyLemma.vo \
 	bin/MirrorCharge/RTac/Subst.vo \
 	bin/MirrorCharge/SepLogFold.vo \
 	bin/MirrorCharge/SepLogFoldEx.vo \
 	bin/MirrorCharge/SepLogFoldWithAnd.vo \
 	bin/MirrorCharge/SepTests.vo \
+	bin/MirrorCharge/SetoidRewrite/BILSetoidRewrite.vo \
+	bin/MirrorCharge/SetoidRewrite/Base.vo \
+	bin/MirrorCharge/SetoidRewrite/EmbedSetoidRewrite.vo \
+	bin/MirrorCharge/SetoidRewrite/ILSetoidRewrite.vo \
 	bin/MirrorCharge/SymEval.vo \
 	bin/MirrorCharge/SynSepLog.vo \
 	bin/MirrorCharge/Tauto.vo \
@@ -113,7 +119,7 @@ bin/MirrorCharge/Java/Reify.vo: src/MirrorCharge/Java/Reify.v bin/MirrorCharge/J
 bin/MirrorCharge/Java/Semantics.vo: src/MirrorCharge/Java/Semantics.v bin/MirrorCharge/Java/Reify.vo
 bin/MirrorCharge/Java/SymEx.vo: src/MirrorCharge/Java/SymEx.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/Java/Semantics.vo bin/MirrorCharge/Java/JavaType.vo bin/MirrorCharge/Java/JavaFunc.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/ModularFunc/BILogicFunc.vo bin/MirrorCharge/RTac/ReifyLemma.vo bin/MirrorCharge/Java/Reify.vo bin/MirrorCharge/RTac/Subst.vo bin/MirrorCharge/RTac/Apply.vo bin/MirrorCharge/RTac/Cancellation.vo bin/MirrorCharge/RTac/Intro.vo bin/MirrorCharge/RTac/EApply.vo bin/MirrorCharge/RTac/Instantiate.vo bin/MirrorCharge/Java/Semantics.vo bin/MirrorCharge/ModularFunc/OpenFunc.vo
 bin/MirrorCharge/Java/Test.vo: src/MirrorCharge/Java/Test.v
-bin/MirrorCharge/Java/TestQuantPull.vo: src/MirrorCharge/Java/TestQuantPull.v bin/MirrorCharge/Java/JavaType.vo bin/MirrorCharge/Java/JavaFunc.vo bin/MirrorCharge/RTac/PullQuant.vo bin/MirrorCharge/ModularFunc/BaseFunc.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo
+bin/MirrorCharge/Java/TestQuantPull.vo: src/MirrorCharge/Java/TestQuantPull.v bin/MirrorCharge/Java/JavaType.vo bin/MirrorCharge/Java/JavaFunc.vo bin/MirrorCharge/SetoidRewrite/Base.vo bin/MirrorCharge/SetoidRewrite/ILSetoidRewrite.vo bin/MirrorCharge/SetoidRewrite/BILSetoidRewrite.vo bin/MirrorCharge/SetoidRewrite/EmbedSetoidRewrite.vo bin/MirrorCharge/PullQuant/BILPullQuant.vo bin/MirrorCharge/PullQuant/ILPullQuant.vo bin/MirrorCharge/PullQuant/EmbedPullQuant.vo bin/MirrorCharge/ModularFunc/BaseFunc.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/ModularFunc/EmbedFunc.vo
 bin/MirrorCharge/ModularFunc/BILogicFunc.vo: src/MirrorCharge/ModularFunc/BILogicFunc.v bin/MirrorCharge/ModularFunc/ILogicFunc.vo
 bin/MirrorCharge/ModularFunc/BaseFunc.vo: src/MirrorCharge/ModularFunc/BaseFunc.v bin/MirrorCharge/ModularFunc/BaseType.vo
 bin/MirrorCharge/ModularFunc/BaseReify.vo: src/MirrorCharge/ModularFunc/BaseReify.v bin/MirrorCharge/ModularFunc/BaseFunc.vo bin/MirrorCharge/ModularFunc/BaseType.vo
@@ -128,18 +134,24 @@ bin/MirrorCharge/ModularFunc/OpenFunc.vo: src/MirrorCharge/ModularFunc/OpenFunc.
 bin/MirrorCharge/ModularFunc/SubstType.vo: src/MirrorCharge/ModularFunc/SubstType.v
 bin/MirrorCharge/ModularFunc/Sum.vo: src/MirrorCharge/ModularFunc/Sum.v
 bin/MirrorCharge/OrderedCanceller.vo: src/MirrorCharge/OrderedCanceller.v bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/Iterated.vo bin/MirrorCharge/SynSepLog.vo
+bin/MirrorCharge/PullQuant/BILPullQuant.vo: src/MirrorCharge/PullQuant/BILPullQuant.v bin/MirrorCharge/SetoidRewrite/Base.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/ModularFunc/BILogicFunc.vo bin/MirrorCharge/AutoSetoidRewrite.vo
+bin/MirrorCharge/PullQuant/EmbedPullQuant.vo: src/MirrorCharge/PullQuant/EmbedPullQuant.v bin/MirrorCharge/SetoidRewrite/Base.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/ModularFunc/EmbedFunc.vo bin/MirrorCharge/AutoSetoidRewrite.vo
+bin/MirrorCharge/PullQuant/ILPullQuant.vo: src/MirrorCharge/PullQuant/ILPullQuant.v bin/MirrorCharge/SetoidRewrite/Base.vo bin/MirrorCharge/ModularFunc/BaseFunc.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/AutoSetoidRewrite.vo
 bin/MirrorCharge/RTac/Apply.vo: src/MirrorCharge/RTac/Apply.v
 bin/MirrorCharge/RTac/Cancellation.vo: src/MirrorCharge/RTac/Cancellation.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/BILNormalize.vo bin/MirrorCharge/SynSepLog.vo bin/MirrorCharge/SepLogFold.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/ModularFunc/BILogicFunc.vo
 bin/MirrorCharge/RTac/EApply.vo: src/MirrorCharge/RTac/EApply.v
 bin/MirrorCharge/RTac/Instantiate.vo: src/MirrorCharge/RTac/Instantiate.v
 bin/MirrorCharge/RTac/Intro.vo: src/MirrorCharge/RTac/Intro.v bin/MirrorCharge/ModularFunc/ILogicFunc.vo
-bin/MirrorCharge/RTac/PullQuant.vo: src/MirrorCharge/RTac/PullQuant.v bin/MirrorCharge/AutoSetoidRewrite.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/ModularFunc/BaseFunc.vo
 bin/MirrorCharge/RTac/ReifyLemma.vo: src/MirrorCharge/RTac/ReifyLemma.v bin/MirrorCharge/ModularFunc/ILogicFunc.vo
-bin/MirrorCharge/RTac/Subst.vo: src/MirrorCharge/RTac/Subst.v bin/MirrorCharge/ModularFunc/OpenFunc.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/ModularFunc/BILogicFunc.vo bin/MirrorCharge/ModularFunc/LaterFunc.vo bin/MirrorCharge/ModularFunc/ListFunc.vo bin/MirrorCharge/ModularFunc/SubstType.vo
+bin/MirrorCharge/RTac/Subst.vo: src/MirrorCharge/RTac/Subst.v bin/MirrorCharge/ModularFunc/OpenFunc.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/ModularFunc/BILogicFunc.vo bin/MirrorCharge/ModularFunc/LaterFunc.vo bin/MirrorCharge/ModularFunc/EmbedFunc.vo bin/MirrorCharge/ModularFunc/ListFunc.vo bin/MirrorCharge/ModularFunc/SubstType.vo
 bin/MirrorCharge/SepLogFold.vo: src/MirrorCharge/SepLogFold.v
 bin/MirrorCharge/SepLogFoldEx.vo: src/MirrorCharge/SepLogFoldEx.v
 bin/MirrorCharge/SepLogFoldWithAnd.vo: src/MirrorCharge/SepLogFoldWithAnd.v
 bin/MirrorCharge/SepTests.vo: src/MirrorCharge/SepTests.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/CancellerTac.vo
+bin/MirrorCharge/SetoidRewrite/BILSetoidRewrite.vo: src/MirrorCharge/SetoidRewrite/BILSetoidRewrite.v bin/MirrorCharge/SetoidRewrite/Base.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/ModularFunc/BILogicFunc.vo bin/MirrorCharge/AutoSetoidRewrite.vo
+bin/MirrorCharge/SetoidRewrite/Base.vo: src/MirrorCharge/SetoidRewrite/Base.v bin/MirrorCharge/AutoSetoidRewrite.vo
+bin/MirrorCharge/SetoidRewrite/EmbedSetoidRewrite.vo: src/MirrorCharge/SetoidRewrite/EmbedSetoidRewrite.v bin/MirrorCharge/SetoidRewrite/Base.vo bin/MirrorCharge/ModularFunc/BaseFunc.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/ModularFunc/EmbedFunc.vo bin/MirrorCharge/AutoSetoidRewrite.vo
+bin/MirrorCharge/SetoidRewrite/ILSetoidRewrite.vo: src/MirrorCharge/SetoidRewrite/ILSetoidRewrite.v bin/MirrorCharge/SetoidRewrite/Base.vo bin/MirrorCharge/ModularFunc/BaseFunc.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/AutoSetoidRewrite.vo
 bin/MirrorCharge/SymEval.vo: src/MirrorCharge/SymEval.v
 bin/MirrorCharge/SynSepLog.vo: src/MirrorCharge/SynSepLog.v bin/MirrorCharge/SepLogFold.vo
 bin/MirrorCharge/Tauto.vo: src/MirrorCharge/Tauto.v bin/MirrorCharge/ILogicFunc.vo

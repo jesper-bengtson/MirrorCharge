@@ -10,6 +10,7 @@ Require Import MirrorCharge.ModularFunc.OpenFunc.
 Require Import MirrorCharge.ModularFunc.ILogicFunc.
 Require Import MirrorCharge.ModularFunc.BILogicFunc.
 Require Import MirrorCharge.ModularFunc.LaterFunc.
+Require Import MirrorCharge.ModularFunc.EmbedFunc.
 Require Import MirrorCharge.ModularFunc.ListFunc.
 Require Import MirrorCharge.ModularFunc.SubstType.
 
@@ -79,6 +80,7 @@ End ApplySubst.
 Section PushSubst.
   Context {typ func : Type} {ST : SubstType typ} {RType_typ : RType typ}.
   Context {OF : OpenFunc typ func} {ILF : ILogicFunc typ func} {BILF : BILogicFunc typ func}.
+  Context {EF : EmbedFunc typ func}.
   Context {RelDec_var : RelDec (@eq (typD tyVar))}.
   
   Variable Typ2_tyArr : Typ2 _ Fun.
@@ -103,11 +105,14 @@ Section PushSubst.
 		    			 	    end
 		    		   end
     		end
-    	| App g x =>
-    		match open_funcS g, open_funcS x with
-    			| Some of_stack_get, Some (of_var y) => applySubst t f e y
+    	| App g p =>
+    		match open_funcS g, open_funcS p with
+    			| Some of_stack_get, Some (of_var x) => applySubst t f e x
     			| Some (of_const _), _ => e
-    			| _, _ => mkApplySubst t e f
+    			| _, _ => match embedS g with
+    					    | Some (eilf_embed u v) => mkEmbed u v (pushSubst p u)
+    					    | _ => mkApplySubst t e f
+    					  end
     		end
     	| _ => match ilogicS e with
     		     | Some (ilf_true l) => mkTrue l
@@ -124,6 +129,7 @@ End PushSubst.
 Section SubstTac.
   Context {typ func subst : Type} {ST : SubstType typ} {RType_typ : RType typ}.
   Context {OF : OpenFunc typ func} {ILF : ILogicFunc typ func} {BILF : BILogicFunc typ func}.
+  Context {EF : EmbedFunc typ func}.
   Context {RelDec_var : RelDec (@eq (typD tyVar))}.
   
   Variable Typ2_tyArr : Typ2 _ Fun.
@@ -145,4 +151,4 @@ Section SubstTac.
 
 End SubstTac.
 
-Implicit Arguments SUBST [[ST] [RType_typ] [OF] [ILF] [BILF] [RelDec_var] [Typ2_tyArr]].
+Implicit Arguments SUBST [[ST] [RType_typ] [OF] [ILF] [BILF] [EF] [RelDec_var] [Typ2_tyArr]].

@@ -22,8 +22,12 @@ Set Implicit Arguments.
 Set Strict Implicit.
 Set Maximal Implicit Insertion.
 
+Inductive embed_func typ :=
+  | eilf_embed (_ _ : typ).
+    
 Class EmbedFunc (typ func : Type) := {
-  fEmbed : typ -> typ -> func
+  fEmbed : typ -> typ -> func;
+  embedS : func -> option (embed_func typ)
 }.
     
 Section EmbedFuncSum.
@@ -31,17 +35,29 @@ Section EmbedFuncSum.
 
 	Global Instance EmbedFuncSumL (A : Type) : 
 	   EmbedFunc typ (func + A) := {
-		  fEmbed t u := inl (fEmbed t u)
+		  fEmbed t u := inl (fEmbed t u);
+		  embedS f := match f with
+		  				| inl f => embedS f
+		  				| inr _ => None
+		  			  end
        }.
 
 	Global Instance EmbedFuncSumR (A : Type) : 
 		EmbedFunc typ (A + func) := {
-		  fEmbed t u := inr (fEmbed t u)
+		  fEmbed t u := inr (fEmbed t u);
+		  embedS f := match f with
+		  				| inr f => embedS f
+		  				| inl _ => None
+		  			  end
        }.
 
 	Global Instance EmbedFuncExpr : 
 		EmbedFunc typ (expr typ func) := {
-		  fEmbed t u := Inj (fEmbed t u)
+		  fEmbed t u := Inj (fEmbed t u);
+		  embedS f := match f with
+		  				| Inj f => embedS f
+		  				| _ => None
+		  			  end
         }.
 
 End EmbedFuncSum.
@@ -57,11 +73,9 @@ Section EmbedFuncInst.
     Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
     Let tyProp : typ := @typ0 _ _ _ _.
 
-  Inductive embed_func :=
-    | eilf_embed (_ _ : typ).
-    
-	Global Instance LaterFuncInst : EmbedFunc typ embed_func := {
-	  fEmbed := eilf_embed
+	Global Instance LaterFuncInst : EmbedFunc typ (embed_func typ) := {
+	  fEmbed := eilf_embed;
+	  embedS f := Some f
 	}.
 	
   Variable is : logic_ops.
@@ -78,7 +92,7 @@ Section EmbedFuncInst.
 
   Variable gs : embed_ops.
   
-  Definition typeof_embed_func (f : embed_func) : option typ :=
+  Definition typeof_embed_func (f : embed_func typ) : option typ :=
     match f with
       | eilf_embed t u => match gs t u with
 				  	        | Some _ => Some (tyArr t u)
@@ -86,7 +100,7 @@ Section EmbedFuncInst.
 				  	      end
   	end.
 
-  Global Instance RelDec_embed_func : RelDec (@eq embed_func) :=
+  Global Instance RelDec_embed_func : RelDec (@eq (embed_func typ)) :=
   { rel_dec := fun a b =>
 	         match a, b with
 	  	       | eilf_embed t u, eilf_embed t' u' => (t ?[eq] t' && u ?[ eq ] u')%bool
@@ -118,10 +132,10 @@ Section EmbedFuncInst.
                      end
         end.
 
- Definition funcD (f : embed_func) : match typeof_embed_func f with
-							           | Some t => typD t
-							           | None => unit
-							         end :=
+ Definition funcD (f : embed_func typ) : match typeof_embed_func f with
+							              | Some t => typD t
+							              | None => unit
+							             end :=
     match f as f
           return match typeof_embed_func f with
 		   | Some t => typD t
@@ -147,7 +161,7 @@ Section EmbedFuncInst.
         end
     end.
 
-  Global Instance RSym_embed_func : SymI.RSym embed_func :=
+  Global Instance RSym_embed_func : SymI.RSym (embed_func typ) :=
   { typeof_sym := typeof_embed_func
   ; sym_eqb := fun a b => Some (rel_dec a b)
   ; symD := funcD

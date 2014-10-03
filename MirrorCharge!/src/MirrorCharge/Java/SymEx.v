@@ -362,6 +362,8 @@ Definition testSwap :=
 		  	           			    (mkPointsto "o" "f1" (mkConst tyVal (Var 1)))
 		  	           			    (mkPointsto "o" "f2" (mkConst tyVal (Var 0))))))).
 			
+Set Printing Depth 100.
+			
 Time Eval vm_compute in runTac testSwap.
 Print pull_exists_lemma.
 Print Goal.
