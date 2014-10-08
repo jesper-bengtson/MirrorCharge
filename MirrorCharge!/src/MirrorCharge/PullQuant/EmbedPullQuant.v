@@ -26,9 +26,9 @@ Definition eil_match_plus (e : expr typ func) (_ : list (RG (expr typ func))) (r
       match embedS (typ := typ) (func := expr typ func) a, ilogicS b with 
       	| Some (eilf_embed u v), Some (ilf_exists t l) =>
 	      rg_plus
-	      (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGflip (RGinj (fEntails l))))
+	      (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGflip (RGinj (fEntails v))))
 	        (fun _ => rg_ret (mkExists t v (mkEmbed u v P))))
-	      (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGinj (fEntails l)))
+	      (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGinj (fEntails v)))
 	        (fun _ => rg_ret (mkExists t v (mkEmbed u v P))))
 	    | _, _ => rg_fail
 	  end

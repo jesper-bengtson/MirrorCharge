@@ -34,6 +34,13 @@ Proof.
   apply lforallR. apply H.
 Qed.
 
+Lemma eq_to_subst x (e : stack -> val) (P Q : sasn) 
+    (H : apply_subst P (subst1 e x) |-- apply_subst Q (subst1 e x)) :
+	embed (ap_eq [stack_get x, e]) //\\ P |-- Q.
+Proof.
+  admit.
+Qed.
+
 Lemma rule_seq c1 c2 (P Q R : sasn) G
       (Hc1 : G |-- {[P]} c1 {[Q]})
       (Hc2 : G |-- {[Q]} c2 {[R]}) :
@@ -69,14 +76,13 @@ Require Import Charge.Logics.BILogic.
 
   Lemma rule_read_fwd (x y : var) (f : field) (e : stack -> val) (P Q : sasn) (G : spec)
     (HP : P |-- ap_pointsto [y, f, e])
-    (HQ : Exists v : val, (embed (ap_eq [stack_get x, apply_subst e (subst1 (pure (T := Fun stack) v) x)])) **
+    (HQ : Exists v : val, (embed (ap_eq [stack_get x, apply_subst e (subst1 (pure (T := Fun stack) v) x)])) //\\
     					      (apply_subst P (subst1 (pure (T := Fun stack) v) x)) |-- Q) :
     G |-- {[ P ]} cread x y f {[ Q ]}.
   Proof.
     pose proof @rule_read_fwd x y f e P. 
     unfold Open.liftn, Open.lift, open_eq, stack_get, Open.var_expr in *; simpl in *.
-admit.
-(*    rewrite <- HQ , <- H; [apply ltrueR | apply HP].*)
+    rewrite <- HQ , <- H; [apply ltrueR | apply HP].
   Qed.
 
 
@@ -106,21 +112,15 @@ admit.
     apply H. reflexivity.
   Qed.
 
-
-  Lemma rule_alloc_fwd (x : var) (C : class) (G : spec) (P : sasn) (fields : SS.t) (Pr : Prog_wf) 
+  Lemma rule_alloc_fwd (x : var) (C : class) (G : spec) (P Q : sasn) (fields : list field) (Pr : Program) 
 	(Heq : G |-- prog_eq Pr)
-	(Hf : field_lookup Pr C fields) :
-	G |-- {[ P ]} calloc x C {[ Exists p : ptr, embed (ap_typeof [stack_get x, C] //\\
-	                                            ap_eq [stack_get x, pure (vptr p)]) //\\
-	                                            SS.fold (set_fold_fun x) fields 
-	                                                    (apply_subst P (subst1 (pure (T := Fun stack) p) x)) ]}.
+	(Hf : field_lookup Pr C fields) 
+	(Hent : Exists p : val, embed (ap_typeof [stack_get x, C] //\\
+	                                            ap_eq [stack_get x, pure p]) //\\
+	                                            fold_right (fun f P => ap_pointsto [x, f, pure null] ** P)
+	                                                    (apply_subst P (subst1 (pure (T := Fun stack) p) x)) fields |-- Q) :
+	G |-- {[ P ]} calloc x C {[ Q ]}.
   Proof.
-	reify_imp (	G |-- {[ P ]} calloc x C {[ Exists p : ptr, embed (ap_typeof [stack_get x, C] //\\
-	                                            ap_eq [stack_get x, pure (vptr p)]) //\\
-	                                            SS.fold (set_fold_fun x) fields 
-	                                                    (apply_subst P (subst1 (pure (T := Fun stack) p) x)) ]}).
-   
-    reify_imp (field_lookup Pr C fields).
   	admit.
   Qed.
 

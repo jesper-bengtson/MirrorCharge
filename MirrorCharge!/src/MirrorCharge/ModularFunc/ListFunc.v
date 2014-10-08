@@ -22,6 +22,7 @@ Inductive list_func (typ : Type) :=
   | pCons : typ -> list_func typ
   | pLength : typ -> list_func typ
   | pMap : typ -> typ -> list_func typ
+  | pFold : typ -> typ -> list_func typ
   | pZip : typ -> typ -> list_func typ.
 
 Class ListFunc (typ func : Type) := {
@@ -29,6 +30,7 @@ Class ListFunc (typ func : Type) := {
   fCons : typ -> func;
   fLength : typ -> func;
   fMap : typ -> typ -> func;
+  fFold : typ -> typ -> func;
   fZip : typ -> typ -> func;
   
   listS : func -> option (list_func typ)
@@ -43,6 +45,7 @@ Section ListFuncSum.
 	      fCons t := inl (fCons t);
 	      fLength t := inl (fLength t);
           fMap t1 t2 := inl (fMap t1 t2);
+          fFold t1 t2 := inl (fFold t1 t2);
           fZip t1 t2 := inl (fZip t1 t2);
           
           listS f := match f with
@@ -57,6 +60,7 @@ Section ListFuncSum.
 	      fCons t := inr (fCons t);
 	      fLength t := inr (fLength t);
           fMap t1 t2 := inr (fMap t1 t2);
+          fFold t1 t2 := inr (fFold t1 t2);
           fZip t1 t2 := inr (fZip t1 t2);
          
           listS f := match f with
@@ -71,6 +75,7 @@ Section ListFuncSum.
     	  fCons t := Inj (fCons t);
     	  fLength t := Inj (fLength t);
     	  fMap t1 t2 := Inj (fMap t1 t2);
+    	  fFold t1 t2 := Inj (fFold t1 t2);
     	  fZip t1 t2 := Inj (fZip t1 t2);
          
           listS f := match f with
@@ -99,6 +104,7 @@ Section ListFuncInst.
 	  fCons := pCons;
 	  fLength := pLength;
 	  fMap := pMap;
+	  fFold := pFold;
 	  fZip := pZip;
 	  
 	  listS f := Some f
@@ -110,6 +116,7 @@ Section ListFuncInst.
 		  | pCons t => Some (tyArr t (tyArr (tyList t) (tyList t)))
 		  | pLength t => Some (tyArr (tyList t) tyNat)
 		  | pMap t1 t2 => Some (tyArr (tyArr t1 t2) (tyArr (tyList t1) (tyList t2)))
+		  | pFold t1 t2 => Some (tyArr (tyArr t2 (tyArr t1 t1)) (tyArr t1 (tyArr (tyList t2) t1))) 
 		  | pZip t1 t2 => Some (tyArr (tyList t1) (tyArr (tyList t2) (tyList (tyPair t1 t2))))
 		end.
 
@@ -119,6 +126,8 @@ Section ListFuncInst.
 	    | pCons t1, pCons t2 => Some (t1 ?[ eq ] t2)
 	    | pLength t1, pLength t2 => Some (t1 ?[ eq ] t2)
 	    | pMap t1 t2, pMap t3 t4 => Some (t1 ?[ eq ] t3 &&
+	      								    t2 ?[ eq ] t4)%bool
+	    | pFold t1 t2, pFold t3 t4 => Some (t1 ?[ eq ] t3 &&
 	      								    t2 ?[ eq ] t4)%bool
 	    | pZip t1 t2, pZip t3 t4 => Some (t1 ?[ eq ] t3 &&
 	      								    t2 ?[ eq ] t4)%bool
@@ -161,6 +170,21 @@ Section ListFuncInst.
 	                eq_rect_r id (List.map f lst) (btList t2))
 	            (typ2_cast (tyList t1) (tyList t2)))
 	          (typ2_cast (tyArr t1 t2) (typ2 (tyList t1) (tyList t2)))
+	    | pFold t1 t2 => 
+	        eq_rect_r id 
+	          (eq_rect_r (fun T : Type => typD (tyArr t2 (tyArr t1 t1)) -> T)
+				(eq_rect_r (fun T : Type => typD (tyArr t2 (tyArr t1 t1)) -> typD t1 -> T)
+					(fun f acc lst =>
+						let f := eq_rect _ id f _ 
+							(eq_ind_r (fun T : Type => T = (typD t2 -> typD t1 -> typD t1))
+						      (eq_ind_r
+						         (fun T : Type => Fun (typD t2) T = (typD t2 -> typD t1 -> typD t1))
+         eq_refl (typ2_cast t1 t1)) (typ2_cast t2 (typ2 t1 t1))) in
+						let lst := eq_rect _ id lst _ (btList t2) in
+						   fold_right f acc lst)
+					(typ2_cast (tyList t2) t1))				  
+	            (typ2_cast t1 (typ2 (tyList t2) t1)))
+	          (typ2_cast (typ2 t2 (typ2 t1 t1)) (typ2 t1 (typ2 (tyList t2) t1)))
 	    | pZip t1 t2 => 
 	        eq_rect_r id 
 	          (eq_rect_r (fun T : Type => typD (tyList t1) -> T)
@@ -191,6 +215,7 @@ Section ListFuncInst.
 		+ consider (t ?[ eq ] t0); intuition congruence.
 		+ consider (t ?[ eq ] t1 && t0 ?[ eq ] t2)%bool; intuition congruence. 
 		+ consider (t ?[ eq ] t1 && t0 ?[ eq ] t2)%bool; intuition congruence. 
+		+ consider (t ?[ eq ] t1 && t0 ?[ eq ] t2)%bool; intuition congruence. 
 	Qed.
 
 End ListFuncInst.
@@ -202,6 +227,7 @@ Section MakeList.
 	Definition mkCons (t : typ) (x xs : expr typ func) := App (App (fCons t) x) xs.
 	Definition mkLength (t : typ) (lst : expr typ func) := App (fLength t) lst.
 	Definition mkMap (t u : typ) (f lst : expr typ func) :=  App (App (fMap t u) f) lst.
+	Definition mkFold (t u : typ) (f acc lst : expr typ func) :=  App (App (App (fFold t u) f) acc) lst.
 	Definition mkZip (t u : typ) (xs ys : expr typ func) := App (App (fZip t u) xs) ys.
 	
 End MakeList.

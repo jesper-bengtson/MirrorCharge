@@ -47,16 +47,13 @@ Set Strict Implicit.
 	| pProg (_ : Program)
 	| pCmd (_ : cmd)
 	| pDExpr (_ : dexpr)
-	| pFields (_ : SS.t)
+	| pFields (_ : list field)
 	
 	| pMethodSpec
 	| pProgEq
 	| pTriple
 	| pTypeOf
 	| pFieldLookup
-	
-	| pSetFold (_ : typ)
-	| pSetFoldFun 
 	
 	| pPointsto
 	| pNull
@@ -97,9 +94,6 @@ Set Strict Implicit.
 		    
 		    | pFieldLookup => Some (tyArr tyProg (tyArr tyClass (tyArr tyFields tyProp)))
 		    
-		    | pSetFoldFun => Some (tyArr tyString (tyArr tyString (tyArr tySasn tySasn)))
-		    | pSetFold t => Some (tyArr (tyArr tyString (tyArr t t)) (tyArr tyFields (tyArr t t)))
-		    
 		    | pPointsto => Some (tyArr tyVal (tyArr tyField (tyArr tyVal tyAsn)))
 		    
 		    | pNull => Some tyVal
@@ -118,12 +112,12 @@ Set Strict Implicit.
 	  match a , b with
 	    | pField a, pField b => Some (a ?[ eq ] b)
 	    | pClass a, pClass b => Some (a ?[ eq ] b)
-		| pVal a, pVal b => Some (beq_val a b)
-	    | pVarList a, pVarList b => Some (beq_list beq_string a b)
-	    | pProg a, pProg b => Some true (* THIS IS FALSE! We need an equivalence checker for programs. This should just be syntactic equality. *)
-	    | pCmd a, pCmd b => Some (beq_cmd a b)
-	    | pDExpr e1, pDExpr e2 => Some (beq_dexpr e1 e2)
-	    | pFields a, pFields b => Some (SS.equal a b)
+		| pVal a, pVal b => Some (a ?[ eq ] b)
+	    | pVarList a, pVarList b => Some (a ?[ eq ] b)
+	    | pProg a, pProg b => Some (a ?[ eq ] b)
+	    | pCmd a, pCmd b => Some (a ?[ eq ] b)
+	    | pDExpr e1, pDExpr e2 => Some (e1 ?[ eq ] e2)
+	    | pFields a, pFields b => Some (a ?[ eq ] b)
 	        
 	    | pMethodSpec, pMethodSpec => Some true
 	    | pProgEq, pProgEq => Some true
@@ -133,8 +127,6 @@ Set Strict Implicit.
 	
 	    | pPointsto, pPointsto => Some true
 	    | pFieldLookup, pFieldLookup => Some true
-	    | pSetFold t, pSetFold u => Some (t ?[ eq ] u)
-	    | pSetFoldFun, pSetFoldFun => Some true
 	
 	    | pNull, pNull => Some true
 	    | pPlus, pPlus => Some true
@@ -188,8 +180,6 @@ Definition set_fold_fun (x : String.string) (f : field) (P : sasn) :=
               | pTypeOf => typeof
                             
               | pFieldLookup => field_lookup
-              | pSetFold t => @SS.fold (typD t)
-              | pSetFoldFun => set_fold_fun
               
               | pPointsto => pointsto
               
@@ -211,20 +201,21 @@ Definition set_fold_fun (x : String.string) (f : field) (P : sasn) :=
 	  sym_eqb := java_func_eq
 	}.
 
+Print SymI.RSymOk.
+
 	Global Instance RSymOk_JavaFunc : SymI.RSymOk RSym_JavaFunc.
 	Proof.
-	admit.
-	(*
 		split; intros.
 		destruct a, b; simpl; try apply I; try reflexivity.
-		+ consider (v ?[ eq ] v0); intuition congruence.
 		+ consider (f ?[ eq ] f0); intuition congruence.
 		+ consider (c ?[ eq ] c0); intuition congruence.
-		+ consider (s ?[ eq ] s0); intuition congruence.
-		+ consider (t ?[ eq ] t1 && t0 ?[ eq ] t2)%bool; 
-		  intuition congruence.
-*)
-	Qed.
+		+ consider (v ?[ eq ] v0); intuition congruence.
+		+ consider (l ?[ eq ] l0); intuition congruence.
+		+ consider (p ?[ eq ] p0); intuition congruence. 
+		+ consider (c ?[ eq ] c0); intuition congruence. 
+		+ consider (d ?[ eq ] d0); intuition congruence. 
+		+ consider (l ?[ eq ] l0); intuition congruence. 
+	Qed.		
 
 Definition func := (SymEnv.func + @ilfunc typ + @bilfunc typ + 
                     @base_func typ + @list_func typ + @open_func typ _ _ + 
@@ -245,8 +236,6 @@ Section MakeJavaFunc.
 	Definition fTriple : expr typ func := Inj (inr pTriple).
 	Definition fTypeOf : expr typ func := Inj (inr pTypeOf).
 	Definition fFieldLookup : expr typ func := Inj (inr pFieldLookup).
-	Definition fSetFold t : expr typ func := Inj (inr (pSetFold t)).
-	Definition fSetFoldFun : expr typ func := Inj (inr pSetFoldFun).
 	Definition fPointsto : expr typ func := Inj (inr pPointsto).
 	Definition mkNull : expr typ func := Inj (inr pNull).
 
@@ -261,7 +250,6 @@ Section MakeJavaFunc.
 
 	Definition mkTriple P c Q : expr typ func := App (App (App fTriple P) Q) c.
 	Definition mkFieldLookup P C f : expr typ func := App (App (App fFieldLookup P) C) f.
-	Definition mkSetFold t x f P : expr typ func := (App (App (App (fSetFold t) (App fSetFoldFun x)) f) P). 
 	Definition mkTypeOf C x : expr typ func := App (App fTypeOf C) x.
 	Definition mkProgEq P := App fProgEq P.
 	
@@ -298,17 +286,19 @@ Instance RSym_embed_func : RSym (@embed_func typ) :=
 	RSym_embed_func _ eops.
 Instance RSym_later_func : RSym (@later_func typ) :=
 	RSym_later_func _ lops.
-	Check null.
+
 Instance RSym_open_func : RSym (@open_func typ _ _) :=
 	@RSym_OpenFunc _ _ _ RType_typ _ _ _ _ _ _ _ _.
 
 Existing Instance RSym_sum.
 Existing Instance RSymOk_sum.
 
-Instance RelDec_expr : RelDec (@eq (expr typ func)) := _.
+Instance RelDec_expr : RelDec (@eq func) := _.
 
 Instance Expr_expr : ExprI.Expr _ (expr typ func) := @Expr_expr typ func _ _ _.
 Instance Expr_ok : @ExprI.ExprOk typ RType_typ (expr typ func) Expr_expr := ExprOk_expr.
+
+Print ExprD.Expr_expr.
 
 Definition subst : Type :=
   FMapSubst.SUBST.raw (expr typ func).
@@ -334,6 +324,16 @@ Proof.
   + simpl; rewrite IHe1, IHe2; reflexivity.
   + simpl; rewrite IHe1, IHe2; reflexivity.
 Qed.
+
+Definition is_pure (e : expr typ func) : bool :=
+	match e with
+		| App f P => match embedS f with
+					     | Some (eilf_embed tyPure tySasn) => true
+					     | Some (eilf_embed tyProp tySasn) => true
+					     | _ => false
+					 end 
+		| _ => false
+	end.
 
 Definition test_lemma :=
   @lemmaD typ RType_typ (expr typ func) Expr_expr (expr typ func)

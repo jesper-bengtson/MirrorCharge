@@ -6,14 +6,13 @@ Require Import MirrorCore.TypesI.
 Require Import ExtLib.Core.RelDec.
 
 Require Import MirrorCharge.SetoidRewrite.Base.
-Require Import MirrorCharge.ModularFunc.BaseFunc.
 Require Import MirrorCharge.ModularFunc.ILogicFunc.
 Require Import MirrorCharge.AutoSetoidRewrite.
 
 Require Import Charge.Logics.ILogic.
 
 Section ILPullQuant.
-  Context {typ func : Type} {HIL : ILogicFunc typ func} {HB : BaseFunc typ func}.
+  Context {typ func : Type} {HIL : ILogicFunc typ func}.
   Context {RType_typ : RType typ}.
   Context {RelDec_func : RelDec (@eq (expr typ func))}.
 

@@ -13,7 +13,7 @@ Require Import MirrorCharge.ILogicFunc.
 Require Import MirrorCharge.OrderedCanceller.
 Require Import MirrorCharge.BILNormalize.
 Require Import MirrorCharge.SynSepLog.
-Require Import MirrorCharge.SepLogFold.
+Require Import MirrorCharge.SepLogFoldWithAnd.
 Require Import MirrorCharge.ModularFunc.ILogicFunc.
 Require Import MirrorCharge.ModularFunc.BILogicFunc.
 
@@ -30,18 +30,25 @@ Section Canceller.
   Context {SS : Subst subst (expr typ func)}.
   Context {SU : SubstUpdate subst (expr typ func)}.
   Context {SO : SubstOk SS}.
+  
+  Context {uis_pure : expr typ func -> bool}.
 
-  Definition sls : SepLogSpec typ func :=
+  Definition sls : SepLogAndSpec typ func :=
   {| is_pure := fun e : expr typ func =>
                   match ilogicS e with
 		    | Some (ilf_true _)
 		    | Some (ilf_false _) => true
-		    | _ => false
+		    | _ => uis_pure e
 		  end
    ; is_emp := fun e => false
    ; is_star := fun e : expr typ func =>
  		  match bilogicS e with
  		    | Some (bilf_star _) => true
+ 		    | _ => false
+ 		  end
+   ; is_and := fun e : expr typ func =>
+ 		  match ilogicS e with
+ 		    | Some (ilf_and _) => true
  		    | _ => false
  		  end
    |}.
@@ -96,8 +103,8 @@ Section Canceller.
   Definition the_canceller tus tvs (lhs rhs : expr typ func)
              (s : subst)
   : (expr typ func * expr typ func * subst) + subst:=
-    match @normalize typ _ _ func _ sls tus tvs tyLogic lhs
-        , @normalize typ _ _ func _ sls tus tvs tyLogic rhs
+    match @normalize_and typ _ _ func _ ssl sls tus tvs tyLogic lhs
+        , @normalize_and typ _ _ func _ ssl sls tus tvs tyLogic rhs
     with
       | Some lhs_norm , Some rhs_norm =>
         match lhs_norm tt , rhs_norm tt with
@@ -158,9 +165,9 @@ Section CancelTac.
   Context {RSym_func : @RSym _ RType_typ func}.
   Context {SS : SubstI.Subst subst (expr typ func)}.
   Context {SU : SubstI.SubstUpdate subst (expr typ func)}.
-
+  Context {is_pure : expr typ func -> bool}.
   Definition CANCELLATION :=
-    (STAC_no_hyps (@ExprSubst.instantiate typ func) (stac_cancel typ func subst tyLogic)).
+    (STAC_no_hyps (@ExprSubst.instantiate typ func) (stac_cancel typ func subst tyLogic is_pure)).
 
 End CancelTac.
 

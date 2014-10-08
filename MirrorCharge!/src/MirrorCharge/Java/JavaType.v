@@ -45,7 +45,6 @@ Inductive typ :=
 | tyAsn : typ
 | tyProg : typ
 | tyCmd : typ
-| tyFields : typ
 | tyDExpr : typ
 | tySubst : typ. 
 
@@ -54,6 +53,7 @@ Notation "'tyStack'" := (tyArr tyVar tyVal).
 Notation "'tyPure'" := (tyArr tyStack tyProp).
 Notation "'tySasn'" := (tyArr tyStack tyAsn). 
 Notation "'tyExpr'" := (tyArr tyStack tyVal).
+Notation "'tyFields'" := (tyList tyField).
 
 Notation "'tyVarList'" := (tyList tyVar).
 Notation "'tyDExprList'" := (tyList tyDExpr).
@@ -104,7 +104,6 @@ Fixpoint type_cast_typ (a b : typ) : option (a = b) :=
     | tyCmd, tyCmd => Some eq_refl
     | tyDExpr, tyDExpr => Some eq_refl
     | tyAsn, tyAsn => Some eq_refl
-    | tyFields, tyFields => Some eq_refl
     | tySubst, tySubst => Some eq_refl
 
     | _, _ => None
@@ -170,7 +169,6 @@ Fixpoint typD (t : typ) : Type :=
     | tyClass => class
     | tyProg => Program
     | tyCmd => cmd
-    | tyFields => SS.t
     | tyDExpr => dexpr
     | tySubst => @subst var val
   end.

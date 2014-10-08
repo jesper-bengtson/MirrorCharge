@@ -22,7 +22,7 @@ Section SetoidRewrite.
 
   Context {RType_typ : RType typ} {RelDec_typ_eq : RelDec (@eq typ)}
           {RelDecCorrect_typ_eq : RelDec_Correct RelDec_typ_eq}.
-          
+  
   Context {RelDec_func_eq : RelDec (@eq (expr typ func))}.
 
   Let Rbase := expr typ func.
@@ -80,7 +80,7 @@ Section SetoidRewrite.
 
   Definition setoid_rewrite (l : typ) (e : expr typ func) : expr typ func :=
     match
-      rw_fix 500 (@setoid_rewrite typ func (expr typ func)
+      rw_fix 10 (@setoid_rewrite typ func (expr typ func)
                        rel_dec
                        rewrite_exs rewrite_respects)
         e nil (RGinj (rel l))

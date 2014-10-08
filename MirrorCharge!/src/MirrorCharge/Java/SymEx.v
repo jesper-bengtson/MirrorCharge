@@ -30,6 +30,7 @@ Require Import MirrorCharge.Java.JavaFunc.
 Require Import MirrorCharge.ModularFunc.ILogicFunc.
 Require Import MirrorCharge.ModularFunc.BILogicFunc.
 Require Import MirrorCharge.RTac.ReifyLemma.
+Require Import MirrorCharge.RTac.PullConjunct.
 Require Import MirrorCore.Reify.Reify.
 
 Require Import MirrorCharge.Java.Reify.
@@ -62,7 +63,7 @@ Time Eval vm_compute in typeof_expr nil nil (cancelTest 10).
 
 Time Eval vm_compute in 
 	(THEN (REPEAT 10 (INTRO typ func subst)) 
-	(CANCELLATION typ func subst tySasn)) 
+	(CANCELLATION typ func subst tySasn is_pure)) 
 		CTop (SubstI.empty (expr := expr typ func)) (cancelTest 10).
 
 Fixpoint search_NoDup
@@ -83,10 +84,12 @@ Fixpoint search_NoDup
       | None => None
       end
   end.
+(*
+
 
 Definition list_notin_set lst s :=
   	fold_right (fun a acc => andb (SS.for_all (fun b => negb (string_dec a b)) s) acc) true lst.
-(*
+
 Definition method_specI : stac typ (expr typ func) subst :=
   fun tus tvs s lst e =>
     match e with
@@ -183,29 +186,22 @@ Example test_assign_lemma x e : test_lemma (assign_lemma x e). Admitted.
 Definition alloc_lemma (x : var) (C : class) : lemma typ (expr typ func) (expr typ func).
 Proof.
   reify_lemma reify_imp (@rule_alloc_fwd x C).
-Qed.
+Defined.
 Print alloc_lemma.
+Example test_alloc_lemma x C : test_lemma (alloc_lemma x C). Admitted.
 
 Definition pull_exists_lemma : lemma typ (expr typ func) (expr typ func).
 Proof.
   reify_lemma reify_imp (@pull_exists val).
 Defined.
-
 Eval vm_compute in pull_exists_lemma.
 
-Definition pull_exists_lemma2 : lemma typ (expr typ func) (expr typ func) :=
-	{|
-       vars := tySpec :: tySasn :: tyCmd :: tyArr tyVal tySasn :: nil;
-       premises := App (Inj (inl (inl (inl (inl (inl (inl (inl (inr (ilf_forall tyVal tyProp))))))))))
-                     (Abs tyVal
-                        (App (App (Inj (inl (inl (inl (inl (inl (inl (inl (inr (ilf_entails tySpec)))))))))) (Var 1))
-                           (App (App (App (Inj (inr pTriple)) (App (Var 4) (Var 0))) (Var 2)) (Var 3)))) :: nil;
-       concl := App (App (Inj (inl (inl (inl (inl (inl (inl (inl (inr (ilf_entails tySpec)))))))))) (Var 0))
-                  (App
-                     (App
-                        (App (Inj (inr pTriple))
-                           (App (Inj (inl (inl (inl (inl (inl (inl (inl (inr (ilf_exists tyVal tySasn)))))))))) (Var 3))) 
-                        (Var 1)) (Var 2)) |}.
+Definition eq_to_subst_lemma : lemma typ (expr typ func) (expr typ func).
+Proof.
+  reify_lemma reify_imp eq_to_subst.
+Defined.
+Eval vm_compute in eq_to_subst_lemma.
+Example test_eq_lemma : test_lemma (eq_to_subst_lemma). Admitted.
 
 Print pull_exists_lemma.
 
@@ -215,7 +211,7 @@ Definition fieldLookupTac : stac typ (expr typ func) subst :=
 	fun tus tvs s lst e =>
 		match e with
 		  | App (App (App (Inj (inr pFieldLookup)) (Inj (inr (pProg P)))) (Inj (inr (pClass C)))) f =>
-		  	match SM.find C (p_classes P) with
+		  	match class_lookup C P with
     	      | Some Class =>
     	        match @exprUnify subst typ func _ _ _ SS SU 3
                                  tus tvs 0 s f (mkFields (c_fields Class)) tyVarList with
@@ -227,32 +223,68 @@ Definition fieldLookupTac : stac typ (expr typ func) subst :=
 		  | _ => STac.Core.Fail
 		end.
 
+Definition FIELD_LOOKUP := STAC_no_hyps (@ExprSubst.instantiate typ func) fieldLookupTac.
+
+Require Import MirrorCharge.ModularFunc.ListFunc.
+
+	Definition foldTac (e : expr typ func) (args : list (expr typ func))
+	: expr typ func :=
+	  match listS e with
+	    | Some (pFold t u) =>
+	      match args with
+	        | f :: acc :: (Inj (inr (pFields fs)))::nil =>
+	            fold_right (fun x acc => beta (beta (App (App f (mkField x)) acc))) acc fs
+	        | _ => apps e args
+	      end
+	    | _ => apps e args
+	  end.
+
+	Definition FOLD := SIMPLIFY (typ := typ) (subst := subst) (fun _ _ => beta_all foldTac nil nil).
+
 Definition BETA := SIMPLIFY (typ := typ) (subst := subst) (fun _ _ => beta_all (@apps typ func) nil nil).
+Definition EQSUBST := THEN (APPLY typ func subst eq_to_subst_lemma) (SUBST typ func subst).
+(*
+Notation "'ap_eq' '[' x ',' y ']'" :=
+	 (ap (T := Fun stack) (ap (T := Fun stack) (pure (T := Fun stack) (@eq val)) x) y).
+*)
+
+Require Import MirrorCharge.ModularFunc.OpenFunc.
+Require Import MirrorCharge.ModularFunc.BaseFunc.
+Require Import MirrorCharge.ModularFunc.EmbedFunc.
+
+Definition match_ap_eq (e : expr typ func) : bool :=
+	match e with 
+	  | App emb (App (App f (App (App g (App h e)) x)) y) =>
+	  	match embedS emb, open_funcS f, open_funcS g, open_funcS h, baseS e with
+	  		| Some (eilf_embed _ _), Some (of_ap _ _), Some (of_ap _ _), Some (of_const _), Some (pEq _) => true
+	  		| _, _, _, _, _ => false
+	  	end
+	  | _ => false
+	end.
+
+Definition PULLEQL := PULLCONJUNCTL typ func subst match_ap_eq ilops.
+
+Definition solve_alloc : rtac typ (expr typ func) subst :=
+	THEN (INSTANTIATE typ func subst) (THEN (THEN (TRY FIELD_LOOKUP) (CANCELLATION typ func subst tySpec (fun _ => false))) FOLD).
 
 Definition solve_entailment : rtac typ (expr typ func) subst := 
-      THEN (INSTANTIATE typ func subst)
-             (THEN (SUBST typ func subst)
-                   (CANCELLATION typ func subst tySasn)).
-
+	THEN (INSTANTIATE typ func subst) 
+	     (THEN (THEN PULLEQL (REPEAT 10 EQSUBST)) (CANCELLATION typ func subst tySasn is_pure)).
+		
 Definition simStep (r : rtac typ (expr typ func) subst) : 
 	rtac typ (expr typ func) subst := 
-	THEN (INSTANTIATE typ func subst)
-	     (THEN (TRY (THEN (THEN (APPLY typ func subst pull_exists_lemma)
-	     	(REPEAT 10 (INTRO typ func subst))) BETA))
-	           r).
+	THEN (THEN (SUBST typ func subst) 
+	                 (THEN (THEN (TRY (APPLY typ func subst pull_exists_lemma)) (REPEAT 10 (INTRO typ func subst))) BETA))
+		 r.
 
+Set Printing Depth 100.
 
+Print alloc_lemma.
 
-Definition half_step1 := INSTANTIATE typ func subst.
-Definition half_step2 := THEN (INSTANTIATE typ func subst) (TRY (APPLY typ func subst pull_exists_lemma)).
-Definition half_step3 := 
-	THEN (INSTANTIATE typ func subst)
-	     (THEN (TRY (THEN (APPLY typ func subst pull_exists_lemma) BETA))
-	     	(REPEAT 10 (INTRO typ func subst))).
-		
 Fixpoint tripleE (c : cmd) : rtac typ (expr typ func) subst :=
 	match c with
 	    | cskip => simStep (THEN (EAPPLY typ func subst skip_lemma) solve_entailment)
+	    | calloc x C => simStep (THEN (EAPPLY typ func subst (alloc_lemma x C)) solve_alloc)
 		| cseq c1 c2 => simStep (THEN (EAPPLY typ func subst (seq_lemma c1 c2))
 						              (THEN (FIRST (tripleE c1::tripleE c2::nil)) solve_entailment))
 		| cassign x e => simStep (THEN (EAPPLY typ func subst (assign_lemma x e)) solve_entailment)
@@ -274,11 +306,13 @@ Definition symE : rtac typ (expr typ func) subst :=
 			| _ => @FAIL _ _ _
 		end) ctx s e).  
 
+Definition runTac tac := THEN (THEN (REPEAT 10 (INTRO typ func subst)) symE) (INSTANTIATE typ func subst)
+	 CTop (SubstI.empty (expr :=expr typ func)) tac.
 
 Require Import Java.Semantics.OperationalSemantics.
 Require Import Java.Logic.SpecLogic.
 Require Import Java.Logic.AssertionLogic.
-
+Require Import Java.Examples.ListClass.
 Require Import Charge.Logics.ILogic.
 
 Definition typecheck_goal g :=
@@ -286,6 +320,15 @@ Definition typecheck_goal g :=
     | None => false
     | Some _ => true
   end.
+
+Definition test_alloc : expr typ func :=
+	mkEntails tySpec (mkProgEq (mkProg ListProg))
+		(mkTriple (mkTrue tySasn) (mkCmd (calloc "x" "NodeC")) (mkFalse tySasn)).
+
+Print alloc_lemma.
+
+Eval vm_compute in runTac test_alloc.
+
 
 Definition testSkip : expr typ func := 
       mkForall tySpec tyProp
@@ -300,10 +343,7 @@ Eval vm_compute in
                 (mkEntails tySpec (Var 1)
                 (mkTriple (Var 0) (mkCmd cskip) (Var 0)))) : expr typ func).
 
-Time Eval vm_compute in 
-  (THEN (REPEAT 10 (INTRO typ func subst)) symE) CTop (SubstI.empty (expr := expr typ func)) testSkip.
-  
-Time Eval vm_compute in testSkip.
+Time Eval vm_compute in runTac testSkip.
 
 Require Import MirrorCharge.ModularFunc.OpenFunc.
 
@@ -316,6 +356,8 @@ Definition mkPointsto x f e : expr typ func :=
                     (App fStackGet (mkVar x)))
               (mkConst tyField (mkField f)))
         e.
+
+
 
 Require Import String.
 Open Scope string.
@@ -332,9 +374,6 @@ Definition test_read2 :=
   	           (mkTriple (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 3))))
   	                     (mkCmd (cseq (cread "x" "o" "f") cskip))
   	                     (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 3)))))).
-
-Definition runTac tac := (THEN (REPEAT 10 (INTRO typ func subst)) symE)
-	 CTop (SubstI.empty (expr :=expr typ func)) tac.
 
 Time Eval vm_compute in runTac test_read.
 Time Eval vm_compute in runTac test_read2.
@@ -359,11 +398,9 @@ Definition testSwap :=
   	                                                (cseq (cwrite "o" "f1" (E_var "x2"))
   	                                                      (cseq (cwrite "o" "f2" (E_var "x1")) cskip)))))
 		  	           			 (mkStar tySasn 
-		  	           			    (mkPointsto "o" "f1" (mkConst tyVal (Var 1)))
-		  	           			    (mkPointsto "o" "f2" (mkConst tyVal (Var 0))))))).
+		  	           			    (mkPointsto "o" "f1" (mkConst tyVal (Var 0)))
+		  	           			    (mkPointsto "o" "f2" (mkConst tyVal (Var 1))))))).
 			
 Set Printing Depth 100.
 			
 Time Eval vm_compute in runTac testSwap.
-Print pull_exists_lemma.
-Print Goal.
