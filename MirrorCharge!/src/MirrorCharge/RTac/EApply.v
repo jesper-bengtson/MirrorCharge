@@ -18,7 +18,7 @@ Section EAutoTac.
 	Context {SU : SubstI.SubstUpdate subst (expr typ func)}.
 
 	Definition EAPPLY :=
-	  @EAPPLY typ (expr typ func) subst _ _ SS SU ExprLift.vars_to_uvars
+	  @EAPPLY typ (expr typ func) subst _ _ SU ExprLift.vars_to_uvars
 	                (fun tus tvs n e1 e2 t s =>
 	                   @exprUnify subst typ func _ _ _ SS SU 3
 	                              tus tvs n s e1 e2 t)

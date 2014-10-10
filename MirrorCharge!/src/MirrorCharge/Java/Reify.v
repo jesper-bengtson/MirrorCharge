@@ -76,6 +76,13 @@ Definition set_fold_fun (x f : String.string) (P : sasn) :=
 
 Let _Inj := @ExprCore.Inj typ func.
 
+Require Import Java.Examples.ListModel.
+
+Reify Seed Typed Table term_table += 1 => [ (tyArr tyVal (tyArr (tyList tyVal) tyAsn)) , List ].
+Reify Seed Typed Table term_table += 2 => [ (tyArr tyVal (tyArr (tyList tyVal) tyAsn)) , NodeList ].
+
+Check term_table.
+
 Local Notation "x @ y" := (@RApp x y) (only parsing, at level 30).
 Local Notation "'!!' x" := (@RExact _ x) (only parsing, at level 25).
 Local Notation "'?' n" := (@RGet n RIgnore) (only parsing, at level 25).
@@ -96,6 +103,7 @@ Reify Pattern patterns_java_typ += (!! (@list field)) => tyFields.
 Reify Pattern patterns_java_typ += (!! (@list (@Open.expr (Lang.var) val))) => tyVarList.
 Reify Pattern patterns_java_typ += (!! (@list (Lang.var * @Open.expr (Lang.var) val))) => tySubstList.
 Reify Pattern patterns_java_typ += (!! (@substlist var val)) => tySubstList.
+Reify Pattern patterns_java_typ += (!! @list @ ?0) => (fun x : function reify_imp_typ => tyList x).
 Reify Pattern patterns_java_typ += (!! nat) => tyNat.
 Reify Pattern patterns_java_typ += (!! val) => tyVal.
 Reify Pattern patterns_java_typ += (!! field) => tyField.

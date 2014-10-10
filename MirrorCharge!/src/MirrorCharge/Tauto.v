@@ -1,3 +1,4 @@
+(*
 Require Import Coq.Bool.Bool.
 Require Import Coq.Setoids.Setoid.
 Require Import Coq.Classes.Morphisms.
@@ -430,3 +431,5 @@ End Tauto.
     reflexivity.
   Qed.
 **)
+
+*)

@@ -274,9 +274,20 @@ Section MakeJavaFunc.
 
 End MakeJavaFunc.
 
-Definition fs : @SymEnv.functions typ _ := SymEnv.from_list nil.
+Require Import Java.Examples.ListModel.
+
+(* This needs to be parametric. It shouldn't be here *)
+Definition fs : @SymEnv.functions typ _ :=
+  SymEnv.from_list
+  	(@SymEnv.F typ _ (tyArr tyVal (tyArr (tyList tyVal) tyAsn)) List::
+  	 @SymEnv.F typ _ (tyArr tyVal (tyArr (tyList tyVal) tyAsn)) NodeList::nil). 
+
+(*Definition fs : @SymEnv.functions typ _ := SymEnv.from_list nil.
+*)
 Locate RSym_func.
 Instance RSym_env : RSym SymEnv.func := RSym_func fs.
+
+Print RSymOk.
 
 Instance RSym_ilfunc : RSym (@ilfunc typ) := 
 	RSym_ilfunc _ _ ilops.
@@ -297,8 +308,6 @@ Instance RelDec_expr : RelDec (@eq func) := _.
 
 Instance Expr_expr : ExprI.Expr _ (expr typ func) := @Expr_expr typ func _ _ _.
 Instance Expr_ok : @ExprI.ExprOk typ RType_typ (expr typ func) Expr_expr := ExprOk_expr.
-
-Print ExprD.Expr_expr.
 
 Definition subst : Type :=
   FMapSubst.SUBST.raw (expr typ func).

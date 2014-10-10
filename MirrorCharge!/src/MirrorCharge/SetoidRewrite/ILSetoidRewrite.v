@@ -72,3 +72,5 @@ Section ILSetoidRewrite.
   	(fun _ _ _ => rg_fail).
 *)
 End ILSetoidRewrite.
+
+Implicit Arguments il_respects_reflexive [[typ] [func] [HIL] [RelDec_func] [RType_typ] [HT] [RSym_func]].

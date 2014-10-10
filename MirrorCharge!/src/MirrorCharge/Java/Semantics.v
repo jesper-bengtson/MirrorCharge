@@ -61,9 +61,9 @@ Proof.
 Qed.
 
 Lemma rule_if (e : dexpr) c1 c2 (P Q : sasn) G
-      (Hc1 : G |-- {[(@embed (@vlogic var val) sasn _ 
+      (Hc1 : G |-- {[(@embed (@vlogic Lang.var val) sasn _ 
                       (ap_eq [eval e, pure (vbool true)])) //\\ P]} c1 {[Q]})
-      (Hc2 : G |-- {[(@embed (@vlogic var _) sasn _ 
+      (Hc2 : G |-- {[(@embed (@vlogic Lang.var _) sasn _ 
                       (ap_eq [eval (E_not e), pure (vbool true)])) //\\ P]} c2 {[Q]}) : 
   G |-- {[P]} cif e c1 c2 {[Q]}. 
 Proof.
@@ -74,7 +74,7 @@ Qed.
 
 Require Import Charge.Logics.BILogic.
 
-  Lemma rule_read_fwd (x y : var) (f : field) (e : stack -> val) (P Q : sasn) (G : spec)
+  Lemma rule_read_fwd (x y : Lang.var) (f : field) (e : stack -> val) (P Q : sasn) (G : spec)
     (HP : P |-- ap_pointsto [y, f, e])
     (HQ : Exists v : val, (embed (ap_eq [stack_get x, apply_subst e (subst1 (pure (T := Fun stack) v) x)])) //\\
     					      (apply_subst P (subst1 (pure (T := Fun stack) v) x)) |-- Q) :
@@ -86,7 +86,7 @@ Require Import Charge.Logics.BILogic.
   Qed.
 
 
-  Lemma rule_write_fwd (x : var) (f : field) (e : dexpr) G (P Q F : sasn) (e' : stack -> val)
+  Lemma rule_write_fwd (x : Lang.var) (f : field) (e : dexpr) G (P Q F : sasn) (e' : stack -> val)
         (HP : P |-- ap_pointsto [x, f, e'] ** F) 
         (HQ : ap_pointsto [x, f, eval e] ** F |-- Q) :
     G |-- ({[ P ]} cwrite x f e {[ Q ]}).
@@ -102,7 +102,7 @@ Require Import Charge.Logics.BILogic.
 	 reflexivity.
   Qed.
 
-  Lemma rule_assign_fwd (x : var) (e : dexpr) G P :
+  Lemma rule_assign_fwd (x : Lang.var) (e : dexpr) G P :
     G |-- {[ P ]} cassign x e {[ Exists v : val,
                                  embed (ap_eq [stack_get x, 
                                                apply_subst (eval e) (subst1 (pure (T := Fun stack) v) x)]) //\\ 
@@ -112,7 +112,7 @@ Require Import Charge.Logics.BILogic.
     apply H. reflexivity.
   Qed.
 
-  Lemma rule_alloc_fwd (x : var) (C : class) (G : spec) (P Q : sasn) (fields : list field) (Pr : Program) 
+  Lemma rule_alloc_fwd (x : Lang.var) (C : class) (G : spec) (P Q : sasn) (fields : list field) (Pr : Program) 
 	(Heq : G |-- prog_eq Pr)
 	(Hf : field_lookup Pr C fields) 
 	(Hent : Exists p : val, embed (ap_typeof [stack_get x, C] //\\
@@ -124,7 +124,6 @@ Require Import Charge.Logics.BILogic.
   	admit.
   Qed.
 
-Require Import List.
 (*
   Lemma rule_static_complete C (m : String.string) (ps : list String.string) (es : list dexpr) (x r : var) G
     (P Q F Pm Qm : sasn)

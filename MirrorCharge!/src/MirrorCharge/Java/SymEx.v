@@ -269,7 +269,9 @@ Definition solve_alloc : rtac typ (expr typ func) subst :=
 
 Definition solve_entailment : rtac typ (expr typ func) subst := 
 	THEN (INSTANTIATE typ func subst) 
-	     (THEN (THEN PULLEQL (REPEAT 10 EQSUBST)) (CANCELLATION typ func subst tySasn is_pure)).
+		(FIRST (SOLVE (CANCELLATION typ func subst tySasn is_pure)::
+	           THEN (THEN PULLEQL (REPEAT 10 EQSUBST)) (CANCELLATION typ func subst tySasn is_pure)::
+	           nil)).
 		
 Definition simStep (r : rtac typ (expr typ func) subst) : 
 	rtac typ (expr typ func) subst := 
@@ -356,11 +358,9 @@ Definition mkPointsto x f e : expr typ func :=
                     (App fStackGet (mkVar x)))
               (mkConst tyField (mkField f)))
         e.
-
-
-
+        
 Require Import String.
-Open Scope string.
+Local Open Scope string.
 
 Definition test_read := 
     mkExists tySasn tyProp
@@ -396,11 +396,10 @@ Definition testSwap :=
 		  	           			 (mkCmd (cseq (cread "x1" "o" "f1")
   	                                          (cseq (cread "x2" "o" "f2")
   	                                                (cseq (cwrite "o" "f1" (E_var "x2"))
-  	                                                      (cseq (cwrite "o" "f2" (E_var "x1")) cskip)))))
+  	                                                      (cwrite "o" "f2" (E_var "x1"))))))
 		  	           			 (mkStar tySasn 
 		  	           			    (mkPointsto "o" "f1" (mkConst tyVal (Var 0)))
 		  	           			    (mkPointsto "o" "f2" (mkConst tyVal (Var 1))))))).
-			
-Set Printing Depth 100.
-			
+						
 Time Eval vm_compute in runTac testSwap.
+

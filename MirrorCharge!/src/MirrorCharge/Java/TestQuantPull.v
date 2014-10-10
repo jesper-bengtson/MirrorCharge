@@ -14,12 +14,12 @@ Require Import MirrorCharge.ModularFunc.BaseFunc.
 Require Import MirrorCharge.ModularFunc.ILogicFunc.
 Require Import MirrorCharge.ModularFunc.EmbedFunc.
 
-Require Import MirrorCore.Lambda.ExprCore.
-(*
+Require Import MirrorCore.Lambda.Expr.
+
 Definition pull_quant := 
-	setoid_rewrite fEntails 
-		(sr_combine il_respects (sr_combine bil_respects embed_respects)) 
-		(sr_combine (il_match_plus (fun _ => true)) (sr_combine bil_match_plus eil_match_plus)).
+	setoid_rewrite fEntails
+		(sr_combine il_respects (sr_combine bil_respects (sr_combine (il_respects_reflexive ilops) embed_respects))) 
+		(sr_combine  (il_match_plus (fun _ => true)) (sr_combine bil_match_plus eil_match_plus)).
 
  Definition goal : expr typ func :=
  	mkAnd tySasn (mkTrue tySasn) (mkEmbed tyProp tySasn (mkExists tyNat tyProp (mkEq tyNat (Var 0) (Var 0)))).
@@ -33,4 +33,3 @@ Fixpoint crazy_goal n :=
 Set Printing Width 140.
 
 Time Eval vm_compute in pull_quant tySasn (crazy_goal 2).
-*)

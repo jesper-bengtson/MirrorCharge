@@ -329,6 +329,8 @@ Section MakeOpen.
     Context  {Typ2_tyArr : Typ2 _ Fun}.
     Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
 
+	Local Notation "'tyStack'" := (tyArr tyVar tyVal).
+
 	Definition mkVar (v : typD tyVar) : expr typ func := Inj (fVar v). 
 	Definition mkConst (t : typ) (e : expr typ func) := App (fConst t) e.
 	Definition mkAp (t u : typ) (f e : expr typ func) := App (App (fAp t u) f) e.
@@ -347,4 +349,154 @@ Section MakeOpen.
 			| (e, t')::es => mkAp t' t (mkAps f es (tyArr t' t)) e
 		end.
 
+	Context {HSf : RSym func}.
+(*
+	Fixpoint ap_lift_aux tus tvs (e : expr typ func) (t : typ) : option (expr typ func) :=
+	  match e with
+		| App f a => 
+		  match typeof_expr tus tvs a with
+		    | Some u => 
+		        match ap_lift_aux tus tvs f (tyArr u t), ap_lift_aux tus tvs a u with
+		    	  | Some f', Some a' => Some (mkAp u t f' a')
+		    	  | _, _ => None
+		    	end		
+		    | None => None
+		  end
+		| Inj f => Some (mkConst t (Inj f))
+		| Abs u f => match (ap_lift_aux tus (u::tvs) f (tyArr u t)) with
+					   | Some f' => Some (Abs (tyArr tyStack u) f')
+					   | None => None
+					 end
+						
+		| _ => Some e
+	  end.
+
+	Definition ap_lift2 tus tvs (e : expr typ func) :=
+		match typeof_expr tus tvs e with
+		  | Some t => ap_lift_aux tus tvs e t
+		  | None => None
+		end.
+*)
+	Require Import MirrorCharge.ModularFunc.ILogicFunc.
+	Require Import MirrorCharge.ModularFunc.BILogicFunc.
+
+	Context {HIL : ILogicFunc typ func}.
+	Context {HBIL : BILogicFunc typ func}.
+
+	Fixpoint il_lift tus tvs (e : expr typ func) :=
+	  match e with
+	    | App (App f a) b => 
+	      match ilogicS f with
+	        | Some (ilf_entails t) =>
+	          match il_lift tus tvs a, il_lift tus tvs b with
+	            | Some a', Some b' => Some (mkEntails (tyArr tyStack t) a' b')
+	            | _, _ => None
+	          end
+	        | Some (ilf_and t) =>
+	          match il_lift tus tvs a, il_lift tus tvs b with
+	            | Some a', Some b' => Some (mkAnd (tyArr tyStack t) a' b')
+	            | _, _ => None
+	          end
+	        | Some (ilf_or t) =>
+	          match il_lift tus tvs a, il_lift tus tvs b with
+	            | Some a', Some b' => Some (mkOr (tyArr tyStack t) a' b')
+	            | _, _ => None
+	          end
+	        | Some (ilf_impl t) =>
+	          match il_lift tus tvs a, il_lift tus tvs b with
+	            | Some a', Some b' => Some (mkImpl (tyArr tyStack t) a' b')
+	            | _, _ => None
+	          end
+	        | _ => 
+	          match bilogicS f with
+	            | Some (bilf_star t) =>
+		          match il_lift tus tvs a, il_lift tus tvs b with
+		            | Some a', Some b' => Some (mkStar (tyArr tyStack t) a' b')
+		            | _, _ => None
+		          end
+	            | Some (bilf_wand t) =>
+		          match il_lift tus tvs a, il_lift tus tvs b with
+		            | Some a', Some b' => Some (mkWand (tyArr tyStack t) a' b')
+		            | _, _ => None
+		          end
+	            | _ => 
+	              match typeof_expr tus tvs e, typeof_expr tus tvs a, typeof_expr tus tvs b with
+	                | Some t, Some u, Some v =>
+	            	  match il_lift tus tvs f, il_lift tus tvs a, il_lift tus tvs b with
+	            	    | Some f', Some a', Some b' =>
+	            	      Some (mkAp v t (mkAp u (tyArr v t) f' a') b')
+	            	    | _, _, _ => None 
+	            	  end
+	            	| _, _, _ => None
+	              end
+	          end
+	      end
+	    | App f a =>
+	      match ilogicS f with
+	        | Some (ilf_exists u v) =>
+	          match il_lift tus tvs a with
+	            | Some a' => Some (App (fExists (tyArr tyStack u) (tyArr tyStack v)) a')
+	            | None => None
+	          end
+	        | Some (ilf_forall u v) =>
+	          match il_lift tus tvs a with
+	            | Some a' => Some (App (fForall (tyArr tyStack u) (tyArr tyStack v)) a')
+	            | None => None
+	          end
+	        | _ =>
+	          match typeof_expr tus tvs e, typeof_expr tus tvs a with
+	            | Some t, Some u =>
+	              match il_lift tus tvs f, il_lift tus tvs a with
+	                | Some f', Some a' => Some (mkAp u t f' a')
+	                | _, _ => None
+	              end 
+	            | _, _ => None
+	          end
+	      end
+	    | Inj f =>
+	      match ilogicS f with
+	        | Some (ilf_true t) => Some (mkTrue (tyArr tyStack t))
+	        | Some (ilf_false t) => Some (mkFalse (tyArr tyStack t))
+	        | _ => 
+	          match bilogicS f with
+	            | Some (bilf_emp t) => Some (mkEmp (tyArr tyStack t))
+	            | _ =>
+	              match typeof_expr tus tvs e with
+	                | Some t => Some (mkConst t e)
+	                | None => None
+	              end
+	          end
+	      end
+		| Abs t f => 
+		  match il_lift tus (t::tvs) f with
+		    | Some f' => Some (Abs (tyArr tyStack t) f')
+		    | None => None
+		  end
+	    | _ => Some e
+	  end.
+(*	   
+	with ap_lift tus tvs (e : expr typ func) {struct e} :=
+		match e with
+		  | Abs t f => 
+		    match il_lift tus (t::tvs) f with
+		      | Some f' => Some (Abs (tyArr tyStack t) f')
+		      | None => None
+		    end
+		  | Inj f =>
+		    match typeof_expr tus tvs e with
+		      | Some t => Some (mkConst t (Inj f))
+		      | None => None
+		    end
+		  | App f a =>
+		    match typeof_expr tus tvs e, typeof_expr tus tvs a with
+		      | Some t, Some u =>
+		        match il_lift tus tvs f, il_lift tus tvs a with
+		          | Some f', Some a' => Some (mkAp u t f' a')
+		          | _, _ => None
+		        end
+		      | _, _ => None
+		    end 
+		  | _ => Some e
+		end.
+*)	
 End MakeOpen.
