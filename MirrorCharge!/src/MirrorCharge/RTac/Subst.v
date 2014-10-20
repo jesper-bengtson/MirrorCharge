@@ -131,6 +131,7 @@ Section SubstTac.
   Context {OF : OpenFunc typ func} {ILF : ILogicFunc typ func} {BILF : BILogicFunc typ func}.
   Context {EF : EmbedFunc typ func}.
   Context {RelDec_var : RelDec (@eq (typD tyVar))}.
+  Context {SS : Subst subst (expr typ func)}.
   
   Variable Typ2_tyArr : Typ2 _ Fun.
   Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
@@ -147,8 +148,9 @@ Section SubstTac.
 	    | _ => apps e args
 	  end.
 
-	Definition SUBST := SIMPLIFY (typ := typ) (subst := subst) (fun _ _ => beta_all substTac nil nil).
+Check @SIMPLIFY.
+	Definition SUBST := SIMPLIFY (typ := typ) (subst := subst) (fun _ _ _ _ => beta_all substTac nil nil).
 
 End SubstTac.
 
-Implicit Arguments SUBST [[ST] [RType_typ] [OF] [ILF] [BILF] [EF] [RelDec_var] [Typ2_tyArr]].
+Implicit Arguments SUBST [[ST] [RType_typ] [OF] [ILF] [SS] [BILF] [EF] [RelDec_var] [Typ2_tyArr]].

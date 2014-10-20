@@ -223,7 +223,7 @@ Definition fieldLookupTac : stac typ (expr typ func) subst :=
 		  | _ => STac.Core.Fail
 		end.
 
-Definition FIELD_LOOKUP := STAC_no_hyps (@ExprSubst.instantiate typ func) fieldLookupTac.
+Definition FIELD_LOOKUP := STAC_no_hyps (@ExprSubst.instantiate typ func) UVar fieldLookupTac.
 
 Require Import MirrorCharge.ModularFunc.ListFunc.
 
@@ -272,23 +272,23 @@ Definition solve_entailment : rtac typ (expr typ func) subst :=
 		(FIRST (SOLVE (CANCELLATION typ func subst tySasn is_pure)::
 	           THEN (THEN PULLEQL (REPEAT 10 EQSUBST)) (CANCELLATION typ func subst tySasn is_pure)::
 	           nil)).
-		
+	           
 Definition simStep (r : rtac typ (expr typ func) subst) : 
 	rtac typ (expr typ func) subst := 
 	THEN (THEN (SUBST typ func subst) 
 	                 (THEN (THEN (TRY (APPLY typ func subst pull_exists_lemma)) (REPEAT 10 (INTRO typ func subst))) BETA))
 		 r.
-
+		 
 Set Printing Depth 100.
 
 Print alloc_lemma.
 
 Fixpoint tripleE (c : cmd) : rtac typ (expr typ func) subst :=
 	match c with
-	    | cskip => simStep (THEN (EAPPLY typ func subst skip_lemma) solve_entailment)
+	    | cskip => simStep (THEN (APPLY typ func subst skip_lemma) solve_entailment)
 	    | calloc x C => simStep (THEN (EAPPLY typ func subst (alloc_lemma x C)) solve_alloc)
 		| cseq c1 c2 => simStep (THEN (EAPPLY typ func subst (seq_lemma c1 c2))
-						              (THEN (FIRST (tripleE c1::tripleE c2::nil)) solve_entailment))
+						              ((FIRST ((fun x => tripleE c1 x)::(fun x => tripleE c2 x)::nil))))
 		| cassign x e => simStep (THEN (EAPPLY typ func subst (assign_lemma x e)) solve_entailment)
 		| cread x y f => simStep (THEN (EAPPLY typ func subst (read_lemma x y f)) solve_entailment)
 		| cwrite x f e => simStep (THEN (EAPPLY typ func subst (write_lemma x f e)) solve_entailment)
@@ -308,7 +308,9 @@ Definition symE : rtac typ (expr typ func) subst :=
 			| _ => @FAIL _ _ _
 		end) ctx s e).  
 
-Definition runTac tac := THEN (THEN (REPEAT 10 (INTRO typ func subst)) symE) (INSTANTIATE typ func subst)
+Require Import MirrorCharge.RTac.Repeat.
+Check REPEAT.
+Definition runTac tac := THEN (THEN (REPEAT (INTRO typ func subst)) symE) (INSTANTIATE typ func subst)
 	 CTop (SubstI.empty (expr :=expr typ func)) tac.
 
 Require Import Java.Semantics.OperationalSemantics.
@@ -331,13 +333,27 @@ Print alloc_lemma.
 
 Eval vm_compute in runTac test_alloc.
 
-
-Definition testSkip : expr typ func := 
+Fixpoint seq_skip n := 
+	match n with
+	  | 0 => cskip
+	  | S n => cseq cskip (seq_skip n)
+	end.
+	
+Definition testSkip n : expr typ func := 
       mkForall tySpec tyProp
       (mkForall tySasn tyProp
                 (mkEntails tySpec (Var 1)
-                (mkTriple (Var 0) (mkCmd cskip) (Var 0)))).
-Time Eval vm_compute in typeof_expr nil nil testSkip.
+                (mkTriple (Var 0) (mkCmd (seq_skip n)) (mkFalse tySasn)))).
+Time Eval vm_compute in typeof_expr nil nil (testSkip 5).
+Print Goal.
+Fixpoint countExs (g : Goal typ (expr typ func)) :=
+	match g with
+		| GAll _ g => countExs g
+		| GExs lst g => length (filter (fun g => match g with | (_, Some _) => true | _ => false end) lst) + countExs g
+		| GHyp _ g => countExs g
+		| GConj_ lst => fold_right (fun g acc => countExs g + acc) 0 lst
+		| _ => 0
+	end.
 
 Eval vm_compute in
 (mkForall tyProp tySpec
@@ -345,7 +361,14 @@ Eval vm_compute in
                 (mkEntails tySpec (Var 1)
                 (mkTriple (Var 0) (mkCmd cskip) (Var 0)))) : expr typ func).
 
-Time Eval vm_compute in runTac testSkip.
+Time Eval vm_compute in runTac (testSkip 100).
+
+Time Eval vm_compute in 
+	match runTac (testSkip 100) with
+		| More _ g => countExs g
+		| _ => 51
+	end.
+	
 
 Require Import MirrorCharge.ModularFunc.OpenFunc.
 
@@ -390,16 +413,67 @@ Definition testSwap :=
 	mkForall tyVal tyProp
 		(mkForall tyVal tyProp
 		  	(mkEntails tySpec (mkTrue tySpec)
-		  	           (mkTriple (mkStar tySasn 
+		  	           (mkTriple (mkStar tySasn (mkStar tySasn 
 		  	           			    (mkPointsto "o" "f1" (mkConst tyVal (Var 1)))
-		  	           			    (mkPointsto "o" "f2" (mkConst tyVal (Var 0))))
-		  	           			 (mkCmd (cseq (cread "x1" "o" "f1")
-  	                                          (cseq (cread "x2" "o" "f2")
-  	                                                (cseq (cwrite "o" "f1" (E_var "x2"))
-  	                                                      (cwrite "o" "f2" (E_var "x1"))))))
-		  	           			 (mkStar tySasn 
+		  	           			    (mkPointsto "o" "f0" (mkConst tyVal (Var 0)))) (mkEmp tySasn))
+		  	           			 (mkCmd (cseq (cread "x0" "o" "f0")
+  	                                          (cseq (cread "x1" "o" "f1")
+  	                                                (cseq (cwrite "o" "f1" (E_var "x0"))
+  	                                                      (cwrite "o" "f0" (E_var "x1"))))))
+		  	           			 (mkStar tySasn (mkStar tySasn 
 		  	           			    (mkPointsto "o" "f1" (mkConst tyVal (Var 0)))
-		  	           			    (mkPointsto "o" "f2" (mkConst tyVal (Var 1))))))).
+		  	           			    (mkPointsto "o" "f0" (mkConst tyVal (Var 1)))) (mkEmp tySasn))))).
+SearchAbout string nat.
+
+Fixpoint mkPre n :=
+	match n with
+	  | 0   => mkEmp tySasn
+	  | S n => mkStar tySasn (mkPointsto "o" (append "f" (nat2string10 n)) (mkConst tyVal (Var n)))
+	                         (mkPre n)
+	end.
+	
+Fixpoint mkPostAux n m :=
+  match n with
+    | 0 => mkEmp tySasn
+    | S n => mkStar tySasn (mkPointsto "o" (append "f" (nat2string10 n)) (mkConst tyVal (Var (m - (S n)))))
+                           (mkPostAux n m)
+  end.
+  
+Definition mkPost n := mkPostAux n n.
+
+Fixpoint mkRead n c :=
+	match n with
+	  | 0 => c
+	  | S n => cseq (cread (append "x" (nat2string10 n)) "o" (append "f" (nat2string10 n)))
+	                (mkRead n c)
+    end.
 						
+Fixpoint mkWriteAux n m c :=
+	match n with
+	  | 0 => c
+	  | S n => cseq (cwrite "o" (append "f" (nat2string10 n)) (E_var (append "x" (nat2string10 (m - (S n))))))
+	                (mkWriteAux n m c)
+    end.
+
+Definition mkWrite n c := mkWriteAux n n c.
+
+Fixpoint mkSwapAux n P c Q :=
+	match n with
+	  | 0 => mkEntails tySpec (mkTrue tySpec) (mkTriple P c Q)
+	  | S n => mkForall tyVal tyProp (mkSwapAux n P c Q)
+	end.
+
+Definition mkSwapProg n c := mkRead n (mkWrite n c).
+	
+Definition mkSwap n :=
+	mkSwapAux n (mkPre n) (mkCmd (mkSwapProg n cskip)) (mkPost n).
+
+Time Eval vm_compute in (mkCmd (mkSwapProg 2 (mkSwapProg 2 cskip))).
+
+Definition mkSwap2 n :=
+	mkSwapAux n (mkPre n) (mkCmd (mkSwapProg n (mkSwapProg n cskip))) (mkPre n).
+
+Time Eval vm_compute in runTac (mkSwap2 1).
+
 Time Eval vm_compute in runTac testSwap.
 

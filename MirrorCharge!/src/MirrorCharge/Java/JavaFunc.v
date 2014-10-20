@@ -315,7 +315,7 @@ Instance SS : SubstI.Subst subst (expr typ func) :=
   @FMapSubst.SUBST.Subst_subst _.
 Instance SU : SubstI.SubstUpdate subst (expr typ func) :=
   FMapSubst.SUBST.SubstUpdate_subst (@instantiate typ func). 
-Instance SO : SubstI.SubstOk SS := 
+Instance SO : SubstI.SubstOk Expr_expr SS := 
   @FMapSubst.SUBST.SubstOk_subst typ RType_typ (expr typ func) _ _.
 
 Lemma evalDexpr_wt (e : dexpr) : 

@@ -17,13 +17,10 @@ Section AutoTac.
 	Context {SS : SubstI.Subst subst (expr typ func)}.
 	Context {SU : SubstI.SubstUpdate subst (expr typ func)}.
 
-	Definition APPLY :=
-	    @APPLY typ (expr typ func) subst _ _ SS SU
-	           ExprLift.vars_to_uvars
-	           (fun tus tvs n e1 e2 t s =>
-	              @exprUnify subst typ func _ _ _ SS SU 3
-	                         tus tvs n s e1 e2 t)
-	           (@ExprSubst.instantiate typ func).
+Definition APPLY := @APPLY typ (expr typ func) subst _ _ _ _ UVar
+                    (@vars_to_uvars _ _)
+                    (fun _ _ _ tus tvs n l r t s =>
+                       @exprUnify _ _ _ _ _ _ _ _ 10 tus tvs n s l r t).
 
 End AutoTac.
 

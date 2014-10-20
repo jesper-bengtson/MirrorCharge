@@ -2,8 +2,6 @@ Require Import ExtLib.Core.RelDec.
 
 Require Import MirrorCore.Lambda.Expr.
 Require Import MirrorCore.RTac.RTac.
-Require Import MirrorCore.STac.STac.
-Require Import MirrorCore.Subst.FMapSubst.
 Require Import MirrorCore.Lambda.ExprSubst.
 Require Import MirrorCore.Lambda.ExprUnify_simul.
 Require MirrorCore.syms.SymEnv.
@@ -53,9 +51,9 @@ Section Canceller.
  		  end
    |}.
 
-  Let doUnifySepLog (tus tvs : EnvI.tenv typ) (s : subst) (e1 e2 : expr typ func)
-  : option subst :=
-    @exprUnify subst typ func RType_typ _ _ _ _ 10 tus tvs 0 s e1 e2 tyLogic.
+  Let doUnifySepLog c (tus tvs : EnvI.tenv typ) (s : ctx_subst (typ := typ) subst c) (e1 e2 : expr typ func)
+  : option (ctx_subst subst c) :=
+    @exprUnify (ctx_subst subst c) typ func RType_typ _ _ _ _ 10 tus tvs 0 s e1 e2 tyLogic.
 
   Let ssl : SynSepLog typ func :=
   {| e_star := fun l r =>
@@ -78,7 +76,7 @@ Section Canceller.
    ; e_true := mkTrue tyLogic
    |}.
 
-  Definition eproveTrue (s : subst) (e : expr typ func) : option subst :=
+  Definition eproveTrue c (s : ctx_subst (typ := typ) (expr := expr typ func) subst c) (e : expr typ func) : option (ctx_subst subst c) :=
     match ilogicS e with
       | Some (ilf_true _) => Some s
       | _ => None
@@ -99,10 +97,11 @@ Section Canceller.
                                end
       | _ , _ => false
     end.
+Check @OrderedCanceller.ordered_cancel.
 
-  Definition the_canceller tus tvs (lhs rhs : expr typ func)
-             (s : subst)
-  : (expr typ func * expr typ func * subst) + subst:=
+  Definition the_canceller tus tvs (lhs rhs : expr typ func) c
+             (s : ctx_subst subst c)
+  : (expr typ func * expr typ func * (ctx_subst subst c)) + (ctx_subst subst c) :=
     match @normalize_and typ _ _ func _ ssl sls tus tvs tyLogic lhs
         , @normalize_and typ _ _ func _ ssl sls tus tvs tyLogic rhs
     with
@@ -110,8 +109,8 @@ Section Canceller.
         match lhs_norm tt , rhs_norm tt with
           | Some lhs_norm , Some rhs_norm =>
             let '(lhs',rhs',s') :=
-                OrderedCanceller.ordered_cancel
-                  (doUnifySepLog tus tvs) eproveTrue
+                OrderedCanceller.ordered_cancel (subst := ctx_subst subst c)
+                  (doUnifySepLog (c := c) tus tvs) (eproveTrue (c := c))
                   ssl
                   (simple_order (func:=func)) lhs_norm rhs_norm s
             in
@@ -128,8 +127,10 @@ Section Canceller.
 
   Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
 
-  Definition stac_cancel : stac typ (expr typ func) subst :=
-    fun tus tvs s hyps e =>
+SearchAbout ctx_subst.
+
+  Definition CANCELLATION : rtac typ (expr typ func) subst :=
+    fun tus tvs nus nvs c s e =>
       match e with
         | App (App f L) R =>
           match ilogicS f with
@@ -139,37 +140,20 @@ Section Canceller.
 		  match the_canceller tus tvs L R s with
 		    | inl (l,r,s') =>
 		      match bilogicS r with (* This is for intuitionistic logics only *)
-		        | Some (bilf_emp _) => @Solved _ _ _ nil nil s'
+		        | Some (bilf_emp _) => @Solved _ _ _ _ s'
 		        | _ => let e' := mkEntails tyLogic l r in
-			       More nil nil s hyps e'
+			       More s (GGoal e')
 		      end
-		    | inr s' => @Solved _ _ _ nil nil s'
+		    | inr s' => @Solved _ _ _ _ s'
 		  end
-		| false => More nil nil s hyps e
+		| false => More s (GGoal e)
 	      end
-	    | _ => More nil nil s hyps e
+	    | _ => More s (GGoal e)
 	  end
-        | _ => More nil nil s hyps e
+        | _ => More s (GGoal e)
       end.
 
 End Canceller.
 
-Implicit Arguments stac_cancel [[HIL] [HBIL] [RType_typ] [RelDec_typ]
-                                [Typ2_typ] [RSym_func] [SS] [SU]].
-
-Section CancelTac.
-  Context {typ func subst : Type} {tyLogic : typ}.
-  Context {HIL : ILogicFunc typ func} {HBIL : BILogicFunc typ func}.
-  Context {RType_typ : RType typ} {RelDec_typ : RelDec (@eq typ)}.
-  Context {Typ2_typ : Typ2 RType_typ Fun}.
-  Context {RSym_func : @RSym _ RType_typ func}.
-  Context {SS : SubstI.Subst subst (expr typ func)}.
-  Context {SU : SubstI.SubstUpdate subst (expr typ func)}.
-  Context {is_pure : expr typ func -> bool}.
-  Definition CANCELLATION :=
-    (STAC_no_hyps (@ExprSubst.instantiate typ func) (stac_cancel typ func subst tyLogic is_pure)).
-
-End CancelTac.
-
 Implicit Arguments CANCELLATION [[HIL] [HBIL] [RType_typ] [RelDec_typ]
-                                 [Typ2_typ] [RSym_func] [SS] [SU]].
+                                [Typ2_typ] [RSym_func] [SS] [SU]].

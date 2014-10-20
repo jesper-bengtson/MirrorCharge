@@ -38,6 +38,18 @@ Local Instance Applicative_Fun A : Applicative (Fun A) :=
 (*
 Reify Declare Patterns const_for_cmd += ((RHasType cmd ?0) => (fun (c : id cmd) => mkCmd [c] : expr typ func)).
 *)
+
+Require Import MirrorCore.Reify.Reify.
+
+Axiom t : Type.
+Reify Declare Patterns t_pat := t.
+
+
+
+Reify Declare Syntax t_cmd :=
+{ (@Patterns.CPatterns t t_pat) }.
+
+
 Reify Declare Syntax reify_imp_typ :=
   { 
   	(@Patterns.CPatterns typ patterns_java_typ)

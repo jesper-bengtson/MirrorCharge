@@ -29,7 +29,7 @@ Require Import Coq.Bool.Bool.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Inductive typ :=
+Inductive typ : Type :=
 | tyArr : typ -> typ -> typ
 | tyList : typ -> typ
 | tyPair : typ -> typ -> typ
@@ -182,8 +182,9 @@ Instance RType_typ : RType typ :=
 ; tyAcc := tyAcc_typ
 ; type_cast := type_cast_typ
 }.
+Print Typ2.
 
-Instance Typ2_Fun : Typ2 _ Fun :=
+Program Instance Typ2_Fun : Typ2 _ Fun :=
 { typ2 := tyArr
 ; typ2_cast := fun _ _ => eq_refl
 ; typ2_match := fun T t tr =>
@@ -193,18 +194,6 @@ Instance Typ2_Fun : Typ2 _ Fun :=
                   end
 }.
 
-Instance Typ2Ok_Fun : Typ2Ok Typ2_Fun.
-Proof.
-	split; intros.
-	+ reflexivity.
-	+ constructor.
-	+ constructor.
-	+ inversion H; subst; intuition.
-	+ destruct x; try (right; reflexivity).
-	  left. do 2 eexists. exists eq_refl. reflexivity.
-	+ destruct pf; reflexivity.
-Qed.
-	
 Instance Typ0_Prop : Typ0 _ Prop :=
 { typ0 := tyProp
 ; typ0_cast := eq_refl
