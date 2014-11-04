@@ -315,7 +315,7 @@ Instance SS : SubstI.Subst subst (expr typ func) :=
   @FMapSubst.SUBST.Subst_subst _.
 Instance SU : SubstI.SubstUpdate subst (expr typ func) :=
   FMapSubst.SUBST.SubstUpdate_subst (@instantiate typ func). 
-Instance SO : SubstI.SubstOk Expr_expr SS := 
+Instance SO : SubstI.SubstOk SS := 
   @FMapSubst.SUBST.SubstOk_subst typ RType_typ (expr typ func) _ _.
 
 Lemma evalDexpr_wt (e : dexpr) : 
@@ -345,7 +345,7 @@ Definition is_pure (e : expr typ func) : bool :=
 	end.
 
 Definition test_lemma :=
-  @lemmaD typ RType_typ (expr typ func) Expr_expr (expr typ func)
+  @lemmaD typ (expr typ func) RType_typ Expr_expr (expr typ func)
           (fun tus tvs e => exprD' tus tvs tyProp e)
-          tyProp
-          (fun x => x) nil nil.
+          _
+          nil nil.

@@ -54,13 +54,11 @@ OBJECTS = \
 	bin/MirrorCharge/Java/TestQuantPull.vo \
 	bin/MirrorCharge/ModularFunc/BILogicFunc.vo \
 	bin/MirrorCharge/ModularFunc/BaseFunc.vo \
-	bin/MirrorCharge/ModularFunc/BaseReify.vo \
 	bin/MirrorCharge/ModularFunc/BaseType.vo \
 	bin/MirrorCharge/ModularFunc/EmbedFunc.vo \
 	bin/MirrorCharge/ModularFunc/ILogicFunc.vo \
 	bin/MirrorCharge/ModularFunc/LaterFunc.vo \
 	bin/MirrorCharge/ModularFunc/ListFunc.vo \
-	bin/MirrorCharge/ModularFunc/ListReify.vo \
 	bin/MirrorCharge/ModularFunc/ListType.vo \
 	bin/MirrorCharge/ModularFunc/OpenFunc.vo \
 	bin/MirrorCharge/ModularFunc/SubstType.vo \
@@ -128,13 +126,11 @@ bin/MirrorCharge/Java/TestPullConjunct.vo: src/MirrorCharge/Java/TestPullConjunc
 bin/MirrorCharge/Java/TestQuantPull.vo: src/MirrorCharge/Java/TestQuantPull.v bin/MirrorCharge/Java/JavaType.vo bin/MirrorCharge/Java/JavaFunc.vo bin/MirrorCharge/SetoidRewrite/Base.vo bin/MirrorCharge/SetoidRewrite/ILSetoidRewrite.vo bin/MirrorCharge/SetoidRewrite/BILSetoidRewrite.vo bin/MirrorCharge/SetoidRewrite/EmbedSetoidRewrite.vo bin/MirrorCharge/PullQuant/BILPullQuant.vo bin/MirrorCharge/PullQuant/ILPullQuant.vo bin/MirrorCharge/PullQuant/EmbedPullQuant.vo bin/MirrorCharge/ModularFunc/BaseFunc.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/ModularFunc/EmbedFunc.vo
 bin/MirrorCharge/ModularFunc/BILogicFunc.vo: src/MirrorCharge/ModularFunc/BILogicFunc.v bin/MirrorCharge/ModularFunc/ILogicFunc.vo
 bin/MirrorCharge/ModularFunc/BaseFunc.vo: src/MirrorCharge/ModularFunc/BaseFunc.v bin/MirrorCharge/ModularFunc/BaseType.vo
-bin/MirrorCharge/ModularFunc/BaseReify.vo: src/MirrorCharge/ModularFunc/BaseReify.v bin/MirrorCharge/ModularFunc/BaseFunc.vo bin/MirrorCharge/ModularFunc/BaseType.vo
 bin/MirrorCharge/ModularFunc/BaseType.vo: src/MirrorCharge/ModularFunc/BaseType.v
 bin/MirrorCharge/ModularFunc/EmbedFunc.vo: src/MirrorCharge/ModularFunc/EmbedFunc.v bin/MirrorCharge/ModularFunc/ILogicFunc.vo
 bin/MirrorCharge/ModularFunc/ILogicFunc.vo: src/MirrorCharge/ModularFunc/ILogicFunc.v
 bin/MirrorCharge/ModularFunc/LaterFunc.vo: src/MirrorCharge/ModularFunc/LaterFunc.v bin/MirrorCharge/ModularFunc/ILogicFunc.vo
 bin/MirrorCharge/ModularFunc/ListFunc.vo: src/MirrorCharge/ModularFunc/ListFunc.v bin/MirrorCharge/ModularFunc/ListType.vo bin/MirrorCharge/ModularFunc/BaseType.vo
-bin/MirrorCharge/ModularFunc/ListReify.vo: src/MirrorCharge/ModularFunc/ListReify.v bin/MirrorCharge/ModularFunc/ListFunc.vo bin/MirrorCharge/ModularFunc/ListType.vo
 bin/MirrorCharge/ModularFunc/ListType.vo: src/MirrorCharge/ModularFunc/ListType.v
 bin/MirrorCharge/ModularFunc/OpenFunc.vo: src/MirrorCharge/ModularFunc/OpenFunc.v bin/MirrorCharge/ModularFunc/BaseType.vo bin/MirrorCharge/ModularFunc/ListType.vo bin/MirrorCharge/ModularFunc/SubstType.vo bin/MirrorCharge/ModularFunc/ListFunc.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/ModularFunc/BILogicFunc.vo
 bin/MirrorCharge/ModularFunc/SubstType.vo: src/MirrorCharge/ModularFunc/SubstType.v

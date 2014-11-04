@@ -183,7 +183,6 @@ Instance RType_typ : RType typ :=
 ; tyAcc := tyAcc_typ
 ; type_cast := type_cast_typ
 }.
-Set Printing Universes.
 
 Instance Typ2_Fun : Typ2 _ (fun x y : Type => x -> y) :=
 { typ2 := tyArr
@@ -195,6 +194,17 @@ Instance Typ2_Fun : Typ2 _ (fun x y : Type => x -> y) :=
                   end
 }.
 
+Instance Typ2Ok_Fun : Typ2Ok Typ2_Fun.
+Proof.
+  split; intros.
+  + reflexivity.
+  + apply tyAcc_tyArrL.
+  + apply tyAcc_tyArrR.
+  + unfold Rty in *. inversion H; subst; intuition congruence.
+  + destruct x; try solve [right; reflexivity].
+    left; exists x1, x2, eq_refl. reflexivity.
+  + destruct pf; reflexivity.
+Qed.
 
 Instance Typ0_Prop : Typ0 _ Prop :=
 { typ0 := tyProp
