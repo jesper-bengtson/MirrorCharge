@@ -7,6 +7,7 @@ Require Import MirrorCharge.ModularFunc.BaseType.
 Require Import MirrorCharge.ModularFunc.ListType.
 Require Import MirrorCharge.ModularFunc.SubstType.
 
+
 Require Import MirrorCharge.ModularFunc.ILogicFunc.
 Require Import MirrorCharge.ModularFunc.BILogicFunc.
 Require Import MirrorCharge.ModularFunc.EmbedFunc.
@@ -46,12 +47,12 @@ Inductive typ : Type :=
 | tyProg : typ
 | tyCmd : typ
 | tyDExpr : typ
-| tySubst : typ. 
+| tySubst : typ.
 
 Notation "'tyStack'" := (tyArr tyVar tyVal).
 
 Notation "'tyPure'" := (tyArr tyStack tyProp).
-Notation "'tySasn'" := (tyArr tyStack tyAsn). 
+Notation "'tySasn'" := (tyArr tyStack tyAsn).
 Notation "'tyExpr'" := (tyArr tyStack tyVal).
 Notation "'tyFields'" := (tyList tyField).
 
@@ -96,7 +97,7 @@ Fixpoint type_cast_typ (a b : typ) : option (a = b) :=
     			    | eq_refl => eq_refl
     			  end)
           | None => None
-       end  
+       end
     | tyString, tyString => Some eq_refl
     | tyField, tyField => Some eq_refl
     | tyVar, tyVar => Some eq_refl
@@ -149,14 +150,14 @@ Proof.
 	+ remember (type_cast_typ x1 y1); destruct o; subst; [|inversion H].
 	  remember (type_cast_typ x2 y2); destruct o; subst; [|inversion H].
 	  reflexivity.
-	+ do 2 rewrite type_cast_typ_refl; reflexivity.	
+	+ do 2 rewrite type_cast_typ_refl; reflexivity.
 Qed.
 
 Fixpoint typD (t : typ) : Type :=
   match t with
     | tyArr a b => typD a -> typD b
-	| tyList a => @list (typD a)
-	| tyPair a b => (typD a * typD b)%type
+    | tyList a => @list (typD a)
+    | tyPair a b => (typD a * typD b)%type
     | tyProp => Prop
     | tyNat => nat
     | tyBool => bool
@@ -182,9 +183,9 @@ Instance RType_typ : RType typ :=
 ; tyAcc := tyAcc_typ
 ; type_cast := type_cast_typ
 }.
-Print Typ2.
+Set Printing Universes.
 
-Program Instance Typ2_Fun : Typ2 _ Fun :=
+Instance Typ2_Fun : Typ2 _ (fun x y : Type => x -> y) :=
 { typ2 := tyArr
 ; typ2_cast := fun _ _ => eq_refl
 ; typ2_match := fun T t tr =>
@@ -193,6 +194,7 @@ Program Instance Typ2_Fun : Typ2 _ Fun :=
                     | _ => fun fa => fa
                   end
 }.
+
 
 Instance Typ0_Prop : Typ0 _ Prop :=
 { typ0 := tyProp
