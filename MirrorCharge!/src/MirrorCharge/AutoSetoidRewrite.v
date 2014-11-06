@@ -129,12 +129,12 @@ Section setoid.
 
   Definition unifyRG := unifyRG_ 10.
 
-  Variable rw_pre : expr typ func -> list RG -> RG -> rsubst ->
-                    option (expr typ func * rsubst).
-  Variable rw_default : expr typ func -> list RG -> RG -> rsubst ->
-                        option (expr typ func * rsubst).
-  Variable rw_post : expr typ func -> list RG -> RG -> rsubst ->
-                     option (expr typ func * rsubst).
+  Definition rewriter :=
+    expr typ func -> list RG -> RG -> rsubst -> option (expr typ func * rsubst).
+
+  Variable rw_pre : rewriter.
+  Variable rw_default : rewriter.
+  Variable rw_post : rewriter.
 
   Definition rsubst_fresh (rs : rsubst) : (positive * rsubst) :=
     (rs.(max), {| mp := rs.(mp) ; max := rs.(max) + 1 |}).
@@ -148,6 +148,7 @@ Section setoid.
       | None => Some (e, rs)
     end.
 
+  Axiom DEAD : forall {T : Type} , option T.
 
   Fixpoint setoid_rewrite
            (e : expr typ func) (rvars : list RG) (rg : RG) (rs : rsubst)
@@ -162,7 +163,7 @@ Section setoid.
                 | Some (f', rs') =>
                   match setoid_rewrite x rvars (RGvar nxt) rs' with
                     | None => None
-                    | Some (x',rs'') => tryRewrite rw_post (App f' x') rvars rg rs''
+                    | Some (x',rs'') => rw_post (App f' x') rvars rg rs''
                   end
               end
             | Abs t b =>
@@ -170,7 +171,7 @@ Section setoid.
                 | RGrespects l r =>
                   match setoid_rewrite b (l :: rvars) r rs with
                     | None => None
-                    | Some (b',rs') => tryRewrite rw_post (Abs t b') rvars rg rs'
+                    | Some (b',rs') => rw_post (Abs t b') rvars rg rs'
                   end
                 | RGvar n =>
                   match rsubst_lookup rs n with
@@ -182,14 +183,14 @@ Section setoid.
                         | Some (_,rs') =>
                           match setoid_rewrite b (RGvar l :: rvars) (RGvar r) rs' with
                             | None => None
-                            | Some (b',rs') => tryRewrite rw_post (Abs t b') rvars rg rs'
+                            | Some (b',rs') => rw_post (Abs t b') rvars rg rs'
                           end
                       end
                     | Some (RGrespects l r) =>
                       match setoid_rewrite b (l :: rvars) r rs with
                         | None => None
                         | Some (b',rs') =>
-                          tryRewrite rw_post (Abs t b') rvars rg rs'
+                          rw_post (Abs t b') rvars rg rs'
                       end
                     | _ => None
                   end
@@ -197,7 +198,7 @@ Section setoid.
               end
             | Var v =>
               match nth_error rvars v with
-                | None => None (** Dead code **)
+                | None => DEAD (** Dead code **)
                 | Some r =>
                   match unifyRG r rg rs with
                     | None => rw_default e rvars rg rs
@@ -208,7 +209,7 @@ Section setoid.
             | UVar u => rw_default e rvars rg rs
           end
         | Some (e',rs') =>
-          tryRewrite rw_post e' rvars rg rs'
+          rw_post e' rvars rg rs'
       end.
 
   (*
@@ -253,15 +254,13 @@ Section setoid.
     end.
 
   Definition fromRewrites (ls : list (expr typ func * R * expr typ func))
-  : forall (e : expr typ func) (rvars : list RG) (rg : RG) (rs : rsubst),
-      option (expr typ func * rsubst) :=
+  : rewriter :=
     let ls := map (fun x => let '(a,b,c) := x in
                             (a,RtoRG b, c)) ls in
     fun e rvars => findRewrite ls e.
 
   Definition fromReflexive (is_refl : RG -> rsubst -> option rsubst)
-  : forall (e : expr typ func) (rvars : list RG) (rg : RG) (rs : rsubst),
-      option (expr typ func * rsubst) :=
+  : rewriter :=
     fun e rvars rg rs =>
       match is_refl rg rs with
         | None => None

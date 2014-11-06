@@ -16,13 +16,13 @@ Require Import MirrorCharge.AutoSetoidRewrite.
 
 Set Implicit Arguments.
 Set Strict Implicit.
-
+Print setoid_rewrite.
 Section SetoidRewrite.
   Context {typ func : Type}.
 
   Context {RType_typ : RType typ} {RelDec_typ_eq : RelDec (@eq typ)}
           {RelDecCorrect_typ_eq : RelDec_Correct RelDec_typ_eq}.
-  
+
   Context {RelDec_func_eq : RelDec (@eq (expr typ func))}.
 
   Let Rbase := expr typ func.
@@ -44,9 +44,17 @@ Section SetoidRewrite.
         | None => r s
         | Some _ => v
       end.
-		
-  Definition rw_type := expr typ func -> list (RG (expr typ func))
-                        -> RG (expr typ func) -> m (expr typ func).
+  Definition rg_fmap {T U} (f : T -> U) (l : m T) : m U :=
+    fun s =>
+      match l s with
+        | None => None
+        | Some (x,y) => Some (f x, y)
+      end.
+  Definition rw_type :=
+    expr typ func -> list (RG Rbase) -> RG Rbase -> m (expr typ func).
+
+  Definition rw_under (r : RG Rbase) (rw : rw_type) : rw_type :=
+    fun e rvars => rw e (r :: rvars).
 
   Section interleave.
     Variables (rw rw' : rw_type -> rw_type).
@@ -74,6 +82,12 @@ Section SetoidRewrite.
   	m (expr typ func) :=
     rg_plus (f e rvars rg) (g e rvars rg).
 
+  Definition sr_combineK (f g : rw_type -> rw_type)
+             (k : rw_type)
+             (e : (expr typ func)) (rvars : list (AutoSetoidRewrite.RG (expr typ func))) (rg : AutoSetoidRewrite.RG (expr typ func)) :
+    m (expr typ func) :=
+    rg_plus (f k e rvars rg) (g k e rvars rg).
+
   Variable rel : typ -> Rbase.
   Variable rewrite_respects : Rbase -> list (RG Rbase) -> RG Rbase -> m (expr typ func).
   Variable rewrite_exs : Rbase -> list (RG Rbase) -> RG Rbase -> m (expr typ func).
@@ -89,5 +103,5 @@ Section SetoidRewrite.
       | None => e
       | Some (e,_) => e
     end.
-  
+
 End SetoidRewrite.
