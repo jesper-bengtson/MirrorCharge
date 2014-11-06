@@ -152,10 +152,10 @@ bin/MirrorCharge/SepLogFold.vo: src/MirrorCharge/SepLogFold.v
 bin/MirrorCharge/SepLogFoldEx.vo: src/MirrorCharge/SepLogFoldEx.v
 bin/MirrorCharge/SepLogFoldWithAnd.vo: src/MirrorCharge/SepLogFoldWithAnd.v
 bin/MirrorCharge/SepTests.vo: src/MirrorCharge/SepTests.v bin/MirrorCharge/ILogicFunc.vo bin/MirrorCharge/OrderedCanceller.vo bin/MirrorCharge/CancellerTac.vo
-bin/MirrorCharge/SetoidRewrite/BILSetoidRewrite.vo: src/MirrorCharge/SetoidRewrite/BILSetoidRewrite.v bin/MirrorCharge/SetoidRewrite/Base.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/ModularFunc/BILogicFunc.vo bin/MirrorCharge/AutoSetoidRewrite.vo
-bin/MirrorCharge/SetoidRewrite/Base.vo: src/MirrorCharge/SetoidRewrite/Base.v bin/MirrorCharge/AutoSetoidRewrite.vo
-bin/MirrorCharge/SetoidRewrite/EmbedSetoidRewrite.vo: src/MirrorCharge/SetoidRewrite/EmbedSetoidRewrite.v bin/MirrorCharge/SetoidRewrite/Base.vo bin/MirrorCharge/ModularFunc/BaseFunc.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/ModularFunc/EmbedFunc.vo bin/MirrorCharge/AutoSetoidRewrite.vo
-bin/MirrorCharge/SetoidRewrite/ILSetoidRewrite.vo: src/MirrorCharge/SetoidRewrite/ILSetoidRewrite.v bin/MirrorCharge/SetoidRewrite/Base.vo bin/MirrorCharge/ModularFunc/BaseFunc.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/AutoSetoidRewrite.vo
+bin/MirrorCharge/SetoidRewrite/BILSetoidRewrite.vo: src/MirrorCharge/SetoidRewrite/BILSetoidRewrite.v bin/MirrorCharge/SetoidRewrite/Base.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/ModularFunc/BILogicFunc.vo
+bin/MirrorCharge/SetoidRewrite/Base.vo: src/MirrorCharge/SetoidRewrite/Base.v
+bin/MirrorCharge/SetoidRewrite/EmbedSetoidRewrite.vo: src/MirrorCharge/SetoidRewrite/EmbedSetoidRewrite.v bin/MirrorCharge/SetoidRewrite/Base.vo bin/MirrorCharge/ModularFunc/BaseFunc.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo bin/MirrorCharge/ModularFunc/EmbedFunc.vo
+bin/MirrorCharge/SetoidRewrite/ILSetoidRewrite.vo: src/MirrorCharge/SetoidRewrite/ILSetoidRewrite.v bin/MirrorCharge/SetoidRewrite/Base.vo bin/MirrorCharge/ModularFunc/BaseFunc.vo bin/MirrorCharge/ModularFunc/ILogicFunc.vo
 bin/MirrorCharge/SymEval.vo: src/MirrorCharge/SymEval.v
 bin/MirrorCharge/SynSepLog.vo: src/MirrorCharge/SynSepLog.v bin/MirrorCharge/SepLogFold.vo
 bin/MirrorCharge/Tauto.vo: src/MirrorCharge/Tauto.v

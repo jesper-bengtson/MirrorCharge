@@ -31,7 +31,7 @@ Section PullConjunct.
   Context {ilogic : forall t : typ, option (ILogicOps (typD t))}.
 
   Definition pull_conjunct := 
-	setoid_rewrite fEntails (sr_combine il_respects (il_respects_reflexive ilogic)) (il_pull_conjunct target).
+	setoid_rewrite fEntails (sr_combine il_respects (il_respects_reflexive ilogic)) (il_pull_conjunct _ target ilogic).
 
   Definition PULLCONJUNCTL : rtac typ (expr typ func) subst :=
     fun tus tvs lus lvs c s e =>

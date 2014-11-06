@@ -279,4 +279,3 @@ Goal (forall (Pr : Program) (C : class) (v : val) (fields : list field), True).
   exact I.
 
 Defined.
-

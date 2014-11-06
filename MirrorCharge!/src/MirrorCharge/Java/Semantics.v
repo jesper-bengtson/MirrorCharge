@@ -33,11 +33,12 @@ Proof.
   rewrite <- exists_into_precond2.
   apply lforallR. apply H.
 Qed.
-
+Print sasn.
 Lemma eq_to_subst x (e : stack -> val) (P Q : sasn) 
     (H : apply_subst P (subst1 e x) |-- apply_subst Q (subst1 e x)) :
 	embed (ap_eq [stack_get x, e]) //\\ P |-- Q.
 Proof.
+  
   admit.
 Qed.
 

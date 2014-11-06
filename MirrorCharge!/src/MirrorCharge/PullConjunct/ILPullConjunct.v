@@ -1,6 +1,7 @@
 Require Import MirrorCore.Lambda.ExprCore.
 Require Import MirrorCore.Lambda.Red.
 Require Import MirrorCore.Lambda.ExprLift.
+Require Import MirrorCore.Lambda.Expr.
 Require Import MirrorCore.TypesI.
 
 Require Import ExtLib.Core.RelDec.
@@ -14,6 +15,8 @@ Require Import Charge.Logics.ILogic.
 Section ILPullConjunct.
   Context {typ func : Type} {HIL : ILogicFunc typ func}.
   Context {RType_typ : RType typ}.
+  Context {Typ2_Fun : Typ2 RType_typ Fun}.
+  Context {RSym_Func : RSym func}. 
   Context {RelDec_func : RelDec (@eq (expr typ func))}.
 
   Let Rbase := expr typ func.
@@ -56,6 +59,8 @@ Definition il_pull_conjunct_r (e : expr typ func) (_ : list (RG (expr typ func))
     | _ => rg_fail
   end.
 
+Variable gs : logic_ops.
+
 Definition il_pull_conjunct_sym (e : expr typ func) (_ : list (RG (expr typ func))) (rg : RG Rbase) : m (expr typ func) :=
   match e with
     | App (App a P) Q =>
@@ -71,11 +76,20 @@ Definition il_pull_conjunct_sym (e : expr typ func) (_ : list (RG (expr typ func
       		end
         | _ => rg_fail
       end
-    | _ => rg_fail
+    | _ =>
+      match typeof_expr nil nil e with
+        | Some t => 
+          match gs t with
+            | Some _ => rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGinj (fEntails t)))
+				 		     (fun _ => rg_ret e)
+            | None => rg_fail
+          end
+        | None => rg_fail
+      end
   end.  
 
 Definition il_pull_conjunct := sr_combine il_pull_conjunct_sym (sr_combine il_pull_conjunct_l il_pull_conjunct_r).
 
 End ILPullConjunct.
 
-Implicit Arguments il_pull_conjunct [[typ] [func] [HIL] [RelDec_func]].
+Implicit Arguments il_pull_conjunct [[typ] [func] [HIL] [RelDec_func] [Typ2_Fun] [RSym_Func]].

@@ -20,8 +20,9 @@ Section AutoTac.
 Definition APPLY := @APPLY typ (expr typ func) subst _ _ _ _ UVar
                     (@vars_to_uvars _ _)
                     (fun _ _ _ tus tvs n l r t s =>
-                       @exprUnify _ _ _ _ _ _ _ _ 10 tus tvs n s l r t).
+                       @exprUnify _ _ _ _ _ _ _ _ 10 tus tvs n s l r t)
+                    (@instantiate _ _).
 
 End AutoTac.
-
+Check APPLY.
 Implicit Arguments APPLY [[RType_typ] [Typ2_typ] [Typ0_typ] [RSym_func] [SS] [SU]].

@@ -127,8 +127,6 @@ Check @OrderedCanceller.ordered_cancel.
 
   Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
 
-SearchAbout ctx_subst.
-
   Definition CANCELLATION : rtac typ (expr typ func) subst :=
     fun tus tvs nus nvs c s e =>
       match e with

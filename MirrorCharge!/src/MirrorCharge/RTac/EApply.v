@@ -21,7 +21,8 @@ Section EAutoTac.
 					  UVar
                       (@vars_to_uvars _ _)
                       (fun _ _ _ tus tvs n l r t s =>
-                         @exprUnify _ _ _ _ _ _ _ _ 10 tus tvs n s l r t).
+                         @exprUnify _ _ _ _ _ _ _ _ 10 tus tvs n s l r t)
+                      (@instantiate _ _).
 
 
 End EAutoTac.

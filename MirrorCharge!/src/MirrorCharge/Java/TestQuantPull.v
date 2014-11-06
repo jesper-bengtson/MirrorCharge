@@ -32,4 +32,10 @@ Fixpoint crazy_goal n :=
 
 Set Printing Width 140.
 
-Time Eval vm_compute in pull_quant tySasn (crazy_goal 9).
+Time Eval vm_compute in pull_quant tySasn (crazy_goal 2).
+
+Time Eval vm_compute in
+    match pull_quant tySasn (crazy_goal 1) with
+      | Inj _ => tt
+      | _ => tt
+    end.
