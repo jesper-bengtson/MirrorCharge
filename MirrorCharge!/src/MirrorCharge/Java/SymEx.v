@@ -265,20 +265,65 @@ Definition match_ap_eq (e : expr typ func) : bool :=
 
 Definition PULLEQL := PULLCONJUNCTL typ func subst match_ap_eq ilops.
 
-Definition solve_alloc : rtac typ (expr typ func) subst :=
-	THEN (INSTANTIATE typ func subst) (runOnGoals (THEN (THEN (TRY FIELD_LOOKUP) 
-		(runOnGoals (CANCELLATION typ func subst tySpec (fun _ => false)))) (runOnGoals FOLD))).
-
 Definition solve_entailment : rtac typ (expr typ func) subst := 
 	THEN (INSTANTIATE typ func subst) 
 		(runOnGoals (FIRST (SOLVE (CANCELLATION typ func subst tySasn is_pure)::
 	           THEN (THEN PULLEQL (runOnGoals (REPEAT 1000 EQSUBST))) (runOnGoals (CANCELLATION typ func subst tySasn is_pure))::
 	           nil))).
-	           
-Definition simStep (r : rtac typ (expr typ func) subst) : 
+
+Definition solve_alloc : rtac typ (expr typ func) subst :=
+    THEN (INSTANTIATE typ func subst)
+    (runOnGoals (FIRST (SOLVE (CANCELLATION typ func subst tySpec (fun _ => false)) ::
+                        FIELD_LOOKUP ::
+                        THEN FOLD (runOnGoals solve_entailment) :: nil))).
+                        (*
+	THEN (INSTANTIATE typ func subst) (runOnGoals (THEN (THEN (TRY FIELD_LOOKUP) 
+		(runOnGoals (CANCELLATION typ func subst tySpec (fun _ => false)))) (runOnGoals FOLD))) ::
+		solve_entailment :: nil).
+	           *)
+Require Import MirrorCharge.AutoSetoidRewrite.
+Require Import MirrorCharge.SetoidRewrite.Base.
+Require Import MirrorCharge.SetoidRewrite.ILSetoidRewrite.
+Require Import MirrorCharge.SetoidRewrite.BILSetoidRewrite.
+
+  Definition spec_respects (e : expr typ func) (_ : list (RG (expr typ func)))
+	   (rg : RG (expr typ func)) : m (expr typ func) :=
+	   match e with
+	     | Inj (inr pTriple) =>
+	       rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg
+	         (RGrespects (RGflip (RGinj (fEntails tySasn)))
+	           (RGrespects (RGinj (fEq tyCmd))
+	             (RGrespects (RGinj (fEntails tySasn))
+	               (RGinj (fEntails tySpec))))))
+	         (fun _ => rg_ret fTriple)
+	     | _ => rg_fail
+	   end.
+
+Definition step_rewrite rw :=
+  setoid_rewrite _ (fEntails : typ -> expr typ func)
+    (sr_combine il_respects
+               (sr_combine (@il_respects_reflexive typ func _ _ _ ilops _ _)
+                                        (sr_combine bil_respects
+                                                    (sr_combine eq_respects 
+                                                    (sr_combine spec_respects refl)))))
+    rw.
+    
+Definition rw_empty : rewriter (typ := typ) (func := JavaFunc.func) -> rewriter := 
+	fun _ _ _ _ => rg_fail (typ := typ) (func := JavaFunc.func).
+
+  Definition STEP_REWRITE rw : rtac typ (expr typ func) subst :=
+    fun tus tvs lus lvs c s e =>
+      match step_rewrite rw tyProp e with
+        | Some (e', _) => More s (GGoal e')
+        | _ => More s (GGoal e)
+      end.
+
+Definition simStep rw (r : rtac typ (expr typ func) subst) : 
 	rtac typ (expr typ func) subst := 
-	THEN (THEN (SUBST typ func subst) 
-	                 (runOnGoals (THEN (THEN (TRY (APPLY typ func subst pull_exists_lemma)) (runOnGoals (REPEAT 1000 (INTRO typ func subst)))) (runOnGoals BETA))))
+	THEN (THEN (THEN (SUBST typ func subst)
+	                 (runOnGoals (THEN (THEN (TRY (APPLY typ func subst pull_exists_lemma)) 
+	                 (runOnGoals (REPEAT 1000 (INTRO typ func subst)))) (runOnGoals BETA))))
+	                 (runOnGoals (STEP_REWRITE rw)))
 		 (runOnGoals r).
 		 
 Set Printing Depth 100.
@@ -287,35 +332,35 @@ Print alloc_lemma.
 
 Print runOnGoals.
 
-Fixpoint tripleE (c : cmd) : rtac typ (expr typ func) subst :=
+Fixpoint tripleE (c : cmd) rw : rtac typ (expr typ func) subst :=
 	match c with
-	    | cskip => (*simStep (THEN (APPLY typ func subst skip_lemma) (runOnGoals solve_entailment))*)
-	               APPLY typ func subst skip_lemma
-	    | calloc x C => simStep (THEN (EAPPLY typ func subst (alloc_lemma x C)) (runOnGoals solve_alloc))
-		| cseq c1 c2 => simStep (THEN (EAPPLY typ func subst (seq_lemma c1 c2))
-						              (runOnGoals (FIRST ((fun x => tripleE c1 x)::(fun x => tripleE c2 x)::nil))))
-		| cassign x e => simStep (THEN (EAPPLY typ func subst (assign_lemma x e)) (runOnGoals solve_entailment))
-		| cread x y f => simStep (THEN (EAPPLY typ func subst (read_lemma x y f)) (runOnGoals solve_entailment))
-		| cwrite x f e => simStep (THEN (EAPPLY typ func subst (write_lemma x f e)) (runOnGoals solve_entailment))
+	    | cskip => simStep rw (THEN (APPLY typ func subst skip_lemma) (runOnGoals solve_entailment))
+	    | calloc x C => simStep rw (THEN (EAPPLY typ func subst (alloc_lemma x C)) 
+	    	(runOnGoals (FIRST (solve_alloc :: solve_entailment :: nil))))
+		| cseq c1 c2 => simStep rw (THEN (EAPPLY typ func subst (seq_lemma c1 c2))
+						              (runOnGoals (FIRST ((fun x => tripleE c1 rw x)::(fun x => tripleE c2 rw x)::nil))))
+		| cassign x e => simStep rw (THEN (EAPPLY typ func subst (assign_lemma x e)) (runOnGoals solve_entailment))
+		| cread x y f => simStep rw (THEN (EAPPLY typ func subst (read_lemma x y f)) (runOnGoals solve_entailment))
+		| cwrite x f e => simStep rw (THEN (EAPPLY typ func subst (write_lemma x f e)) (runOnGoals solve_entailment))
 		| _ => @IDTAC _ _ _
 	end.
 
-Definition symE : rtac typ (expr typ func) subst :=
+Definition symE rw : rtac typ (expr typ func) subst :=
 	(fun tus tvs n m ctx s e => 
 		(match e return rtac typ (expr typ func) subst with 
 			| App (App (Inj f) G) H =>
 			  match ilogicS f, H with
 			  	| Some (ilf_entails tySpec), (* tySpec is a pattern, should be checked for equality with tySpec *)
 			  	  App (App (App (Inj (inr pTriple)) P) Q) (Inj (inr (pCmd c))) =>
-			  	  	tripleE c
+			  	  	tripleE c rw
 			  	| _, _ => @FAIL _ _ _
 			  end
 			| _ => @FAIL _ _ _
 		end) tus tvs n m ctx s e).  
 Print THEN.
 
-Definition runTac (tac : expr typ func) := 
-   THEN (THEN (REPEAT 1000 (INTRO typ func subst)) (runOnGoals symE)) 
+Definition runTac (tac : expr typ func) rw := 
+   THEN (THEN (REPEAT 1000 (INTRO typ func subst)) (runOnGoals (symE rw))) 
 	(runOnGoals (INSTANTIATE typ func subst))
 	 nil nil 0 0 (@SubstI.empty (ctx_subst subst CTop) (expr typ func) _) tac.
 
@@ -333,11 +378,9 @@ Definition typecheck_goal g :=
 
 Definition test_alloc : expr typ func :=
 	mkEntails tySpec (mkProgEq (mkProg ListProg))
-		(mkTriple (mkTrue tySasn) (mkCmd (calloc "x" "NodeC")) (mkFalse tySasn)).
+		(mkTriple (mkTrue tySasn) (mkCmd (cseq (calloc "x" "NodeC") cskip)) (mkFalse tySasn)).
 
-Print alloc_lemma.
-
-Eval vm_compute in runTac test_alloc.
+Eval vm_compute in runTac test_alloc rw_empty.
 
 Fixpoint seq_skip n := 
 	match n with
@@ -368,8 +411,9 @@ Eval vm_compute in
                 (mkEntails tySpec (Var 1)
                 (mkTriple (Var 0) (mkCmd cskip) (Var 0)))) : expr typ func).
 Eval vm_compute in testSkip 0.
-Time Eval vm_compute in runTac (testSkip 20).
-
+(*
+Time Eval vm_compute in runTac (testSkip 20) rw_empty.
+*)
 (*
 Time Eval vm_compute in 
 	match runTac (testSkip 100) with
@@ -405,9 +449,8 @@ Definition test_read2 :=
   	           (mkTriple (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 3))))
   	                     (mkCmd (cseq (cread "x" "o" "f") cskip))
   	                     (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 3)))))).
-
-Time Eval vm_compute in runTac test_read.
-Time Eval vm_compute in runTac test_read2.
+Time Eval vm_compute in runTac test_read rw_empty.
+Time Eval vm_compute in runTac test_read2 rw_empty.
 
 Definition test_write :=
   	(mkEntails tySpec (mkTrue tySpec)
@@ -415,7 +458,7 @@ Definition test_write :=
   	                     (mkCmd (cwrite "o" "f" (E_val (vint 4))))
   	                     (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 4)))))).
 
-Time Eval vm_compute in runTac test_write.
+Time Eval vm_compute in runTac test_write rw_empty.
 Check @GSolved.
 Definition testSwap :=
 	mkForall tyVal tyProp
@@ -481,19 +524,15 @@ Definition mkSwapFalse n :=
 
 Time Eval vm_compute in (mkCmd (mkSwapProg 2 (mkSwapProg 2 cskip))).
 
-Definition runTac2 (tac : expr typ func) := 
-   THEN (THEN (THEN (REPEAT 1000 (INTRO typ func subst)) (runOnGoals symE)) 
-	(runOnGoals (INSTANTIATE typ func subst))) (runOnGoals PULLEQL)
-	 nil nil 0 0 (@SubstI.empty (ctx_subst subst CTop) (expr typ func) _) tac.
 
 Definition mkSwap2 n :=
 	mkSwapAux n (mkPre n) (mkCmd (mkSwapProg n (mkSwapProg n cskip)))(* (mkPre n).*).
 Eval vm_compute in mkSwap 5.
 Check EAPPLY.
-Time Eval vm_compute in runTac2 (mkSwap 4).
-Print Result.
+Time Eval vm_compute in runTac (mkSwap 20) rw_empty.
+
 Time Eval vm_compute in 
-	match (runTac (mkSwap 20)) with
+	match (runTac (mkSwap 20) rw_empty) with
 		| More_ _ g => 
 		  Some (match goalD nil nil g with
 		          | Some _ => true

@@ -1,3 +1,4 @@
+(*
 Require Import MirrorCore.Ext.Expr.
 Require Import ExtLib.Tactics.
 Require Import MirrorCharge.ILogicFunc.
@@ -117,3 +118,4 @@ Module PropTests.
          (P -> Q) -> (Q -> R) -> (R -> S) -> P -> S.
   Abort.
 End PropTests.
+*)

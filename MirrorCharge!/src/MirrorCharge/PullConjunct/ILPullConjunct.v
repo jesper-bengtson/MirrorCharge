@@ -15,15 +15,18 @@ Require Import Charge.Logics.ILogic.
 Section ILPullConjunct.
   Context {typ func : Type} {HIL : ILogicFunc typ func}.
   Context {RType_typ : RType typ}.
-  Context {Typ2_Fun : Typ2 RType_typ Fun}.
-  Context {RSym_Func : RSym func}. 
-  Context {RelDec_func : RelDec (@eq (expr typ func))}.
+   Context {RelDec_func : RelDec (@eq (expr typ func))}.
 
   Let Rbase := expr typ func.
 
   Variable target : expr typ func -> bool.  
+Print rewriter.
+Check @rewriter.
 
-Definition il_pull_conjunct_l (e : expr typ func) (_ : list (RG (expr typ func))) (rg : RG Rbase) : m (expr typ func) :=
+  Definition rw_under_and (l : typ) (P : expr typ func) (rw : rewriter _) : rewriter _ :=
+    fun e rvars rg => rg_fmap (typ := typ) (func := func) (mkAnd l P) (rw e rvars rg).
+
+Definition il_pull_conjunct_l (rw : @rw_type typ func) (e : expr typ func) (rvars : list (RG (expr typ func))) (rg : RG Rbase) : m (expr typ func) :=
   match e with
     | App (App a P) (App (App b Q) R) =>
       match ilogicS (typ := typ) (func := expr typ func) a, ilogicS b with
@@ -31,9 +34,9 @@ Definition il_pull_conjunct_l (e : expr typ func) (_ : list (RG (expr typ func))
       		match target Q with
       			| true => rg_plus
                    (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGflip (RGinj (fEntails l))))
-				      (fun _ => rg_ret (mkAnd l Q (mkAnd l P R))))
+                      (fun _ => rw_under_and l Q rw (mkAnd l P R) rvars rg))
 				   (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGinj (fEntails l)))
-				      (fun _ => rg_ret (mkAnd l Q (mkAnd l P R))))      			
+				      (fun _ => rw_under_and l Q rw (mkAnd l P R) rvars rg))      			
       		    | _ => rg_fail
       		end
       	| _, _ => rg_fail
@@ -41,7 +44,7 @@ Definition il_pull_conjunct_l (e : expr typ func) (_ : list (RG (expr typ func))
     | _ => rg_fail
   end.
 
-Definition il_pull_conjunct_r (e : expr typ func) (_ : list (RG (expr typ func))) (rg : RG Rbase) : m (expr typ func) :=
+Definition il_pull_conjunct_r (rw : @rw_type typ func) (e : expr typ func) (rvars : list (RG (expr typ func))) (rg : RG Rbase) : m (expr typ func) :=
   match e with
     | App (App a (App (App b P) Q)) R =>
       match ilogicS (typ := typ) (func := expr typ func) a, ilogicS b with
@@ -49,9 +52,9 @@ Definition il_pull_conjunct_r (e : expr typ func) (_ : list (RG (expr typ func))
       		match target P with
       			| true => rg_plus
 	               (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGflip (RGinj (fEntails l))))
-					 (fun _ => rg_ret (mkAnd l P (mkAnd l Q R))))
+	                 (fun _ => rw_under_and l P rw (mkAnd l Q R) rvars rg))
 				   (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGinj (fEntails l)))
-					 (fun _ => rg_ret (mkAnd l P (mkAnd l Q R))))      			
+	                 (fun _ => rw_under_and l P rw (mkAnd l Q R) rvars rg))
       		    | _ => rg_fail
       		end
       	| _, _ => rg_fail
@@ -61,7 +64,7 @@ Definition il_pull_conjunct_r (e : expr typ func) (_ : list (RG (expr typ func))
 
 Variable gs : logic_ops.
 
-Definition il_pull_conjunct_sym (e : expr typ func) (_ : list (RG (expr typ func))) (rg : RG Rbase) : m (expr typ func) :=
+Definition il_pull_conjunct_sym (rw : @rw_type typ func) (e : expr typ func) (rvars : list (RG (expr typ func))) (rg : RG Rbase) : m (expr typ func) :=
   match e with
     | App (App a P) Q =>
       match ilogicS (typ := typ) (func := expr typ func) a with
@@ -69,27 +72,18 @@ Definition il_pull_conjunct_sym (e : expr typ func) (_ : list (RG (expr typ func
       		match target Q with
       		  | true => rg_plus
 		                  (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGflip (RGinj (fEntails l))))
-				 		     (fun _ => rg_ret (mkAnd l Q P)))
+		                     (fun _ => rw_under_and l Q rw P rvars rg))
 				 		  (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGinj (fEntails l)))
-						     (fun _ => rg_ret (mkAnd l Q P)))     
+		                     (fun _ => rw_under_and l Q rw P rvars rg))
       		  | _ => rg_fail
       		end
         | _ => rg_fail
       end
-    | _ =>
-      match typeof_expr nil nil e with
-        | Some t => 
-          match gs t with
-            | Some _ => rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGinj (fEntails t)))
-				 		     (fun _ => rg_ret e)
-            | None => rg_fail
-          end
-        | None => rg_fail
-      end
+    | _ => rg_fail
   end.  
 
-Definition il_pull_conjunct := sr_combine il_pull_conjunct_sym (sr_combine il_pull_conjunct_l il_pull_conjunct_r).
+Definition il_pull_conjunct := sr_combineK il_pull_conjunct_sym (sr_combineK il_pull_conjunct_l il_pull_conjunct_r).
 
 End ILPullConjunct.
 
-Implicit Arguments il_pull_conjunct [[typ] [func] [HIL] [RelDec_func] [Typ2_Fun] [RSym_Func]].
+Implicit Arguments il_pull_conjunct [[typ] [func] [HIL] [RelDec_func]].

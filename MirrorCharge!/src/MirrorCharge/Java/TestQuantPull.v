@@ -15,27 +15,50 @@ Require Import MirrorCharge.ModularFunc.ILogicFunc.
 Require Import MirrorCharge.ModularFunc.EmbedFunc.
 
 Require Import MirrorCore.Lambda.Expr.
+Check @il_respects_reflexive.
+Definition pull_quant :=
+  setoid_rewrite _ (fEntails : typ -> expr typ func)
+    (sr_combine il_respects
+               (sr_combine (@il_respects_reflexive typ func _ _ _ ilops _ _)
+                                        (sr_combine embed_respects
+                                                    (sr_combine eq_respects refl))))
+    (sr_combineK  (il_match_plus (fun _ => true) fEq)
+                  (sr_combineK (bil_match_plus fEq) (eil_match_plus fEq))).
+Definition goal : expr typ func :=
+  mkAnd tySasn (mkTrue tySasn) (mkEmbed tyProp tySasn (mkExists tyNat tyProp (mkEq tyNat (Var 0) (Var 0)))).
 
-Definition pull_quant := 
-	setoid_rewrite fEntails
-		(sr_combine il_respects (sr_combine bil_respects (sr_combine (il_respects_reflexive ilops) embed_respects))) 
-		(sr_combine  (il_match_plus (fun _ => true)) (sr_combine bil_match_plus eil_match_plus)).
-
- Definition goal : expr typ func :=
- 	mkAnd tySasn (mkTrue tySasn) (mkEmbed tyProp tySasn (mkExists tyNat tyProp (mkEq tyNat (Var 0) (Var 0)))).
 
 Fixpoint crazy_goal n :=
-	match n with
-		| 0 => goal
-		| S n => mkAnd tySasn (crazy_goal n) (crazy_goal n)
-	end.
+  match n with
+    | 0 => goal
+    | S n => mkAnd tySasn (crazy_goal n) (crazy_goal n)
+  end.
+
+Fixpoint countArgs (e : expr typ func) : nat :=
+  match e with
+    | Inj _ | Var _ | UVar _ => 0
+    | App x y => S (countArgs x + countArgs y)
+    | Abs _ x => countArgs x
+  end.
+
+Eval vm_compute in countArgs (crazy_goal 7).
+
+Fixpoint countExs (e : expr typ func) : nat :=
+  match e with
+    | App (Inj _) (Abs _ e') => S (countExs e')
+    | _ => 0
+  end.
 
 Set Printing Width 140.
 
-Time Eval vm_compute in pull_quant tySasn (crazy_goal 2).
-
+Eval vm_compute in 
+  match pull_quant tySasn (crazy_goal 4) with
+    | Some (e, _) => e 
+    | _ => mkFalse tySasn
+  end.	
+  
 Time Eval vm_compute in
-    match pull_quant tySasn (crazy_goal 1) with
-      | Inj _ => tt
-      | _ => tt
+    match pull_quant tySasn (crazy_goal 3) with
+      | Some (e,_) =>  countExs e
+      | None => 0
     end.

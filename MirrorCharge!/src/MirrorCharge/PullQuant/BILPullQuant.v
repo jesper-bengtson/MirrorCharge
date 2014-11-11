@@ -20,7 +20,14 @@ Section BILPullQuant.
 
   Let Rbase := expr typ func.
 
-Definition bil_match_plus_l (e : expr typ func) (_ : list (RG (expr typ func))) (rg : RG Rbase) : m (expr typ func) :=
+  Variable rg_eq : typ -> expr typ func.
+
+  Definition rw_under_exists (t : typ) (l : typ) (rw : rewriter _) :=
+    rw_under (RGinj (rg_eq t))
+             (fun e rvars rg => rg_fmap (mkExists t l) (rw e rvars rg)).
+
+  Definition bil_match_plus_l (rw : rewriter _)
+             (e : expr typ func) (rvars : list (RG (expr typ func))) (rg : RG Rbase) : m (expr typ func) :=
   match e with
     | App (App a (App b P)) Q =>
       let P := beta (App P (Var 0)) in
@@ -29,15 +36,16 @@ Definition bil_match_plus_l (e : expr typ func) (_ : list (RG (expr typ func))) 
       	| Some (bilf_star _), Some (ilf_exists t l) =>
 	      rg_plus
 	      (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGflip (RGinj (fEntails l))))
-	        (fun _ => rg_ret (mkExists t l (mkAnd l P Q))))
+	        (fun _ => rw_under_exists t l rw (mkAnd l P Q) rvars rg))
 	      (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGinj (fEntails l)))
-	        (fun _ => rg_ret (mkExists t l (mkAnd l P Q))))
+	        (fun _ => rw_under_exists t l rw (mkAnd l P Q) rvars rg))
 	    | _, _ => rg_fail
 	  end
 	| _ => rg_fail
   end.
   
-Definition bil_match_plus_r (e : expr typ func) (_ : list (RG (expr typ func))) (rg : RG Rbase) : m (expr typ func) :=
+Definition bil_match_plus_r (rw : rewriter _) (e : expr typ func)
+           (rvars : list (RG (expr typ func))) (rg : RG Rbase) : m (expr typ func) :=
   match e with
    | App (App a P) (App b Q) =>
    	 let P := lift 0 1 P in
@@ -47,15 +55,15 @@ Definition bil_match_plus_r (e : expr typ func) (_ : list (RG (expr typ func))) 
 	      rg_plus
 	        (rg_bind
 	          (unifyRG (@rel_dec (expr typ func) _ _ ) rg (RGinj (fEntails l)))
-	            (fun _ => rg_ret (mkExists t l (mkAnd l P Q))))
+	            (fun _ => rw_under_exists t l rw (mkAnd l P Q) rvars rg))
   	        (rg_bind
 	          (unifyRG (@rel_dec (expr typ func) _ _) rg (RGflip (RGinj (fEntails l))))
-	            (fun _ => rg_ret (mkExists t l (mkAnd l P Q))))
+	            (fun _ => rw_under_exists t l rw (mkAnd l P Q) rvars rg))
 	   | _, _ => rg_fail
 	 end
    | _ => rg_fail
  end.
 
-Definition bil_match_plus := sr_combine bil_match_plus_l bil_match_plus_r.
+Definition bil_match_plus := sr_combineK bil_match_plus_l bil_match_plus_r.
 
 End BILPullQuant.

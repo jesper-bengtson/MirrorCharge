@@ -26,12 +26,13 @@ Section PullConjunct.
   Context {RelDec_func : RelDec (@eq (expr typ func))}.
   Context {target : expr typ func -> bool}.
   Context {RType_typ : RType typ}.
-  Context {HT : Typ2 RType_typ Fun}.
+  Context {Typ2_typ : Typ2 RType_typ Fun}.
+  Context {Typ0_typ : Typ0 RType_typ Prop}.
   Context {RSym_func : RSym func}.
   Context {ilogic : forall t : typ, option (ILogicOps (typD t))}.
 
   Definition pull_conjunct := 
-	setoid_rewrite fEntails (sr_combine il_respects (il_respects_reflexive ilogic)) (il_pull_conjunct _ target ilogic).
+	setoid_rewrite _ fEntails (il_rewrite_respects typ func ilogic) (il_pull_conjunct target).
 
   Definition PULLCONJUNCTL : rtac typ (expr typ func) subst :=
     fun tus tvs lus lvs c s e =>
@@ -39,7 +40,10 @@ Section PullConjunct.
         | App (App f L) R =>
           match ilogicS f with
 	        | Some (ilf_entails l) =>
-	        	More s (GGoal (mkEntails l (pull_conjunct l L) R))
+	        	match pull_conjunct l L with
+	        	  | Some (e', _) => More s (GGoal (mkEntails l e' R))
+	        	  | _ => More s (GGoal e)
+	        	end
 	        | _ => More s (GGoal e)
 	      end
         | _ => More s (GGoal e)
@@ -47,4 +51,4 @@ Section PullConjunct.
 
 End PullConjunct.
 
-Implicit Arguments PULLCONJUNCTL [[HIL] [HB] [RelDec_func] [RType_typ] [HT] [RSym_func]].
+Implicit Arguments PULLCONJUNCTL [[HIL] [HB] [RelDec_func] [RType_typ] [Typ2_typ] [Typ0_typ] [RSym_func]].

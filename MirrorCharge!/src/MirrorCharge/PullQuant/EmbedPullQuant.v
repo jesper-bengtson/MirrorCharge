@@ -19,21 +19,27 @@ Section EILPullQuant.
 
   Let Rbase := expr typ func.
 
-Definition eil_match_plus (e : expr typ func) (_ : list (RG (expr typ func))) (rg : RG Rbase) : m (expr typ func) :=
-  match e with
-    | App a (App b P) =>
-      let P := beta (App P (Var 0)) in
-      match embedS (typ := typ) (func := expr typ func) a, ilogicS b with 
-      	| Some (eilf_embed u v), Some (ilf_exists t l) =>
-	      rg_plus
+  Variable rg_eq : typ -> expr typ func.
+
+  Definition rw_under_exists (t : typ) (l : typ) (rw : rewriter _) :=
+    rw_under (RGinj (rg_eq t))
+             (fun e rvars rg => rg_fmap (mkExists t l) (rw e rvars rg)).
+
+  Definition eil_match_plus (rw : rewriter _) (e : expr typ func) (rvars : list (RG (expr typ func))) (rg : RG Rbase) : m (expr typ func) :=
+    match e with
+      | App a (App b P) =>
+        let P := beta (App P (Var 0)) in
+        match embedS (typ := typ) (func := expr typ func) a, ilogicS b with 
+      	  | Some (eilf_embed u v), Some (ilf_exists t l) =>
+	    rg_plus
 	      (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGflip (RGinj (fEntails v))))
-	        (fun _ => rg_ret (mkExists t v (mkEmbed u v P))))
+	               (fun _ => rw_under_exists t v rw (mkEmbed u v P) rvars rg))
 	      (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGinj (fEntails v)))
-	        (fun _ => rg_ret (mkExists t v (mkEmbed u v P))))
-	    | _, _ => rg_fail
-	  end
-	| _ => rg_fail
-  end.
+	               (fun _ => rw_under_exists t v rw (mkEmbed u v P) rvars rg))
+	  | _, _ => rg_fail
+	end
+      | _ => rg_fail
+    end.
 
 End EILPullQuant.
 

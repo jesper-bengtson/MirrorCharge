@@ -22,7 +22,7 @@ Section SetoidRewrite.
 
   Context {RType_typ : RType typ} {RelDec_typ_eq : RelDec (@eq typ)}
           {RelDecCorrect_typ_eq : RelDec_Correct RelDec_typ_eq}.
-  
+
   Context {RelDec_func_eq : RelDec (@eq (expr typ func))}.
 
   Let Rbase := expr typ func.
@@ -30,11 +30,23 @@ Section SetoidRewrite.
   Definition m (T : Type) : Type :=
     rsubst Rbase -> option (T * rsubst Rbase).
 
+  Definition rewriter :=
+    expr typ func ->
+    list (AutoSetoidRewrite.RG Rbase) ->
+    AutoSetoidRewrite.RG Rbase -> m (expr typ func).
+    
+  Definition rw_type :=
+    expr typ func -> list (RG Rbase) -> RG Rbase -> m (expr typ func).
+
+  Definition rw_under (r : RG Rbase) (rw : rw_type) : rw_type :=
+    fun e rvars => rw e (r :: rvars).
+
   Definition rg_bind {T U} (a : m T) (b : T -> m U) : m U :=
     fun s => match a s with
                | None => None
                | Some (val,s') => b val s'
              end.
+             
   Definition rg_fail {T} : m T := fun _ => None.
   Definition rg_ret {T} (v : T) : m T := fun s => Some (v, s).
   Definition rg_plus {T} (l r : m T) : m T :=
@@ -44,50 +56,66 @@ Section SetoidRewrite.
         | None => r s
         | Some _ => v
       end.
-		
-  Definition rw_type := expr typ func -> list (RG (expr typ func))
-                        -> RG (expr typ func) -> m (expr typ func).
-
-  Section interleave.
-    Variables (rw rw' : rw_type -> rw_type).
-
-    Fixpoint interleave (n : nat)
-             (e : expr typ func) (rvars : list (RG (expr typ func)))
-             (rg : RG (expr typ func)) : m (expr typ func) :=
-      match n with
-        | 0 => rg_fail
-        | S n => rw (fun rs => rw' (fun e rvars rg rs => interleave n e rvars rg rs) rs) e rvars rg
+  Definition rg_fmap {T U} (f : T -> U) (l : m T) : m U :=
+    fun s =>
+      match l s with
+        | None => None
+        | Some (x,y) => Some (f x, y)
       end.
-  End interleave.
 
-  Fixpoint rw_fix (n : nat)
-    (rw : rw_type -> rw_type)
-    (e : expr typ func) (rvars : list (RG Rbase)) (rg : RG Rbase)
-    (rs : rsubst Rbase) : option (expr typ func * rsubst Rbase) :=
-    match n with
-      | 0 => Some (e,rs)
-      | S n => rw (fun e rvars rg rs => rw_fix n rw e rvars rg rs) e rvars rg rs
-    end.
+  Section do_several.
+    Variable (rw : rewriter).
+
+    Fixpoint do_several (n : nat) a b c {struct n} :=
+      match n with
+        | 0 => rg_ret a
+        | S n => fun d => match rw a b c d with
+                            | None => rg_ret a d
+                            | Some (a',d') => do_several n a' b c d'
+                          end
+      end.
+  End do_several.
+
+  Section do_severalK.
+    Variable (rw : rewriter -> rewriter).
+
+    Fixpoint do_severalK  (n : nat) (rw' : rewriter)
+             (a : expr typ func) (b : list (AutoSetoidRewrite.RG Rbase))
+             (c :  AutoSetoidRewrite.RG Rbase) {struct n} :=
+      match n with
+        | 0 => rg_ret a
+        | S n => fun d =>
+                   AutoSetoidRewrite.tryRewrite
+                     (rw (fun a b c d => do_severalK n rw' a b c d))
+                     a b c d
+      end.
+  End do_severalK.
 
   Definition sr_combine (f g : expr typ func -> list (RG (expr typ func)) -> RG (expr typ func) -> m (expr typ func))
     (e : (expr typ func)) (rvars : list (RG (expr typ func))) (rg : RG (expr typ func)) :
   	m (expr typ func) :=
     rg_plus (f e rvars rg) (g e rvars rg).
 
-  Variable rel : typ -> Rbase.
-  Variable rewrite_respects : Rbase -> list (RG Rbase) -> RG Rbase -> m (expr typ func).
-  Variable rewrite_exs : Rbase -> list (RG Rbase) -> RG Rbase -> m (expr typ func).
+  Definition sr_combineK (f g : rw_type -> rw_type)
+             (k : rw_type)
+             (e : (expr typ func)) (rvars : list (AutoSetoidRewrite.RG (expr typ func))) (rg : AutoSetoidRewrite.RG (expr typ func)) :
+    m (expr typ func) :=
+    rg_plus (f k e rvars rg) (g k e rvars rg).
 
-  Definition setoid_rewrite (l : typ) (e : expr typ func) : expr typ func :=
-    match
-      rw_fix 10 (@setoid_rewrite typ func (expr typ func)
-                       rel_dec
-                       rewrite_exs rewrite_respects)
-        e nil (RGinj (rel l))
-        (rsubst_empty _)
-    with
-      | None => e
-      | Some (e,_) => e
-    end.
-  
+
+  Definition setoid_rewrite := 
+  fun (RelDec_func_eq : RelDec.RelDec eq) =>
+  let Rbase := expr typ func in
+  fun (rel : typ -> Rbase)
+    (rewrite_respects : rewriter)
+    (rewrite_exs : rewriter -> rewriter)
+    (l : typ) (e : expr typ func) =>
+    (AutoSetoidRewrite.setoid_rewrite
+       RelDec.rel_dec
+       (fun a _ _ => rg_fail)
+       rewrite_respects
+       (do_severalK rewrite_exs 1024 (fun a _ _ => rg_ret a)))
+      e nil (AutoSetoidRewrite.RGinj (rel l))
+      (AutoSetoidRewrite.rsubst_empty Rbase).
+
 End SetoidRewrite.
