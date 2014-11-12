@@ -91,6 +91,8 @@ Section SetoidRewrite.
       end.
   End do_severalK.
 
+  Definition rw_fail : rewriter := fun _ _ _ => rg_fail.
+
   Definition sr_combine (f g : expr typ func -> list (RG (expr typ func)) -> RG (expr typ func) -> m (expr typ func))
     (e : (expr typ func)) (rvars : list (RG (expr typ func))) (rg : RG (expr typ func)) :
   	m (expr typ func) :=
@@ -107,12 +109,13 @@ Section SetoidRewrite.
   fun (RelDec_func_eq : RelDec.RelDec eq) =>
   let Rbase := expr typ func in
   fun (rel : typ -> Rbase)
+    (rewrite_start : rewriter)
     (rewrite_respects : rewriter)
     (rewrite_exs : rewriter -> rewriter)
     (l : typ) (e : expr typ func) =>
     (AutoSetoidRewrite.setoid_rewrite
        RelDec.rel_dec
-       (fun a _ _ => rg_fail)
+       rewrite_start
        rewrite_respects
        (do_severalK rewrite_exs 1024 (fun a _ _ => rg_ret a)))
       e nil (AutoSetoidRewrite.RGinj (rel l))

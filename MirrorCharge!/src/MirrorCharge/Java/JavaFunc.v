@@ -90,7 +90,7 @@ Set Strict Implicit.
 		    | pProgEq => Some (tyArr tyProg tySpec)
 		    | pTriple => Some (tyArr tySasn (tyArr tySasn (tyArr tyCmd tySpec)))
 		    
-		    | pTypeOf => Some (tyArr tyVar (tyArr tyVal tyProp))
+		    | pTypeOf => Some (tyArr tyClass (tyArr tyVal tyProp))
 		    
 		    | pFieldLookup => Some (tyArr tyProg (tyArr tyClass (tyArr tyFields tyProp)))
 		    
@@ -155,7 +155,7 @@ Set Strict Implicit.
                   repeat rewrite rel_dec_correct; intuition congruence ];
                   	admit.
     Qed.
-  
+
 Definition set_fold_fun (x : String.string) (f : field) (P : sasn) :=
 	(`pointsto) (x/V) `f `null ** P.
   

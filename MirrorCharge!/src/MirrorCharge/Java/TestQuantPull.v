@@ -17,7 +17,7 @@ Require Import MirrorCharge.ModularFunc.EmbedFunc.
 Require Import MirrorCore.Lambda.Expr.
 Check @il_respects_reflexive.
 Definition pull_quant :=
-  setoid_rewrite _ (fEntails : typ -> expr typ func)
+  setoid_rewrite _ (fEntails : typ -> expr typ func) rw_fail
     (sr_combine il_respects
                (sr_combine (@il_respects_reflexive typ func _ _ _ ilops _ _)
                                         (sr_combine embed_respects

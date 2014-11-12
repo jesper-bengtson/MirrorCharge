@@ -39,6 +39,16 @@ Section IntroTac.
 				  		Some (AsHy typ P Q)
 				  	else
 				  		None
+(*				  | Some (ilf_entails t) =>
+				    match Q with
+				      | App (Inj g) Q' =>
+				        match ilogicS g with
+				          | Some (ilf_exists t' t'') => 
+				            Some (AsEx t' (fun x => mkEntails t P (beta (App Q' x))))
+				          | _ => None
+				        end
+				      | _ => None
+				    end*)
 				  | _ => None
 				end
 			| _ => None
