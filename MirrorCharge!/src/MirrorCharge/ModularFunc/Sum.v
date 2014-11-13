@@ -100,8 +100,19 @@ Section RTypeOk_Sum.
 	  	* remember (type_cast t t0); destruct o; [congruence|].
 	  	  symmetry in Heqo. apply type_cast_total in Heqo; [| apply _]. 
 	  	  inversion Hxy; subst. apply Heqo. reflexivity.
+	  + intros x y; destruct x, y.
+	    - destruct (@EquivDec_typ t1 Rt1 Tt1 t t0); [
+	        left; rewrite e; reflexivity |
+	        right; intros H; apply c; inversion H; subst; reflexivity
+	      ].
+	    - right; intros H; inversion H.
+	    - right; intros H; inversion H.
+	    - destruct (@EquivDec_typ t2 Rt2 Tt2 t t0); [
+	        left; rewrite e; reflexivity |
+	        right; intros H; apply c; inversion H; subst; reflexivity
+	      ].
 	Qed.
-
+	      
 	Global Instance RelDec_typ_sum_eq : RelDec (@eq typ_sum) :=
 	{ rel_dec t1 t2 := match type_cast_typ t1 t2 with
 	                   | None => false

@@ -105,7 +105,7 @@ Section ILogicFuncInst.
     Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
     Let tyProp : typ := @typ0 _ _ _ _.
 
-	Global Instance BaseFuncInst : ILogicFunc typ (ilfunc typ) := {
+	Global Instance ILogicFuncInst : ILogicFunc typ (ilfunc typ) := {
 	  fEntails := ilf_entails;
 	  fTrue := ilf_true;
 	  fFalse := ilf_false;

@@ -18,6 +18,7 @@ Require Import MirrorCore.Lambda.ExprUnify_simul.
 Require Import MirrorCore.Lambda.Red.
 Require Import MirrorCore.Lambda.AppN. 
 Require Import MirrorCore.Lambda.RedAll.
+Require Import MirrorCore.Lambda.ExprVariables.
 Require Import MirrorCharge.ILogicFunc.
 Require Import MirrorCharge.OrderedCanceller.
 Require Import MirrorCharge.BILNormalize.
@@ -62,9 +63,9 @@ Time Eval vm_compute in typeof_expr nil nil (cancelTest 10).
 Check THEN.
 Check runOnGoals.
 Time Eval vm_compute in 
-	(THEN (REPEAT 10 (INTRO typ func subst)) 
-	(runOnGoals (CANCELLATION typ func subst tySasn is_pure))) 
-		nil nil 0 0 CTop (SubstI.empty (expr := expr typ func)) (cancelTest 10).
+	(THEN (REPEAT 10 (INTRO typ func)) 
+	(runOnGoals (CANCELLATION typ func tySasn is_pure))) 
+		nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ func)) (cancelTest 10).
 
 Fixpoint search_NoDup
     {A} (A_dec: forall a b: A, {a=b}+{a=b->False}) (l: list A) : option (NoDup l) :=
@@ -196,6 +197,12 @@ Defined.
 Example test_pull_exists_lemma : test_lemma pull_exists_lemma. Admitted.
 Eval vm_compute in pull_exists_lemma.
 
+Definition ent_exists_right_lemma : lemma typ (expr typ func) (expr typ func).
+Proof.
+  reify_lemma reify_imp (@ent_left_exists val).
+Defined.
+Example test_pull_exists_lemma2 : test_lemma ent_exists_right_lemma. Admitted.
+
 Definition eq_to_subst_lemma : lemma typ (expr typ func) (expr typ func).
 Proof.
   reify_lemma reify_imp eq_to_subst.
@@ -207,14 +214,13 @@ Print pull_exists_lemma.
 
 Example test_pull_exists : test_lemma (pull_exists_lemma). Admitted.
 
-
-Definition fieldLookupTac : rtac typ (expr typ func) subst :=
+Definition fieldLookupTac : rtac typ (expr typ func) :=
 	fun tus tvs n m c s e =>
 		match e with
 		  | App (App (App (Inj (inr pFieldLookup)) (Inj (inr (pProg P)))) (Inj (inr (pClass C)))) f =>
 		  	match class_lookup C P with
     	      | Some Class =>
-    	        match @exprUnify (ctx_subst subst c) typ func _ _ _ _ _ 3
+    	        match @exprUnify (ctx_subst c) typ func _ _ _ _ _ 3
                                  tus tvs 0 s f (mkFields (c_fields Class)) tyVarList with
                   | Some s => Solved s
                   | None   => Fail
@@ -240,10 +246,14 @@ Require Import MirrorCharge.ModularFunc.ListFunc.
 	    | _ => apps e args
 	  end.
 
-	Definition FOLD := SIMPLIFY (typ := typ) (subst := subst) (fun _ _ _ _ => beta_all foldTac nil nil).
+	Definition FOLD := SIMPLIFY (typ := typ) (fun _ _ _ _ => beta_all foldTac nil nil).
 
-Definition BETA := SIMPLIFY (typ := typ) (subst := subst) (fun _ _ _ _ => beta_all (@apps typ func) nil nil).
-Definition EQSUBST := THEN (APPLY typ func subst eq_to_subst_lemma) (runOnGoals (SUBST typ func subst)).
+Definition BETA := SIMPLIFY (typ := typ) (fun _ _ _ _ => beta_all (@apps typ func) nil nil).
+
+Definition THEN (r1 r2 : rtac typ (expr typ func)) := THEN r1 (runOnGoals r2).
+
+Definition EQSUBST := THEN (THEN (APPLY typ func eq_to_subst_lemma) 
+	(INSTANTIATE typ func)) (SUBST typ func).
 (*
 Notation "'ap_eq' '[' x ',' y ']'" :=
 	 (ap (T := Fun stack) (ap (T := Fun stack) (pure (T := Fun stack) (@eq val)) x) y).
@@ -263,7 +273,7 @@ Definition match_ap_eq (e : expr typ func) : bool :=
 	  | _ => false
 	end.
 
-Definition PULLEQL := PULLCONJUNCTL typ func subst match_ap_eq ilops.
+Definition PULLEQL := PULLCONJUNCTL typ func match_ap_eq ilops.
 
                         (*
 	THEN (INSTANTIATE typ func subst) (runOnGoals (THEN (THEN (TRY FIELD_LOOKUP) 
@@ -288,8 +298,8 @@ Require Import MirrorCharge.SetoidRewrite.BILSetoidRewrite.
 	     | _ => rg_fail
 	   end.
 
-Definition step_unfold rw :=
-  setoid_rewrite _ (fEntails : typ -> expr typ func) rw
+Definition step_unfold vars rw :=
+  setoid_rewrite vars _ (fEntails : typ -> expr typ func) rw
     (sr_combine il_respects
                (sr_combine (@il_respects_reflexive typ func _ _ _ ilops _ _)
                                         (sr_combine bil_respects
@@ -297,35 +307,34 @@ Definition step_unfold rw :=
                                                     (sr_combine spec_respects refl)))))
     (fun _ => rw_fail).
     
-  Definition STEP_REWRITE rw : rtac typ (expr typ func) subst :=
+  Definition STEP_REWRITE rw : rtac typ (expr typ func) :=
     fun tus tvs lus lvs c s e =>
-      match step_unfold rw tyProp e with
+      match step_unfold (getVars c) rw tyProp e with
         | Some (e', _) => More s (GGoal e')
         | _ => More s (GGoal e)
       end.
 
+Definition PULL_TRIPLE_EXISTS : rtac typ (expr typ func) :=
+  THEN (THEN (THEN (APPLY typ func pull_exists_lemma) (INTRO typ func)) (INSTANTIATE typ func)) BETA.
 
-Definition solve_entailment (rw : rewriter (typ := typ) (func := func)) : rtac typ (expr typ func) subst := 
-TRY (SOLVE (CANCELLATION typ func subst tySasn is_pure))
-(*
-	THEN (INSTANTIATE typ func subst) 
-		(runOnGoals (FIRST (SOLVE (CANCELLATION typ func subst tySasn is_pure)::
-	            (THEN (THEN (THEN (THEN PULLEQL (runOnGoals (REPEAT 1000 EQSUBST))) 
-	           (runOnGoals (STEP_REWRITE rw))) (runOnGoals (REPEAT 1000 (INTRO typ func subst)))) (runOnGoals (CANCELLATION typ func subst tySasn is_pure))::
-	           nil)))).
-*).
-Definition solve_alloc rw : rtac typ (expr typ func) subst :=
-    THEN (INSTANTIATE typ func subst)
-    (runOnGoals (FIRST (SOLVE (CANCELLATION typ func subst tySpec (fun _ => false)) ::
+Definition solve_entailment (rw : rewriter (typ := typ) (func := func)) : rtac typ (expr typ func) :=
+	THEN (INSTANTIATE typ func) 
+		(FIRST (SOLVE (CANCELLATION typ func tySasn is_pure) ::
+	           (THEN (THEN (THEN (THEN PULLEQL (REPEAT 1000 EQSUBST)) 
+	           (STEP_REWRITE rw)) (REPEAT 1000 (INTRO typ func))) 
+	              (CANCELLATION typ func tySasn is_pure)::
+	           nil))).
+
+Definition solve_alloc rw : rtac typ (expr typ func) :=
+    THEN (INSTANTIATE typ func)
+    (FIRST (SOLVE (CANCELLATION typ func tySpec (fun _ => false)) ::
                         FIELD_LOOKUP ::
-                        THEN FOLD (runOnGoals (solve_entailment rw)) :: nil))).
+                        THEN FOLD (solve_entailment rw) :: nil)).
 
-Definition simStep (rw : rewriter (typ := typ) (func := func)) (r : rtac typ (expr typ func) subst) :=
-	THEN (THEN (THEN (SUBST typ func subst)
-	                 (runOnGoals (THEN (THEN (TRY (APPLY typ func subst pull_exists_lemma)) 
-	                 (runOnGoals (REPEAT 1000 (INTRO typ func subst)))) (runOnGoals BETA))))
-	                 (runOnGoals (STEP_REWRITE rw)))
-		 (runOnGoals r).
+
+Definition simStep (rw : rewriter (typ := typ) (func := func)) (r : rtac typ (expr typ func)) :=
+    THEN (THEN (THEN (THEN (THEN (INSTANTIATE typ func) (SUBST typ func))
+    	(TRY PULL_TRIPLE_EXISTS)) (STEP_REWRITE rw)) (REPEAT 10 PULL_TRIPLE_EXISTS)) r.
 
 Set Printing Depth 100.
 
@@ -333,41 +342,53 @@ Print alloc_lemma.
 
 Print runOnGoals.
 
-Fixpoint tripleE (c : cmd) rw : rtac typ (expr typ func) subst :=
+Fixpoint tripleE (c : cmd) rw : rtac typ (expr typ func) :=
 	match c with
-	    | cskip => simStep rw (IDTAC)
-(*	    | cskip => simStep rw (THEN (APPLY typ func subst skip_lemma) (runOnGoals (solve_entailment rw)))*)
-	    | calloc x C => simStep rw (THEN (EAPPLY typ func subst (alloc_lemma x C)) 
-	    	(runOnGoals (FIRST (solve_alloc rw :: solve_entailment rw :: nil))))
-		| cseq c1 c2 => simStep rw (THEN (EAPPLY typ func subst (seq_lemma c1 c2))
-						              (runOnGoals (FIRST ((fun x => tripleE c1 rw x)::(fun x => tripleE c2 rw x)::nil))))
-		| cassign x e => simStep rw (THEN (EAPPLY typ func subst (assign_lemma x e)) (runOnGoals (solve_entailment rw)))
-		| cread x y f => simStep rw (THEN (EAPPLY typ func subst (read_lemma x y f)) (runOnGoals (solve_entailment rw)))
-		| cwrite x f e => simStep rw (THEN (EAPPLY typ func subst (write_lemma x f e)) (runOnGoals (solve_entailment rw)))
-		| _ => @IDTAC _ _ _
+	    | cskip => simStep rw (THEN (APPLY typ func skip_lemma) 
+	                 (solve_entailment rw))
+	    | calloc x C => simStep rw (THEN (EAPPLY typ func (alloc_lemma x C)) 
+	    	(FIRST (solve_alloc rw :: solve_entailment rw :: nil)))
+		| cseq c1 c2 => simStep rw (THEN (EAPPLY typ func (seq_lemma c1 c2))
+						              (FIRST ((fun x => tripleE c1 rw x)::(fun x => tripleE c2 rw x)::nil)))
+		| cassign x e => simStep rw (THEN (EAPPLY typ func (assign_lemma x e)) (solve_entailment rw))
+		| cread x y f => simStep rw (THEN (EAPPLY typ func (read_lemma x y f)) (solve_entailment rw))
+		| cwrite x f e => simStep rw (THEN (EAPPLY typ func (write_lemma x f e)) (solve_entailment rw))
+		| _ => IDTAC
 	end.
 
-Definition symE rw : rtac typ (expr typ func) subst :=
+Definition symE rw : rtac typ (expr typ func) :=
 	(fun tus tvs n m ctx s e => 
-		(match e return rtac typ (expr typ func) subst with 
+		(match e return rtac typ (expr typ func) with 
 			| App (App (Inj f) G) H =>
 			  match ilogicS f, H with
 			  	| Some (ilf_entails tySpec), (* tySpec is a pattern, should be checked for equality with tySpec *)
 			  	  App (App (App (Inj (inr pTriple)) P) Q) (Inj (inr (pCmd c))) =>
 			  	  	tripleE c rw
-			  	| _, _ => @FAIL _ _ _
+			  	| _, _ => FAIL
 			  end
-			| _ => @FAIL _ _ _
+			| _ => FAIL
 		end) tus tvs n m ctx s e).  
-Print THEN.
 
 Definition runTac (tac : expr typ func) rw := 
-   THEN (THEN (REPEAT 1000 (INTRO typ func subst)) (runOnGoals (symE rw))) 
-	(runOnGoals (INSTANTIATE typ func subst))
-	 nil nil 0 0 (@SubstI.empty (ctx_subst subst CTop) (expr typ func) _) tac.
-Require Import MirrorCharge.ModularFunc.OpenFunc.
+   (THEN (THEN (REPEAT 1000 (INTRO typ func)) (symE rw)) 
+	(INSTANTIATE typ func))
+	 nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ func)) tac.
 
-Definition mkPointsto x f e : expr typ func :=
+Eval vm_compute in 
+  BETA nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ func))
+  	(App (Abs tySasn (mkAnd tySasn (Var 0) (mkTrue tySasn))) (mkTrue tySasn)).
+
+Definition mkPointsto (x : expr typ func) (f : field) (e : expr typ func) : expr typ func :=
+   mkAp tyVal tyAsn 
+        (mkAp tyField (tyArr tyVal tyAsn)
+              (mkAp tyVal (tyArr tyField (tyArr tyVal tyAsn))
+                    (mkConst (tyArr tyVal (tyArr tyField (tyArr tyVal tyAsn))) 
+                             fPointsto)
+                    x)
+              (mkConst tyField (mkField f)))
+        e.
+        
+Definition mkPointstoVar x f e : expr typ func :=
    mkAp tyVal tyAsn 
         (mkAp tyField (tyArr tyVal tyAsn)
               (mkAp tyVal (tyArr tyField (tyArr tyVal tyAsn))
@@ -377,8 +398,6 @@ Definition mkPointsto x f e : expr typ func :=
               (mkConst tyField (mkField f)))
         e.
         
-
-(*
 Require Import Java.Semantics.OperationalSemantics.
 Require Import Java.Logic.SpecLogic.
 Require Import Java.Logic.AssertionLogic.
@@ -390,12 +409,6 @@ Definition typecheck_goal g :=
     | None => false
     | Some _ => true
   end.
-
-Definition test_alloc : expr typ func :=
-	mkEntails tySpec (mkProgEq (mkProg ListProg))
-		(mkTriple (mkTrue tySasn) (mkCmd (cseq (calloc "x" "NodeC") cskip)) (mkFalse tySasn)).
-
-Eval vm_compute in runTac test_alloc rw_fail.
 
 Fixpoint seq_skip n := 
 	match n with
@@ -409,87 +422,81 @@ Definition testSkip n : expr typ func :=
                 (mkEntails tySpec (Var 1)
                 (mkTriple (Var 0) (mkCmd (seq_skip n)) (Var 0)))).
 Time Eval vm_compute in typeof_expr nil nil (testSkip 5).
-Print Goal.
-(*
-Fixpoint countExs (g : Goal typ (expr typ func)) :=
-	match g with
-		| GAll _ g => countExs g
-		| GExs lst g => length (filter (fun g => match g with | (_, Some _) => true | _ => false end) lst) + countExs g
-		| GHyp _ g => countExs g
-		| GConj_ lst => fold_right (fun g acc => countExs g + acc) 0 lst
-		| _ => 0
-	end.*)
 
-Eval vm_compute in
-(mkForall tyProp tySpec
-      (mkForall tyProp tySasn
-                (mkEntails tySpec (Var 1)
-                (mkTriple (Var 0) (mkCmd cskip) (Var 0)))) : expr typ func).
-Eval vm_compute in testSkip 0.
-(*
-Time Eval vm_compute in runTac (testSkip 20) rw_empty.
-*)
-(*
-Time Eval vm_compute in 
-	match runTac (testSkip 100) with
-		| More _ g => countExs g
-		| _ => 51
-	end.
-	*)
+Time Eval vm_compute in runTac (testSkip 10) rw_fail.
 
-Require Import String.
-Local Open Scope string.
+Definition test_alloc : expr typ func :=
+	mkEntails tySpec (mkProgEq (mkProg ListProg))
+		(mkTriple (mkTrue tySasn) (mkCmd (cseq (calloc "x" "NodeC") cskip)) (mkFalse tySasn)).
 
-Definition test_read := 
+Eval vm_compute in runTac test_alloc rw_fail.
+
+Definition runTac2 (tac : expr typ func) rw := 
+   (THEN (THEN (THEN (THEN (REPEAT 1000 (INTRO typ func)) (symE rw)) 
+	(INSTANTIATE typ func)) BETA) (CANCELLATION typ func tySasn is_pure))
+	 nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ func)) tac.
+Check @App.
+Definition test_read : expr typ func := 
     mkExists tySasn tyProp
   	(mkEntails tySpec (mkTrue tySpec)
-  	           (mkTriple (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 3))))
+  	           (mkTriple (mkPointstoVar "o" "f" (mkConst tyVal (mkVal (vint 3))))
   	                     (mkCmd (cseq (cread "x" "o" "f") cskip))
   	                     (Var 0))).
 
+Eval vm_compute in (CANCELLATION typ func tySasn is_pure) nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ func))
+  (mkEntails tySasn (mkTrue tySasn) (mkTrue tySasn)).
+  
+
+
 Definition test_read2 :=
   	(mkEntails tySpec (mkTrue tySpec)
-  	           (mkTriple (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 3))))
+  	           (mkTriple (mkPointstoVar "o" "f" (mkConst tyVal (mkVal (vint 3))))
   	                     (mkCmd (cseq (cread "x" "o" "f") cskip))
-  	                     (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 3)))))).
+  	                     (mkPointstoVar "o" "f" (mkConst tyVal (mkVal (vint 3)))))).
 Time Eval vm_compute in runTac test_read rw_fail.
+Check instantiate.
+
 Time Eval vm_compute in runTac test_read2 rw_fail.
+
+
+
+
 
 Definition test_write :=
   	(mkEntails tySpec (mkTrue tySpec)
-  	           (mkTriple (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 3))))
+  	           (mkTriple (mkPointstoVar "o" "f" (mkConst tyVal (mkVal (vint 3))))
   	                     (mkCmd (cwrite "o" "f" (E_val (vint 4))))
-  	                     (mkPointsto "o" "f" (mkConst tyVal (mkVal (vint 4)))))).
+  	                     (mkPointstoVar "o" "f" (mkConst tyVal (mkVal (vint 4)))))).
 
 Time Eval vm_compute in runTac test_write rw_fail.
-Check @GSolved.
+
 Definition testSwap :=
 	mkForall tyVal tyProp
 		(mkForall tyVal tyProp
 		  	(mkEntails tySpec (mkTrue tySpec)
 		  	           (mkTriple (mkStar tySasn (mkStar tySasn 
-		  	           			    (mkPointsto "o" "f1" (mkConst tyVal (Var 1)))
-		  	           			    (mkPointsto "o" "f0" (mkConst tyVal (Var 0)))) (mkEmp tySasn))
+		  	           			    (mkPointstoVar "o" "f1" (mkConst tyVal (Var 1)))
+		  	           			    (mkPointstoVar "o" "f0" (mkConst tyVal (Var 0)))) (mkEmp tySasn))
 		  	           			 (mkCmd (cseq (cread "x0" "o" "f0")
   	                                          (cseq (cread "x1" "o" "f1")
   	                                                (cseq (cwrite "o" "f1" (E_var "x0"))
   	                                                      (cseq (cwrite "o" "f0" (E_var "x1")) cskip)))))
 		  	           			 (mkStar tySasn (mkStar tySasn 
-		  	           			    (mkPointsto "o" "f1" (mkConst tyVal (Var 0)))
-		  	           			    (mkPointsto "o" "f0" (mkConst tyVal (Var 1)))) (mkEmp tySasn))))).
+		  	           			    (mkPointstoVar "o" "f1" (mkConst tyVal (Var 0)))
+		  	           			    (mkPointstoVar "o" "f0" (mkConst tyVal (Var 1)))) (mkEmp tySasn))))).
 SearchAbout string nat.
 
 Fixpoint mkPre n :=
 	match n with
 	  | 0   => mkEmp tySasn
-	  | S n => mkStar tySasn (mkPointsto "o" (append "f" (nat2string10 n)) (mkConst tyVal (Var n)))
+	  | S n => mkStar tySasn (mkPointstoVar "o" (append "f" (nat2string10 n)) (mkConst tyVal (Var n)))
 	                         (mkPre n)
 	end.
 	
 Fixpoint mkPostAux n m :=
   match n with
     | 0 => mkEmp tySasn
-    | S n => mkStar tySasn (mkPointsto "o" (append "f" (nat2string10 n)) (mkConst tyVal (Var (m - (S n)))))
+    | S n => mkStar tySasn (mkPointstoVar "o" (append "f" (nat2string10 n)) (mkConst tyVal (Var (m - (S n)))))
                            (mkPostAux n m)
   end.
   
@@ -532,7 +539,7 @@ Definition mkSwap2 n :=
 	mkSwapAux n (mkPre n) (mkCmd (mkSwapProg n (mkSwapProg n cskip)))(* (mkPre n).*).
 Eval vm_compute in mkSwap 5.
 Check EAPPLY.
-Time Eval vm_compute in runTac (mkSwap 20) rw_fail.
+Time Eval vm_compute in runTac (mkSwap 4) rw_fail.
 
 Time Eval vm_compute in 
 	match (runTac (mkSwap 20) rw_fail) with
@@ -545,4 +552,3 @@ Time Eval vm_compute in
 		| _ => None
 	end.
 
-*)

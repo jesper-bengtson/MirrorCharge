@@ -12,16 +12,17 @@ Require Import MirrorCharge.PullQuant.EmbedPullQuant.
 
 Require Import MirrorCharge.ModularFunc.BaseFunc.
 Require Import MirrorCharge.ModularFunc.ILogicFunc.
+Require Import MirrorCharge.ModularFunc.BILogicFunc.
 Require Import MirrorCharge.ModularFunc.EmbedFunc.
 
 Require Import MirrorCore.Lambda.Expr.
 Check @il_respects_reflexive.
-Definition pull_quant :=
-  setoid_rewrite _ (fEntails : typ -> expr typ func) rw_fail
+Definition pull_quant vars :=
+  setoid_rewrite vars _ (fEntails : typ -> expr typ func) rw_fail
     (sr_combine il_respects
                (sr_combine (@il_respects_reflexive typ func _ _ _ ilops _ _)
-                                        (sr_combine embed_respects
-                                                    (sr_combine eq_respects refl))))
+                                        (sr_combine bil_respects (sr_combine embed_respects
+                                                    (sr_combine eq_respects refl)))))
     (sr_combineK  (il_match_plus (fun _ => true) fEq)
                   (sr_combineK (bil_match_plus fEq) (eil_match_plus fEq))).
 Definition goal : expr typ func :=
@@ -32,6 +33,12 @@ Fixpoint crazy_goal n :=
   match n with
     | 0 => goal
     | S n => mkAnd tySasn (crazy_goal n) (crazy_goal n)
+  end.
+
+Fixpoint crazy_goal2 n :=
+  match n with
+    | 0 => goal
+    | S n => mkStar tySasn (crazy_goal2 n) (crazy_goal2 n)
   end.
 
 Fixpoint countArgs (e : expr typ func) : nat :=
@@ -50,15 +57,15 @@ Fixpoint countExs (e : expr typ func) : nat :=
   end.
 
 Set Printing Width 140.
-
+Eval vm_compute in crazy_goal2 2.
 Eval vm_compute in 
-  match pull_quant tySasn (crazy_goal 4) with
+  match pull_quant nil tySasn (crazy_goal2 2) with
     | Some (e, _) => e 
     | _ => mkFalse tySasn
   end.	
   
 Time Eval vm_compute in
-    match pull_quant tySasn (crazy_goal 3) with
+    match pull_quant nil tySasn (crazy_goal 3) with
       | Some (e,_) =>  countExs e
       | None => 0
     end.

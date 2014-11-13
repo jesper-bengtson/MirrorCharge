@@ -30,28 +30,27 @@ Section ILPullQuant.
   Definition il_match_plus_l (rw : @rw_type typ func) (e : expr typ func)
              (rvars : list (RG (expr typ func))) (rg : RG Rbase) : m (expr typ func) :=
   match e with
-    | App (App a (App b P)) Q =>
-      let P := beta (App P (Var 0)) in
-      let Q := lift 0 1 Q in
+    | App (App a (App b (Abs _ P))) Q =>
+      let Q' := lift 0 1 Q in
       match ilogicS (typ := typ) (func := expr typ func) a, ilogicS b with 
       	| Some (ilf_and _), Some (ilf_exists t l) =>
 	  rg_plus
 	    (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGflip (RGinj (fEntails l))))
-	             (fun _ => rw_under_exists t l rw (mkAnd l P Q) rvars rg))
+	             (fun _ => rw_under_exists t l rw (mkAnd l P Q') rvars rg))
 	    (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGinj (fEntails l)))
-	             (fun _ => rw_under_exists t l rw (mkAnd l P Q) rvars rg))
+	             (fun _ => rw_under_exists t l rw (mkAnd l P Q') rvars rg))
 
 (*(fun _ => rg_ret (mkExists t l (mkAnd l P Q)))) *)
       	| Some (ilf_or _), Some (ilf_exists t l) =>
       	  let rewrite_rl :=
 	      rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGflip (RGinj (fEntails l))))
-		      (fun _ => rw_under_exists t l rw (mkOr l P Q) rvars rg)
+		      (fun _ => rw_under_exists t l rw (mkOr l P Q') rvars rg)
 (* (fun _ => rg_ret (mkExists t l (mkOr l P Q))) *)in
 	  if inhabited t then
 	    rg_plus 
 	      rewrite_rl 
 	      (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGinj (fEntails l)))
-		       (fun _ => rw_under_exists t l rw (mkOr l P Q) rvars rg))
+		       (fun _ => rw_under_exists t l rw (mkOr l P Q') rvars rg))
 (* (fun _ => rg_ret (mkExists t l (mkOr l P Q)))) *)
 	  else
 	    rewrite_rl
@@ -63,27 +62,26 @@ Section ILPullQuant.
 Definition il_match_plus_r (rw : @rw_type typ func)
            (e : expr typ func) (rvars : list (RG (expr typ func))) (rg : RG Rbase) : m (expr typ func) :=
   match e with
-   | App (App a P) (App b Q) =>
-   	 let P := lift 0 1 P in
-   	 let Q := beta (App Q (Var 0)) in
+   | App (App a P) (App b (Abs _ Q)) =>
+   	 let P' := lift 0 1 P in
      match ilogicS a, ilogicS b with
        | Some (ilf_and _), Some (ilf_exists t l) =>
 	      rg_plus
 	        (rg_bind
 	          (unifyRG (@rel_dec (expr typ func) _ _ ) rg (RGinj (fEntails l)))
-	            (fun _ => rw_under_exists t l rw (mkAnd l P Q) rvars rg))
+	            (fun _ => rw_under_exists t l rw (mkAnd l P' Q) rvars rg))
   	        (rg_bind
 	          (unifyRG (@rel_dec (expr typ func) _ _) rg (RGflip (RGinj (fEntails l))))
-	            (fun _ => rw_under_exists t l rw (mkAnd l P Q) rvars rg))
+	            (fun _ => rw_under_exists t l rw (mkAnd l P' Q) rvars rg))
        | Some (ilf_or _), Some (ilf_exists t l) =>
          let rewrite_rl := 
 		   rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGflip (RGinj (fEntails l))))
-		     (fun _ => rw_under_exists t l rw (mkOr l P Q) rvars rg) in
+		     (fun _ => rw_under_exists t l rw (mkOr l P' Q) rvars rg) in
 		   if inhabited t then
 		     rg_plus
 		       rewrite_rl
 		       (rg_bind (unifyRG (@rel_dec (expr typ func) _ _ ) rg (RGinj (fEntails l)))
-		         (fun _ => rw_under_exists t l rw (mkOr t P Q) rvars rg))
+		         (fun _ => rw_under_exists t l rw (mkOr t P' Q) rvars rg))
 		   else
 		     rewrite_rl
 	   | _, _ => rg_fail

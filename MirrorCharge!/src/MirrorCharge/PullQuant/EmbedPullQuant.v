@@ -27,8 +27,7 @@ Section EILPullQuant.
 
   Definition eil_match_plus (rw : rewriter _) (e : expr typ func) (rvars : list (RG (expr typ func))) (rg : RG Rbase) : m (expr typ func) :=
     match e with
-      | App a (App b P) =>
-        let P := beta (App P (Var 0)) in
+      | App a (App b (Abs _ P)) =>
         match embedS (typ := typ) (func := expr typ func) a, ilogicS b with 
       	  | Some (eilf_embed u v), Some (ilf_exists t l) =>
 	    rg_plus

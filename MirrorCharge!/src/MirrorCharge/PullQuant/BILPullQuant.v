@@ -29,16 +29,15 @@ Section BILPullQuant.
   Definition bil_match_plus_l (rw : rewriter _)
              (e : expr typ func) (rvars : list (RG (expr typ func))) (rg : RG Rbase) : m (expr typ func) :=
   match e with
-    | App (App a (App b P)) Q =>
-      let P := beta (App P (Var 0)) in
-      let Q := lift 0 1 Q in
+    | App (App a (App b (Abs _ P))) Q =>
+      let Q' := lift 0 1 Q in
       match bilogicS (typ := typ) (func := expr typ func) a, ilogicS b with 
       	| Some (bilf_star _), Some (ilf_exists t l) =>
 	      rg_plus
 	      (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGflip (RGinj (fEntails l))))
-	        (fun _ => rw_under_exists t l rw (mkAnd l P Q) rvars rg))
+	        (fun _ => rw_under_exists t l rw (mkStar l P Q') rvars rg))
 	      (rg_bind (unifyRG (@rel_dec (expr typ func) _ _) rg (RGinj (fEntails l)))
-	        (fun _ => rw_under_exists t l rw (mkAnd l P Q) rvars rg))
+	        (fun _ => rw_under_exists t l rw (mkStar l P Q') rvars rg))
 	    | _, _ => rg_fail
 	  end
 	| _ => rg_fail
@@ -47,18 +46,17 @@ Section BILPullQuant.
 Definition bil_match_plus_r (rw : rewriter _) (e : expr typ func)
            (rvars : list (RG (expr typ func))) (rg : RG Rbase) : m (expr typ func) :=
   match e with
-   | App (App a P) (App b Q) =>
-   	 let P := lift 0 1 P in
-   	 let Q := beta (App Q (Var 0)) in
+   | App (App a P) (App b (Abs _ Q)) =>
+   	 let P' := lift 0 1 P in
      match bilogicS a, ilogicS b with
        | Some (bilf_star _), Some (ilf_exists t l) =>
 	      rg_plus
 	        (rg_bind
 	          (unifyRG (@rel_dec (expr typ func) _ _ ) rg (RGinj (fEntails l)))
-	            (fun _ => rw_under_exists t l rw (mkAnd l P Q) rvars rg))
+	            (fun _ => rw_under_exists t l rw (mkStar l P' Q) rvars rg))
   	        (rg_bind
 	          (unifyRG (@rel_dec (expr typ func) _ _) rg (RGflip (RGinj (fEntails l))))
-	            (fun _ => rw_under_exists t l rw (mkAnd l P Q) rvars rg))
+	            (fun _ => rw_under_exists t l rw (mkStar l P' Q) rvars rg))
 	   | _, _ => rg_fail
 	 end
    | _ => rg_fail

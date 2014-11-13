@@ -13,12 +13,14 @@ Require Import ExtLib.Tactics.
 Require Import MirrorCore.syms.SymSum.
 
 Require Import MirrorCharge.AutoSetoidRewrite.
+Require Import MirrorCharge.ModularFunc.BaseFunc.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
 Section SetoidRewrite.
   Context {typ func : Type}.
+  Context {HB : BaseFunc typ func}.
 
   Context {RType_typ : RType typ} {RelDec_typ_eq : RelDec (@eq typ)}
           {RelDecCorrect_typ_eq : RelDec_Correct RelDec_typ_eq}.
@@ -104,8 +106,7 @@ Section SetoidRewrite.
     m (expr typ func) :=
     rg_plus (f k e rvars rg) (g k e rvars rg).
 
-
-  Definition setoid_rewrite := 
+  Definition setoid_rewrite vars := 
   fun (RelDec_func_eq : RelDec.RelDec eq) =>
   let Rbase := expr typ func in
   fun (rel : typ -> Rbase)
@@ -118,7 +119,7 @@ Section SetoidRewrite.
        rewrite_start
        rewrite_respects
        (do_severalK rewrite_exs 1024 (fun a _ _ => rg_ret a)))
-      e nil (AutoSetoidRewrite.RGinj (rel l))
+      e (map (fun t => RGinj (Inj (fEq t))) vars) (AutoSetoidRewrite.RGinj (rel l))
       (AutoSetoidRewrite.rsubst_empty Rbase).
 
 End SetoidRewrite.

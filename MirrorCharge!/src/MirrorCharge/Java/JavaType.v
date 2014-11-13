@@ -237,6 +237,16 @@ Proof.
 	+ apply type_cast_typ_refl.
 	+ intro H1. inversion H1; subst.
 	  rewrite type_cast_typ_refl in H. inversion H.
+	+ intros x.
+	  induction x; intros y; destruct y; try (right; congruence); try (left; congruence).
+	  * destruct (IHx1 y1) as [Hx1 | Hx1]; clear IHx1;
+	    destruct (IHx2 y2) as [Hx2 | Hx2]; clear IHx2;
+	    try (right; congruence); try (left; congruence).
+	  * destruct (IHx y) as [Hx | Hx]; clear IHx; [
+	    left; congruence | right; congruence].
+	  * destruct (IHx1 y1) as [Hx1 | Hx1]; clear IHx1;
+	    destruct (IHx2 y2) as [Hx2 | Hx2]; clear IHx2;
+	    try (right; congruence); try (left; congruence).
 Qed.
 
 Instance BaseType_typ : BaseType typ := {
@@ -277,13 +287,13 @@ Definition should_not_be_necessary : ILogicOps (TypesI.typD tySpec).
 Proof.
   simpl.
   apply _.
-Qed.
+Defined.
 
 Definition should_also_not_be_necessary : ILLOperators (TypesI.typD tySpec).
 Proof.
   simpl.
   apply _.
-Qed.
+Defined.
 
   Definition ilops : @logic_ops _ RType_typ :=
   fun t =>

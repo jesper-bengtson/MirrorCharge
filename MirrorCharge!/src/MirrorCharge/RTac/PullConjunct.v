@@ -21,7 +21,7 @@ Set Implicit Arguments.
 Set Strict Implicit.
 
 Section PullConjunct.
-  Context (typ func subst : Type).
+  Context (typ func : Type).
   Context {HIL : ILogicFunc typ func} {HB : BaseFunc typ func}.
   Context {RelDec_func : RelDec (@eq (expr typ func))}.
   Context {target : expr typ func -> bool}.
@@ -30,17 +30,17 @@ Section PullConjunct.
   Context {Typ0_typ : Typ0 RType_typ Prop}.
   Context {RSym_func : RSym func}.
   Context {ilogic : forall t : typ, option (ILogicOps (typD t))}.
+Check setoid_rewrite.
+  Definition pull_conjunct vars := 
+	setoid_rewrite vars _ fEntails rw_fail (il_rewrite_respects typ func ilogic) (il_pull_conjunct target).
 
-  Definition pull_conjunct := 
-	setoid_rewrite _ fEntails rw_fail (il_rewrite_respects typ func ilogic) (il_pull_conjunct target).
-
-  Definition PULLCONJUNCTL : rtac typ (expr typ func) subst :=
+  Definition PULLCONJUNCTL : rtac typ (expr typ func) :=
     fun tus tvs lus lvs c s e =>
       match e with
         | App (App f L) R =>
           match ilogicS f with
 	        | Some (ilf_entails l) =>
-	        	match pull_conjunct l L with
+	        	match pull_conjunct (getVars c) l L with
 	        	  | Some (e', _) => More s (GGoal (mkEntails l e' R))
 	        	  | _ => More s (GGoal e)
 	        	end

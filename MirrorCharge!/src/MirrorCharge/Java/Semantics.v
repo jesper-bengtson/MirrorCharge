@@ -42,6 +42,13 @@ Proof.
   admit.
 Qed.
 
+Lemma ent_left_exists {A} (P : sasn) (Q : A -> sasn)
+	(H : exists x, P |-- Q x) :
+	P |-- lexists Q.
+Proof.
+  admit.
+Qed.
+
 Lemma rule_seq c1 c2 (P Q R : sasn) G
       (Hc1 : G |-- {[P]} c1 {[Q]})
       (Hc2 : G |-- {[Q]} c2 {[R]}) :
@@ -116,8 +123,8 @@ Require Import Charge.Logics.BILogic.
   Lemma rule_alloc_fwd (x : Lang.var) (C : class) (G : spec) (P Q : sasn) (fields : list field) (Pr : Program) 
 	(Heq : G |-- prog_eq Pr)
 	(Hf : field_lookup Pr C fields) 
-	(Hent : Exists p : val, embed (ap_typeof [stack_get x, C] //\\
-	                                            ap_eq [stack_get x, pure p]) //\\
+	(Hent : Exists p : val, embed (ap_typeof [stack_get x, C]) //\\
+	                                            embed (ap_eq [stack_get x, pure p]) //\\
 	                                            fold_right (fun f P => ap_pointsto [x, f, pure null] ** P)
 	                                                    (apply_subst P (subst1 (pure (T := Fun stack) p) x)) fields |-- Q) :
 	G |-- {[ P ]} calloc x C {[ Q ]}.

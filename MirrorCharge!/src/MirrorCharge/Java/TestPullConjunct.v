@@ -17,7 +17,7 @@ Require Import MirrorCore.Lambda.ExprCore.
 Require Import MirrorCore.RTac.RTac.
 
 Definition f (e : expr typ func) := match ilogicS e with Some (ilf_false _) => true | _ => false end.
-Definition PCT := PULLCONJUNCTL typ func subst f ilops.
+Definition PCT := PULLCONJUNCTL typ func f ilops.
 
 Set Printing Width 140.
 
@@ -52,12 +52,12 @@ Definition goal7 : expr typ func := mkEntails tyProp
 	  (mkEmp tyProp)) (mkTrue tyProp).
 
 
-Eval vm_compute in PCT nil nil 0 0 CTop (@ctx_empty typ (expr typ func) subst SU CTop) goal1.
-Eval vm_compute in PCT nil nil 0 0 CTop (ctx_empty (expr := expr typ func) (subst := subst)) goal2.
-Eval vm_compute in PCT nil nil 0 0 CTop (ctx_empty (expr := expr typ func) (subst := subst)) goal3.
-Eval vm_compute in PCT nil nil 0 0 CTop (ctx_empty (expr := expr typ func) (subst := subst)) goal4.
-Eval vm_compute in PCT nil nil 0 0 CTop (ctx_empty (expr := expr typ func) (subst := subst)) goal5.
-Eval vm_compute in PCT nil nil 0 0 CTop (ctx_empty (expr := expr typ func) (subst := subst)) goal6.
-Eval vm_compute in PCT nil nil 0 0 CTop (ctx_empty (expr := expr typ func) (subst := subst)) goal7.
-Eval vm_compute in PCT nil nil 0 0 CTop (ctx_empty (expr := expr typ func) (subst := subst)) 
+Eval vm_compute in PCT nil nil 0 0 (CTop nil nil) (@ctx_empty typ (expr typ func) (CTop nil nil)) goal1.
+Eval vm_compute in PCT nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ func)) goal2.
+Eval vm_compute in PCT nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ func)) goal3.
+Eval vm_compute in PCT nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ func)) goal4.
+Eval vm_compute in PCT nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ func)) goal5.
+Eval vm_compute in PCT nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ func)) goal6.
+Eval vm_compute in PCT nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ func)) goal7.
+Eval vm_compute in PCT nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ func)) 
 	(mkEntails tyProp (mkAnd tyProp (seq_pc 3) (mkTrue tyProp)) (mkTrue tyProp)).

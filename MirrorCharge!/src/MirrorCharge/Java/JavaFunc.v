@@ -152,8 +152,7 @@ Set Strict Implicit.
       constructor.
       destruct x; destruct y; simpl;
       try solve [ try rewrite Bool.andb_true_iff ;
-                  repeat rewrite rel_dec_correct; intuition congruence ];
-                  	admit.
+                  repeat rewrite rel_dec_correct; intuition congruence ].                  	
     Qed.
 
 Definition set_fold_fun (x : String.string) (f : field) (P : sasn) :=
@@ -309,14 +308,31 @@ Instance RelDec_expr : RelDec (@eq func) := _.
 Instance Expr_expr : ExprI.Expr _ (expr typ func) := @Expr_expr typ func _ _ _.
 Instance Expr_ok : @ExprI.ExprOk typ RType_typ (expr typ func) Expr_expr := ExprOk_expr.
 
+Require Import MirrorCore.VariablesI.
+Require Import MirrorCore.Lambda.ExprVariables.
+
+Instance ExprVar_expr : ExprVar (expr typ func) := _.
+Instance ExprVarOk_expr : ExprVarOk ExprVar_expr := _.
+
 Definition subst : Type :=
   FMapSubst.SUBST.raw (expr typ func).
 Instance SS : SubstI.Subst subst (expr typ func) :=
   @FMapSubst.SUBST.Subst_subst _.
+  (*
 Instance SU : SubstI.SubstUpdate subst (expr typ func) :=
-  FMapSubst.SUBST.SubstUpdate_subst (@instantiate typ func). 
+  FMapSubst.SUBST.SubstUpdate_subst (@instantiate typ _ _ _ func). 
 Instance SO : SubstI.SubstOk SS := 
   @FMapSubst.SUBST.SubstOk_subst typ RType_typ (expr typ func) _ _.
+*)
+
+Instance MA : MentionsAny (expr typ func) := {
+  mentionsAny := ExprCore.mentionsAny
+}.
+
+Instance MAOk : MentionsAnyOk MA _ _.
+Proof.
+  admit.
+Qed.
 
 Lemma evalDexpr_wt (e : dexpr) : 
 	typeof_expr nil nil (evalDExpr e) = Some tyExpr. 
@@ -349,3 +365,71 @@ Definition test_lemma :=
           (fun tus tvs e => exprD' tus tvs tyProp e)
           _
           nil nil.
+
+(*
+
+Definition myTest : expr typ func := mkStar tySasn (mkEmp tySasn) (mkTrue tySasn).
+Check @exprD'.
+Check exprD' nil nil tySasn myTest.
+Eval cbv [exprD' ExprI.exprT exprT_GetVAs funcAs ExprI.exprT_Inj exprD'_simul
+          typ2_match type_cast] in exprD' nil nil tySasn myTest.
+
+Require Import Relations.Relation_Definitions.
+Require Import ExtLib.Structures.Functor.
+Require Import ExtLib.Structures.Applicative.
+Require Import ExtLib.Tactics.
+Require Import ExtLib.Data.HList.
+Require Import ExtLib.Data.Eq.
+Require Import MirrorCore.TypesI.
+Require Import MirrorCore.EnvI.
+Require Import MirrorCore.OpenT.
+
+Eval vm_compute in myTest.
+Lemma test : exists t, t = exprD' nil nil tySasn 
+
+         (Inj
+            (inl (inl (inl (inl (inl (inl (inl (inr (ilf_true tySasn)))))))))).
+Proof.
+  Print exprD'.
+  Print nth_error_get_hlist_nth.
+  Print hlist_tl.
+  simpl.
+Print ilops.
+Local Transparent ILInsts.ILFun_Ops.
+pose (ilops tySasn).
+cbv [ilops] in o.
+simpl in o.
+Print type_cast_typ.
+
+  cbv [exprD' ExprI.exprT TypesI.typD exprT_GetVAs funcAs ExprI.exprT_Inj exprD'_simul
+       typeof_sym RSym_sum RSym_ilfunc Rcast Relim Rsym eq_sym type_cast
+       typeof_func ilops RType_typ type_cast type_cast_typ
+       (* nth_error_get_hlist_nth Monad.bind OptionMonad.Monad_option type_cast
+       hlist_hd eq_sym ExprI.exprT_UseU hlist_hd hlist_tl exprT_App OpenT RType_typ
+       func_simul typeof_sym RSym_sum RSym_ilfunc Typ2_Fun
+       *)
+       ILogicFunc.funcD ILogicFunc.RSym_ilfunc ILogicFunc.typ2_cast_quant ILogicFunc.typ2_cast_bin].
+exprD' nil nil tySasn 
+
+         (Inj
+            (inl (inl (inl (inl (inl (inl (inl (inr (ilf_true tySasn)))))))))).
+    cbv [ilops].
+    simpl.
+	pose (ilops tySasn).
+
+       simpl.
+       
+  cbv [exprD' ExprI.exprT exprT_GetVAs funcAs ExprI.exprT_Inj exprD'_simul
+       typ2_match type_cast Monad.bind exprT_App Typ2_Fun BILogicFunc.typ2_cast_bin
+       TypesI.typD OpenT typD OptionMonad.Monad_option nth_error_get_hlist_nth
+       typeof_sym Monad.ret RSym_sum].
+simpl.
+unfold exprD'.
+simpl.
+unfold exprT_App.
+simpl.
+unfold ExprI.exprT_Inj. simpl.
+unfold BILogicFunc.typ2_cast_bin.
+simpl.
+vm_compute.
+*)

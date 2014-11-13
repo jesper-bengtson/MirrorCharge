@@ -3,12 +3,12 @@ Require Import MirrorCore.Lambda.Expr.
 Require Import MirrorCore.Lambda.ExprSubst.
 
 Section InstantiateTac.
-	Context {typ func subst : Type}.
-	Context {SS : SubstI.Subst subst (expr typ func)}.
+	Context {typ func : Type}.
+	Context {EU : ExprUVar (expr typ func)}.
 
 	Definition INSTANTIATE := 
-		@INSTANTIATE typ (expr typ func) subst SS (@ExprSubst.instantiate typ func).
+		@INSTANTIATE typ (expr typ func) EU.
 
 End InstantiateTac.
 
-Implicit Arguments INSTANTIATE [[SS]].
+Implicit Arguments INSTANTIATE [[EU]].

@@ -13,10 +13,12 @@ Section IntroTac.
 	Context {RType_typ : RType typ}.
     Context {Typ0_tyProp : Typ0 RType_typ Prop}.
     Context {Heq : RelDec (@eq typ)}.
+    Context {EV : ExprVar (expr typ func)}.
+    Context {EU : ExprUVar (expr typ func)}.
 
     Let tyProp : typ := @typ0 _ _ _ _.
 
-	Definition fintro e : option (OpenAs typ (expr typ func)) :=
+	Definition fintro e : option (@OpenAs typ (expr typ func)) :=
 		match e with
 			| App (Inj f) P =>
 				match ilogicS f with
@@ -36,7 +38,7 @@ Section IntroTac.
 				match ilogicS f with
 				  | Some (ilf_impl t') => 
 				  	if t' ?[ eq ] tyProp then 
-				  		Some (AsHy typ P Q)
+				  		Some (AsHy P Q)
 				  	else
 				  		None
 (*				  | Some (ilf_entails t) =>
@@ -44,7 +46,7 @@ Section IntroTac.
 				      | App (Inj g) Q' =>
 				        match ilogicS g with
 				          | Some (ilf_exists t' t'') => 
-				            Some (AsEx t' (fun x => mkEntails t P (beta (App Q' x))))
+				            Some (AsEx t' (fun x => mkEntails t (lift 0 1 P) (beta (App Q' x))))
 				          | _ => None
 				        end
 				      | _ => None
@@ -54,8 +56,8 @@ Section IntroTac.
 			| _ => None
 		end.
 
-	Definition INTRO := @INTRO typ (expr typ func) subst (@Var typ func) (@UVar typ func) fintro.
+	Definition INTRO := @INTRO typ (expr typ func) EV EU fintro.
 
 End IntroTac.
 
-Implicit Arguments INTRO [[HIL] [RType_typ] [Typ0_tyProp] [Heq]].
+Implicit Arguments INTRO [[HIL] [RType_typ] [Typ0_tyProp] [Heq] [EU] [EV]].

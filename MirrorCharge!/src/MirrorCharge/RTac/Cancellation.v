@@ -4,8 +4,10 @@ Require Import MirrorCore.Lambda.Expr.
 Require Import MirrorCore.RTac.RTac.
 Require Import MirrorCore.Lambda.ExprSubst.
 Require Import MirrorCore.Lambda.ExprUnify_simul.
+Require Import MirrorCore.Lambda.ExprVariables.
 Require MirrorCore.syms.SymEnv.
 Require MirrorCore.syms.SymSum.
+Require Import MirrorCore.VariablesI.
 
 Require Import MirrorCharge.ILogicFunc.
 Require Import MirrorCharge.OrderedCanceller.
@@ -28,7 +30,7 @@ Section Canceller.
   Context {SS : Subst subst (expr typ func)}.
   Context {SU : SubstUpdate subst (expr typ func)}.
   Context {SO : SubstOk SS}.
-  
+  Context {MA : MentionsAny (expr typ func)}.
   Context {uis_pure : expr typ func -> bool}.
 
   Definition sls : SepLogAndSpec typ func :=
@@ -51,9 +53,9 @@ Section Canceller.
  		  end
    |}.
 
-  Let doUnifySepLog c (tus tvs : EnvI.tenv typ) (s : ctx_subst (typ := typ) subst c) (e1 e2 : expr typ func)
-  : option (ctx_subst subst c) :=
-    @exprUnify (ctx_subst subst c) typ func RType_typ _ _ _ _ 10 tus tvs 0 s e1 e2 tyLogic.
+  Let doUnifySepLog c (tus tvs : EnvI.tenv typ) (s : ctx_subst (typ := typ) (expr := expr typ func) c) (e1 e2 : expr typ func)
+  : option (ctx_subst c) :=
+    @exprUnify (ctx_subst c) typ func RType_typ RSym_func Typ2_typ _ _ 10 tus tvs 0 s e1 e2 tyLogic.
 
   Let ssl : SynSepLog typ func :=
   {| e_star := fun l r =>
@@ -76,7 +78,7 @@ Section Canceller.
    ; e_true := mkTrue tyLogic
    |}.
 
-  Definition eproveTrue c (s : ctx_subst (typ := typ) (expr := expr typ func) subst c) (e : expr typ func) : option (ctx_subst subst c) :=
+  Definition eproveTrue c (s : ctx_subst (typ := typ) (expr := expr typ func) c) (e : expr typ func) : option (ctx_subst c) :=
     match ilogicS e with
       | Some (ilf_true _) => Some s
       | _ => None
@@ -100,8 +102,8 @@ Section Canceller.
 Check @OrderedCanceller.ordered_cancel.
 
   Definition the_canceller tus tvs (lhs rhs : expr typ func) c
-             (s : ctx_subst subst c)
-  : (expr typ func * expr typ func * (ctx_subst subst c)) + (ctx_subst subst c) :=
+             (s : ctx_subst c)
+  : (expr typ func * expr typ func * (ctx_subst c)) + (ctx_subst c) :=
     match @normalize_and typ _ _ func _ ssl sls tus tvs tyLogic lhs
         , @normalize_and typ _ _ func _ ssl sls tus tvs tyLogic rhs
     with
@@ -109,7 +111,7 @@ Check @OrderedCanceller.ordered_cancel.
         match lhs_norm tt , rhs_norm tt with
           | Some lhs_norm , Some rhs_norm =>
             let '(lhs',rhs',s') :=
-                OrderedCanceller.ordered_cancel (subst := ctx_subst subst c)
+                OrderedCanceller.ordered_cancel (subst := ctx_subst c)
                   (doUnifySepLog (c := c) tus tvs) (eproveTrue (c := c))
                   ssl
                   (simple_order (func:=func)) lhs_norm rhs_norm s
@@ -127,7 +129,7 @@ Check @OrderedCanceller.ordered_cancel.
 
   Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
 
-  Definition CANCELLATION : rtac typ (expr typ func) subst :=
+  Definition CANCELLATION : rtac typ (expr typ func) :=
     fun tus tvs nus nvs c s e =>
       match e with
         | App (App f L) R =>
@@ -138,20 +140,49 @@ Check @OrderedCanceller.ordered_cancel.
 		  match the_canceller tus tvs L R s with
 		    | inl (l,r,s') =>
 		      match bilogicS r with (* This is for intuitionistic logics only *)
-		        | Some (bilf_emp _) => @Solved _ _ _ _ s'
+		        | Some (bilf_emp _) => Solved s'
 		        | _ => let e' := mkEntails tyLogic l r in
 			       More s (GGoal e')
 		      end
-		    | inr s' => @Solved _ _ _ _ s'
+		    | inr s' => Solved s'
 		  end
 		| false => More s (GGoal e)
 	      end
 	    | _ => More s (GGoal e)
 	  end
         | _ => More s (GGoal e)
+      end.  
+      
+      
+Definition the_canceller2 tus tvs (lhs rhs : expr typ func) :=
+    match @normalize_and typ _ _ func _ ssl sls tus tvs tyLogic lhs
+        , @normalize_and typ _ _ func _ ssl sls tus tvs tyLogic rhs
+    with
+      | Some lhs_norm , Some rhs_norm =>
+        match lhs_norm tt , rhs_norm tt with
+          | Some lhs_norm , Some rhs_norm =>
+            Some (simple_order (func := func) lhs_norm,
+                  simple_order (func := func) rhs_norm)
+          | _ , _ => None
+        end
+      | _ , _ => None
+    end.
+
+  Definition CANCELLATION2 tus tvs e :=
+      match e with
+        | App (App f L) R =>
+          match ilogicS f with
+	    | Some (ilf_entails t) =>
+	      match t ?[ eq ] tyLogic with
+	     	| true => the_canceller2 tus tvs L R
+		    | false => None
+	      end
+	    | _ => None
+	  end
+        | _ => None
       end.
 
 End Canceller.
 
 Implicit Arguments CANCELLATION [[HIL] [HBIL] [RType_typ] [RelDec_typ]
-                                [Typ2_typ] [RSym_func] [SS] [SU]].
+                                [Typ2_typ] [RSym_func] [MA]].
