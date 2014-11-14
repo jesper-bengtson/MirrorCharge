@@ -93,7 +93,6 @@ Require Import Java.Examples.ListModel.
 Reify Seed Typed Table term_table += 1 => [ (tyArr tyVal (tyArr (tyList tyVal) tyAsn)) , List ].
 Reify Seed Typed Table term_table += 2 => [ (tyArr tyVal (tyArr (tyList tyVal) tyAsn)) , NodeList ].
 
-Check term_table.
 
 Local Notation "x @ y" := (@RApp x y) (only parsing, at level 30).
 Local Notation "'!!' x" := (@RExact _ x) (only parsing, at level 25).
@@ -138,6 +137,7 @@ Reify Pattern patterns_java += (RHasType String.string (?0)) => (fun (s : id Str
 Reify Pattern patterns_java += (RHasType field (?0)) => (fun (f : id field) => mkField f).
 Reify Pattern patterns_java += (RHasType Lang.var (?0)) => (fun (f : id Lang.var) => mkVar (func := func) f).
 Reify Pattern patterns_java += (RHasType val (?0)) => (fun (v : id val) => mkVal v).
+Reify Pattern patterns_java += (RHasType nat (?0)) => (fun (v : id nat) => mkNat (func := func) v).
 Reify Pattern patterns_java += (RHasType cmd (?0)) => (fun (c : id cmd) => mkCmd c).
 Reify Pattern patterns_java += (RHasType dexpr (?0)) => (fun (e : id dexpr) => mkDExpr e).
 Reify Pattern patterns_java += (RHasType Program (?0)) => (fun (P : id Program) => mkProg P).
@@ -161,6 +161,8 @@ Reify Pattern patterns_java += (!! @ILogic.lexists @ ?0 @ # @ ?1) => (fun (x y :
 Reify Pattern patterns_java += (!! @ILogic.lforall @ ?0 @ # @ ?1) => (fun (x y : function reify_imp_typ) => fForall (func := expr typ func) y x).
 (** Embedding Operators **)
 Reify Pattern patterns_java += (!! @ILEmbed.embed @ ?0 @ ?1 @ #) => (fun (x y : function reify_imp_typ) => fEmbed (func := expr typ func) x y).
+
+Reify Pattern patterns_java += (!! @pair @ ?0 @ ?1) => (fun (x y : function reify_imp_typ) => fPair (func := func) x y).
 
 (** Special cases for Coq's primitives **)
 Reify Pattern patterns_java += (!! True) => (mkTrue (func := func) tyProp).
@@ -279,3 +281,126 @@ Goal (forall (Pr : Program) (C : class) (v : val) (fields : list field), True).
   exact I.
 
 Defined.
+Locate ExprUVar_expr.
+Locate ILogicFunc.BaseFuncInst.
+
+Check typeof_expr.
+
+Ltac reify_aux e n :=
+  let k fs e :=
+      pose e as n in
+  reify_expr reify_imp k
+             [ (fun (y : @mk_dvar_map _ _ _ _ term_table elem_ctor) => True) ]
+             [ e ].
+Ltac cbv_denote e t :=
+          let e' := eval cbv [
+		  (* ExprD' *)
+          exprD' funcAs  typeof_sym typeof_func type_cast type_cast_typ
+          exprD'_simul func_simul
+          (* RSym *)
+          
+          SymSum.RSym_sum Rcast Relim Rsym eq_sym symD RSym_env
+          Rcast_val eq_rect_r eq_rect Datatypes.id
+          
+          (* Monad *)
+          
+          Monad.bind Monad.ret
+          
+          OptionMonad.Monad_option
+          
+          (* HList *)
+          
+          HList.hlist_hd HList.hlist_tl
+          
+          (* TypesI *)
+          
+          TypesI.typD 
+          typ2_match typ2 typ2_cast
+          typ0_match typ0 typ0_cast
+          (* ExprI *)
+          
+          MirrorCore.VariablesI.Var ExprVariables.ExprVar_expr
+          MirrorCore.VariablesI.UVar
+          MirrorCore.Lambda.ExprVariables.ExprUVar_expr
+          ExprI.exprT_Inj ExprI.exprT_UseV ExprI.exprT_UseU
+          exprT_App ExprI.exprT OpenT
+          nth_error_get_hlist_nth
+          
+          exprT_GetVAs exprT_GetUAs
+          
+          (* ILOGIC *)
+          
+          ILogicFunc.mkEntails ILogicFunc.mkTrue ILogicFunc.mkFalse 
+          ILogicFunc.mkAnd ILogicFunc.mkOr ILogicFunc.mkImpl
+          ILogicFunc.mkExists ILogicFunc.mkForall
+          
+          ILogicFunc.fEntails ILogicFunc.fTrue ILogicFunc.fFalse ILogicFunc.fAnd 
+          ILogicFunc.fOr ILogicFunc.fImpl ILogicFunc.fExists ILogicFunc.fForall
+          ILogicFuncSumL ILogicFuncSumR ILogicFuncExpr
+          ILogicFunc.RSym_ilfunc 
+          MirrorCharge.ModularFunc.ILogicFunc.ILogicFuncInst
+          
+          ILogicFunc.funcD ILogicFunc.typ2_cast_quant ILogicFunc.typ2_cast_bin
+          
+          (* BaseFunc *)
+          
+          BaseFunc.BaseFuncSumL BaseFunc.BaseFuncSumR BaseFunc.BaseFuncExpr
+          
+          BaseFunc.BaseFuncInst
+          BaseFunc.mkNat BaseFunc.mkString BaseFunc.mkBool
+          BaseFunc.mkEq BaseFunc.mkPair
+          
+          BaseFunc.fNat BaseFunc.fString BaseFunc.fBool
+          BaseFunc.fEq BaseFunc.fPair
+          
+          BaseFunc.RSym_BaseFunc
+          
+          BaseFunc.typeof_base_func BaseFunc.base_func_eq BaseFunc.base_func_symD
+          BaseFunc.RelDec_base_func
+          
+          (* JavaType *)
+         
+          Typ2_Fun Typ0_Prop RType_typ typD
+          should_not_be_necessary should_also_not_be_necessary
+         
+		 (* JavaFunc *)
+          
+          ilops is_pure func RSym_JavaFunc typeof_java_func java_func_eq
+          java_func_symD RelDec_java_func
+          
+          
+          RSym_ilfunc RSym_open_func RSym_OpenFunc
+          JavaFunc.RSym_ilfunc
+          ] in (exprD' nil nil t e) in e'.
+
+
+Ltac reify := 
+  let name := fresh "e" in
+  match goal with 
+  | |- ?P => reify_aux P name;
+	  let t := eval vm_compute in (typeof_expr nil nil name) in
+	  let e := eval unfold name in name in
+	  match t with
+	  | Some ?t =>  
+		  let e' := cbv_denote e t in
+		  match e' with
+		    | Some ?r => 
+		      let r' := constr:(r HList.Hnil HList.Hnil) in 
+		      	replace P with r' by exact eq_refl; clear name
+		  end
+	  end
+   end.
+
+Goal exists (x y : nat) z, (x, y) = z.
+reify_imp (exists (x y : nat) (z : nat * nat), (x, y) = z).
+let e' := eval unfold e in e in 
+let e'' := cbv_denote e' tyProp in 
+  idtac e''.
+  
+let t := eval vm_compute in (typeof_expr nil nil e) in idtac t.
+Check exprD'.
+Print exprD'.
+simpl.
+unfold e.
+let e := reify (mkTrue tyProp) in idtac e.
+
