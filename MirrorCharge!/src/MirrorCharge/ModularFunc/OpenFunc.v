@@ -155,7 +155,7 @@ Section OpenFuncInst.
 
 	Definition stack := @stack (typD tyVar) (typD tyVal).
 
-	Global Instance LaterFuncInst : OpenFunc typ (open_func typ) := {
+	Global Instance OpenFuncInst : OpenFunc typ (open_func typ) := {
 	  fConst := of_const;
 	  fAp := of_ap;
 	  fVar := of_var;
@@ -331,6 +331,7 @@ Section MakeOpen.
 
 	Local Notation "'tyStack'" := (tyArr tyVar tyVal).
 
+    Definition mkNull : expr typ func := Inj fNull.
 	Definition mkVar (v : typD tyVar) : expr typ func := Inj (fVar v). 
 	Definition mkConst (t : typ) (e : expr typ func) := App (fConst t) e.
 	Definition mkAp (t u : typ) (f e : expr typ func) := App (App (fAp t u) f) e.

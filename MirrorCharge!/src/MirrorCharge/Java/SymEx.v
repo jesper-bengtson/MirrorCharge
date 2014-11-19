@@ -246,14 +246,38 @@ Require Import MirrorCharge.ModularFunc.ListFunc.
 	    | _ => apps e args
 	  end.
 
-	Definition FOLD := SIMPLIFY (typ := typ) (fun _ _ _ _ => beta_all foldTac nil nil).
+Definition FOLD := SIMPLIFY (typ := typ) (fun _ _ _ _ => beta_all foldTac nil nil).
+
+Require Import ExtLib.Tactics.Consider.
+Require Import ExtLib.Tactics.
+Require Import MirrorCore.Lambda.RedAll.
+Lemma FOLD_sound : rtac_sound FOLD.
+Proof.
+  unfold FOLD.
+  apply SIMPLIFY_sound.
+  intros; simpl.
+  forward.
+  (* beta_all_sound is missing *)
+  admit.
+Qed.
 
 Definition BETA := SIMPLIFY (typ := typ) (fun _ _ _ _ => beta_all (@apps typ func) nil nil).
+
+Lemma BETA_sound : rtac_sound BETA.
+Proof.
+  unfold BETA.
+  apply SIMPLIFY_sound.
+  intros; simpl; forward.
+  admit.
+Qed.
 
 Definition THEN (r1 r2 : rtac typ (expr typ func)) := THEN r1 (runOnGoals r2).
 
 Definition EQSUBST := THEN (THEN (APPLY typ func eq_to_subst_lemma) 
 	(INSTANTIATE typ func)) (SUBST typ func).
+
+
+
 (*
 Notation "'ap_eq' '[' x ',' y ']'" :=
 	 (ap (T := Fun stack) (ap (T := Fun stack) (pure (T := Fun stack) (@eq val)) x) y).
@@ -369,14 +393,14 @@ Definition symE rw : rtac typ (expr typ func) :=
 			| _ => FAIL
 		end) tus tvs n m ctx s e).  
 
-Definition runTac (tac : expr typ func) rw := 
+Definition runTac rw := 
    (THEN (THEN (REPEAT 1000 (INTRO typ func)) (symE rw)) 
-	(INSTANTIATE typ func))
-	 nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ func)) tac.
-
-Eval vm_compute in 
-  BETA nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ func))
-  	(App (Abs tySasn (mkAnd tySasn (Var 0) (mkTrue tySasn))) (mkTrue tySasn)).
+	(INSTANTIATE typ func)).
+	
+Lemma runTac_sound rw : rtac_sound (runTac rw).
+Proof.
+  admit.
+Qed.
 
 Definition mkPointsto (x : expr typ func) (f : field) (e : expr typ func) : expr typ func :=
    mkAp tyVal tyAsn 
@@ -415,19 +439,294 @@ Fixpoint seq_skip n :=
 	  | 0 => cskip
 	  | S n => cseq cskip (seq_skip n)
 	end.
-	
-Definition testSkip n : expr typ func := 
-      mkForall tySpec tyProp
-      (mkForall tySasn tyProp
-                (mkEntails tySpec (Var 1)
-                (mkTriple (Var 0) (mkCmd (seq_skip n)) (Var 0)))).
-Time Eval vm_compute in typeof_expr nil nil (testSkip 5).
+	Check triple.
 
-Time Eval vm_compute in runTac (testSkip 10) rw_fail.
+Ltac solve_equation :=
+	intros; repeat ((repeat eexists); try reflexivity).
+	
+Ltac cbv_denote e :=
+          eval cbv [
+          goalD_aux
+          
+		  (* ExprD' *)
+          exprD' funcAs  typeof_sym typeof_func type_cast type_cast_typ
+          exprD'_simul func_simul
+          ExprD.Expr_expr
+          ExprDsimul.ExprDenote.exprD'
+          (* RSym *)
+          
+          SymSum.RSym_sum Rcast Relim Rsym eq_sym symD RSym_env
+          Rcast_val eq_rect_r eq_rect Datatypes.id
+          
+          (* Monad *)
+          
+          Monad.bind Monad.ret
+          
+          OptionMonad.Monad_option
+          
+          (* HList *)
+          
+          HList.hlist_hd HList.hlist_tl
+          
+          (* TypesI *)
+          
+          TypesI.typD 
+          typ2_match typ2 typ2_cast
+          typ0_match typ0 typ0_cast
+          (* ExprI *)
+          
+          MirrorCore.VariablesI.Var ExprVariables.ExprVar_expr
+          MirrorCore.VariablesI.UVar
+          MirrorCore.Lambda.ExprVariables.ExprUVar_expr
+          ExprI.exprT_Inj ExprI.exprT_UseV ExprI.exprT_UseU
+          exprT_App ExprI.exprT OpenT
+          nth_error_get_hlist_nth
+          
+          exprT_GetVAs exprT_GetUAs
+          
+          (* ILogicFunc*)
+          
+          ILogicFunc.mkEntails ILogicFunc.mkTrue ILogicFunc.mkFalse 
+          ILogicFunc.mkAnd ILogicFunc.mkOr ILogicFunc.mkImpl
+          ILogicFunc.mkExists ILogicFunc.mkForall
+          
+          ILogicFunc.fEntails ILogicFunc.fTrue ILogicFunc.fFalse ILogicFunc.fAnd 
+          ILogicFunc.fOr ILogicFunc.fImpl ILogicFunc.fExists ILogicFunc.fForall
+          ILogicFuncSumL ILogicFuncSumR ILogicFuncExpr
+          ILogicFunc.RSym_ilfunc 
+          MirrorCharge.ModularFunc.ILogicFunc.ILogicFuncInst
+          
+          ILogicFunc.funcD ILogicFunc.typ2_cast_quant ILogicFunc.typ2_cast_bin
+          
+          (* BILogicFunc *)
+          
+          BILogicFunc.mkEmp BILogicFunc.mkStar BILogicFunc.mkWand
+          
+          BILogicFunc.fEmp BILogicFunc.fStar BILogicFunc.fWand
+          
+          BILogicFuncSumL BILogicFuncSumR BILogicFuncExpr
+          BILogicFunc.RSym_bilfunc BILogicFunc.BILogicFuncInst
+          
+          BILogicFunc.funcD BILogicFunc.typ2_cast_bin
+          
+          BILogicFunc.typeof_bilfunc
+          
+          (* LaterFunc *)
+          
+          LaterFunc.mkLater
+          
+          LaterFunc.fLater
+          
+          LaterFunc.LaterFuncSumL LaterFunc.LaterFuncSumR LaterFunc.LaterFuncExpr          
+          LaterFunc.RSym_later_func LaterFunc.LaterFuncInst
+          
+          LaterFunc.funcD LaterFunc.typ2_cast'
+          
+          LaterFunc.typeof_later_func
+          
+          (* EmbedFunc *)
+          
+          EmbedFunc.mkEmbed
+          
+          EmbedFunc.fEmbed
+          
+          EmbedFunc.EmbedFuncSumL EmbedFunc.EmbedFuncSumR EmbedFuncExpr
+          EmbedFunc.RSym_embed_func EmbedFunc.EmbedFuncInst
+          
+          EmbedFunc.funcD EmbedFunc.typ2_cast_bin
+          
+
+          EmbedFunc.typeof_embed_func
+          
+          (* BaseFunc *)
+          
+          BaseFunc.BaseFuncSumL BaseFunc.BaseFuncSumR BaseFunc.BaseFuncExpr
+          
+          BaseFunc.BaseFuncInst
+          BaseFunc.mkNat BaseFunc.mkString BaseFunc.mkBool
+          BaseFunc.mkEq BaseFunc.mkPair
+          
+          BaseFunc.fNat BaseFunc.fString BaseFunc.fBool
+          BaseFunc.fEq BaseFunc.fPair
+          
+          BaseFunc.RSym_BaseFunc
+          
+          BaseFunc.typeof_base_func BaseFunc.base_func_eq BaseFunc.base_func_symD
+          BaseFunc.RelDec_base_func
+          
+          (* ListFunc *)
+          
+          ListFunc.ListFuncSumL ListFunc.ListFuncSumR ListFunc.ListFuncExpr
+          
+          ListFunc.ListFuncInst
+          ListFunc.mkNil ListFunc.mkCons ListFunc.mkLength 
+          ListFunc.mkZip ListFunc.mkMap ListFunc.mkFold
+          
+          ListFunc.fNil ListFunc.fCons ListFunc.fLength
+          ListFunc.fZip ListFunc.fMap ListFunc.fFold
+          
+          ListFunc.typeof_list_func ListFunc.list_func_eq ListFunc.list_func_symD
+          ListFunc.RelDec_list_func
+          
+		  (* OpenFunc *)
+		  
+		  OpenFunc.mkConst OpenFunc.mkAp OpenFunc.mkVar OpenFunc.mkNull OpenFunc.mkStackGet
+		  OpenFunc.mkStackSet OpenFunc.mkApplySubst OpenFunc.mkSingleSubst OpenFunc.mkSubst
+		  OpenFunc.mkTruncSubst
+		    
+		  OpenFunc.fConst OpenFunc.fAp OpenFunc.fVar OpenFunc.fNull OpenFunc.fStackGet
+		  OpenFunc.fApplySubst OpenFunc.fSingleSubst OpenFunc.fSubst OpenFunc.fTruncSubst
+		  
+		  OpenFunc.OpenFuncSumL OpenFunc.OpenFuncSumR OpenFunc.OpenFuncExpr
+		  OpenFunc.OpenFuncInst
+		  
+		  OpenFunc.typeof_open_func OpenFunc.RSym_OpenFunc
+		  OpenFunc.typ2_cast_bin OpenFunc.typ3_cast_bin
+		  OpenFunc.RelDec_open_func
+		  
+		  RSym_OpenFunc_obligation_1
+
+          (* BaseType *)
+          
+          BaseType.tyPair BaseType.tyNat BaseType.tyString BaseType.tyBool
+          BaseType.btPair BaseType.btNat BaseType.btBool BaseType.btString
+          
+          (* ListType *)
+          
+          ListType.tyList ListType.btList
+          
+          (* SubstType *)
+          
+          SubstType.tyVar SubstType.tyVal SubstType.tySubst
+          SubstType.stSubst
+          
+          (* JavaType *)
+         
+          Typ2_Fun Typ0_Prop RType_typ typD
+          should_not_be_necessary should_also_not_be_necessary
+         
+          JavaType.BaseType_typ JavaType.BaseTypeD_typ JavaType.ListType_typ
+          JavaType.ListTypeD_typ JavaType.bilops JavaType.ilops
+          JavaType.eops JavaType.lops
+          
+       (*   JavaType.typD *)
+		 (* JavaFunc *)
+          
+          ilops is_pure func RSym_JavaFunc typeof_java_func java_func_eq
+          java_func_symD RelDec_java_func
+                   
+          RSym_ilfunc RSym_open_func RSym_OpenFunc RSym_ListFunc
+          JavaFunc.RSym_bilfunc JavaFunc.RSym_embed_func JavaFunc.RSym_later_func
+          JavaFunc.RSym_ilfunc
+          JavaFunc.Expr_expr
+          mkPointstoVar
+          
+          JavaFunc.mkField JavaFunc.mkClass JavaFunc.mkVal JavaFunc.mkVarList
+          JavaFunc.mkProg JavaFunc.mkCmd JavaFunc.mkDExpr JavaFunc.mkFields
+          JavaFunc.fMethodSpec JavaFunc.fProgEq JavaFunc.fTriple JavaFunc.fTypeOf
+          JavaFunc.fFieldLookup JavaFunc.fPointsto JavaFunc.mkNull
+          JavaFunc.fPlus JavaFunc.fMinus JavaFunc.fTimes JavaFunc.fAnd
+          JavaFunc.fOr JavaFunc.fNot JavaFunc.fLt JavaFunc.fValEq
+          JavaFunc.mkTriple JavaFunc.mkFieldLookup JavaFunc.mkTypeOf
+          JavaFunc.mkProgEq JavaFunc.mkExprList JavaFunc.evalDExpr
+          
+          (* Applicative *)
+  (*        
+          ExtLib.Structures.Applicative.ap ExtLib.Structures.Applicative.pure
+ 	      Applicative_Fun
+          
+          Charge.Logics.Pure.pure
+    *)      
+          SubstType_typ
+          
+          goalD propD exprD'_typ0 exprD split_env
+          
+          amap_substD
+          substD
+          SUBST.raw_substD
+          UVarMap.MAP.fold
+          FMapPositive.PositiveMap.fold
+          FMapPositive.PositiveMap.xfoldi
+          FMapPositive.append
+          UVarMap.MAP.from_key
+          pred
+          plus
+          Pos.to_nat
+          Pos.iter_op
+          app
+          HList.hlist_app
+          Quant._foralls
+          Quant._exists
+          ] in e.
+
+Ltac run_rtac tac_sound :=
+  match type of tac_sound with
+    | rtac_sound ?tac =>
+	  let name := fresh "e" in
+	  match goal with
+	    | |- ?P => 
+	      reify_aux P name;
+	      let t := eval vm_compute in (typeof_expr nil nil name) in
+	      let goal := eval unfold name in name in
+	      match t with
+	        | Some ?t =>
+	          let goal_result := constr:(run_tac tac (GGoal goal)) in 
+	          let result := eval vm_compute in goal_result in 
+	          match result with
+	            | More_ ?s ?g =>
+	              let Q := cbv_denote (goalD_aux nil nil g Hnil Hnil) in
+	              match Q with
+	                | Some ?Q' => 
+	                  cut Q'; [
+		              let P := cbv_denote (exprD nil nil goal tyProp) in 
+		              pose (H1 := @eq_refl (option Prop) P <: 
+		              	exprD nil nil goal tyProp = P);
+		              pose (H2 := @eq_refl (Result (CTop nil nil)) result <: 
+		              	run_tac tac (GGoal goal) = result)  ;
+		              pose (H3 := @eq_refl (option Prop) Q <:
+		              	goalD_aux nil nil g Hnil Hnil = Q);
+		              exact (@run_rtac_More tac _ _ _ _ _ H1 H2 H3 tac_sound)|]
+		            | None => idtac "Unable to find a denotation for" Q
+		          end
+	            | Solved ?s =>
+	              let P := cbv_denote (exprD nil nil goal tyProp) in
+	              let H1 := fresh "H" in
+	              pose (H1 := @eq_refl (option Prop) P <:
+	                exprD nil nil goal tyProp = P);
+		          pose (H2 := @eq_refl (Result (CTop nil nil)) result <: 
+		            run_tac tac (GGoal goal) = result);
+	              exact (@run_rtac_Solved tac _ _ _ H1 H2 tac_sound)
+	            | Fail => idtac "Tactic" tac "failed."
+	            | _ => idtac "Error: run_rtac could not resolve the result from the tactic :" tac
+	          end
+	        | None => idtac "expression " goal "is ill typed" t
+	      end
+	  end
+	| _ => idtac tac_sound "is not a soudness theorem."
+  end.
+
+Definition testSkip n : Prop :=
+  forall (G : spec) (P : sasn), G |-- triple P P (seq_skip n).
+
+
+Lemma test_skip_lemma3 : testSkip 20.
+Proof.
+  unfold testSkip; simpl.
+  Time run_rtac (@runTac_sound rw_fail).
+  solve_equation.
+Time Qed.
 
 Definition test_alloc : expr typ func :=
 	mkEntails tySpec (mkProgEq (mkProg ListProg))
 		(mkTriple (mkTrue tySasn) (mkCmd (cseq (calloc "x" "NodeC") cskip)) (mkFalse tySasn)).
+
+
+  
+  Lemma test_alloc_correct : 
+  prog_eq ListProg |-- triple ltrue lfalse ((calloc "x" "NodeC");;Skip).
+Proof.
+
+  Time run_rtac (@runTac_sound rw_fail).
 
 Eval vm_compute in runTac test_alloc rw_fail.
 

@@ -1,5 +1,6 @@
 Require Import String.
 Require Import ExtLib.Core.RelDec.
+Require Import ExtLib.Tactics.
 Require Import MirrorCore.Lambda.Expr.
 Require Import MirrorCore.Lambda.AppN.
 Require Import MirrorCore.TypesI.
@@ -131,25 +132,40 @@ Section SubstTac.
   Context {OF : OpenFunc typ func} {ILF : ILogicFunc typ func} {BILF : BILogicFunc typ func}.
   Context {EF : EmbedFunc typ func}.
   Context {RelDec_var : RelDec (@eq (typD tyVar))}.
+  Context {Expr_expr : Expr RType_typ (expr typ func)}.
+  Context {ExprUVar_expr : ExprUVar (expr typ func)}.
+  Context {RTypeOk_typ : RTypeOk}.
+  Context {ExprOk_Expr : ExprOk Expr_expr}.
   
   Variable Typ2_tyArr : Typ2 _ Fun.
+  Variable Typ0_Prop : Typ0 _ Prop.
   Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
 
-	Definition substTac (e : expr typ func) (args : list (expr typ func))
-	: expr typ func :=
-	  match open_funcS e with
-	    | Some (of_apply_subst t) =>
-	      match args with
-	        | e :: f :: nil =>
-	          pushSubst Typ2_tyArr f e t
-	        | _ => apps e args
-	      end
-	    | _ => apps e args
-	  end.
+  Definition substTac (e : expr typ func) (args : list (expr typ func))
+  : expr typ func :=
+    match open_funcS e with
+	  | Some (of_apply_subst t) =>
+	    match args with
+	      | e :: f :: nil =>
+	        pushSubst Typ2_tyArr f e t
+	      | _ => apps e args
+	    end
+	  | _ => apps e args
+	end.
 
-	Definition SUBST := SIMPLIFY (typ := typ) (fun _ _ _ _ => beta_all substTac nil nil).
+  Definition SUBST := SIMPLIFY (typ := typ) (fun _ _ _ _ => beta_all substTac nil nil).
 
+  Lemma SUBST_sound : rtac_sound SUBST.
+  Proof.
+    unfold SUBST.
+    apply SIMPLIFY_sound.
+    intros; simpl; forward.
+    subst.
+    
+    (* soudness proof for beta_all is missing *)
+    admit.
+  Qed.
+  
 End SubstTac.
-Check SUBST.
+
 Implicit Arguments SUBST [[ST] [RType_typ] [OF] [ILF] [BILF] [EF] [RelDec_var] [Typ2_tyArr]].
-Check SUBST.

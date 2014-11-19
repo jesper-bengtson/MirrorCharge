@@ -325,6 +325,7 @@ Definition eops : @embed_ops _ RType_typ :=
                    (ILEmbed.EmbedOp (TypesI.typD t) (TypesI.typD u))
     with
       | tyPure, tySasn => Some _
+      | tyProp, tyAsn => Some _
       | _ , _ => None
     end.
 

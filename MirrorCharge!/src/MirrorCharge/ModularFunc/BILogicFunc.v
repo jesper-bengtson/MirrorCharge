@@ -84,7 +84,7 @@ Section BILogicFuncInst.
     Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
     Let tyProp : typ := @typ0 _ _ _ _.
 
-	Global Instance BaseFuncInst : BILogicFunc typ (bilfunc typ) := {
+	Global Instance BILogicFuncInst : BILogicFunc typ (bilfunc typ) := {
 	  fEmp := bilf_emp;
 	  fStar := bilf_star;
 	  fWand := bilf_wand;

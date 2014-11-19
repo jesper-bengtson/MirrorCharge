@@ -73,7 +73,7 @@ Section EmbedFuncInst.
     Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
     Let tyProp : typ := @typ0 _ _ _ _.
 
-	Global Instance LaterFuncInst : EmbedFunc typ (embed_func typ) := {
+	Global Instance EmbedFuncInst : EmbedFunc typ (embed_func typ) := {
 	  fEmbed := eilf_embed;
 	  embedS f := Some f
 	}.

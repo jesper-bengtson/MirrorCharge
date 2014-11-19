@@ -117,6 +117,7 @@ Reify Pattern patterns_java_typ += (!! (@substlist var val)) => tySubstList.
 Reify Pattern patterns_java_typ += (!! @list @ ?0) => (fun x : function reify_imp_typ => tyList x).
 Reify Pattern patterns_java_typ += (!! nat) => tyNat.
 Reify Pattern patterns_java_typ += (!! val) => tyVal.
+Reify Pattern patterns_java_typ += (!! bool) => tyBool.
 Reify Pattern patterns_java_typ += (!! field) => tyField.
 Reify Pattern patterns_java_typ += (!! class) => tyClass.
 Reify Pattern patterns_java_typ += (!! @Open.open var val asn) => tySasn.
@@ -137,7 +138,8 @@ Reify Pattern patterns_java += (RHasType String.string (?0)) => (fun (s : id Str
 Reify Pattern patterns_java += (RHasType field (?0)) => (fun (f : id field) => mkField f).
 Reify Pattern patterns_java += (RHasType Lang.var (?0)) => (fun (f : id Lang.var) => mkVar (func := func) f).
 Reify Pattern patterns_java += (RHasType val (?0)) => (fun (v : id val) => mkVal v).
-Reify Pattern patterns_java += (RHasType nat (?0)) => (fun (v : id nat) => mkNat (func := func) v).
+Reify Pattern patterns_java += (RHasType bool (?0)) => (fun (b : id bool) => mkBool (func := func) b).
+Reify Pattern patterns_java += (RHasType nat (?0)) => (fun (n : id nat) => mkNat (func := func) n).
 Reify Pattern patterns_java += (RHasType cmd (?0)) => (fun (c : id cmd) => mkCmd c).
 Reify Pattern patterns_java += (RHasType dexpr (?0)) => (fun (e : id dexpr) => mkDExpr e).
 Reify Pattern patterns_java += (RHasType Program (?0)) => (fun (P : id Program) => mkProg P).
@@ -162,7 +164,7 @@ Reify Pattern patterns_java += (!! @ILogic.lforall @ ?0 @ # @ ?1) => (fun (x y :
 (** Embedding Operators **)
 Reify Pattern patterns_java += (!! @ILEmbed.embed @ ?0 @ ?1 @ #) => (fun (x y : function reify_imp_typ) => fEmbed (func := expr typ func) x y).
 
-Reify Pattern patterns_java += (!! @pair @ ?0 @ ?1) => (fun (x y : function reify_imp_typ) => fPair (func := func) x y).
+Reify Pattern patterns_java += (!! @pair @ ?0 @ ?1) => (fun (x y : function reify_imp_typ) => fPair (func := expr typ func) x y).
 
 (** Special cases for Coq's primitives **)
 Reify Pattern patterns_java += (!! True) => (mkTrue (func := func) tyProp).
@@ -181,6 +183,7 @@ Reify Pattern patterns_java += (RImpl (?0) (?1)) => (fun (x y : function reify_i
 
 (** Separation Logic Operators **)
 Reify Pattern patterns_java += (!! @BILogic.sepSP @ ?0 @ #) => (fun (x : function reify_imp_typ) => (fStar (func := expr typ func) x)).
+Reify Pattern patterns_java += (!! @BILogic.wandSP @ ?0 @ #) => (fun (x : function reify_imp_typ) => (fWand (func := expr typ func) x)).
 Reify Pattern patterns_java += (!! @BILogic.empSP @ ?0 @ #) => (fun (x : function reify_imp_typ) => (mkEmp (func := func) x)).
 
 Reify Pattern patterns_java += (!! @Later.illater @ ?0 @ #) => (fun (x : function reify_imp_typ) => (fLater (func := expr typ func) x)).
@@ -292,11 +295,37 @@ Ltac reify_aux e n :=
   reify_expr reify_imp k
              [ (fun (y : @mk_dvar_map _ _ _ _ term_table elem_ctor) => True) ]
              [ e ].
-Ltac cbv_denote e t :=
-          let e' := eval cbv [
+
+Definition mkPointstoVar x f e : expr typ func :=
+   mkAp tyVal tyAsn 
+        (mkAp tyField (tyArr tyVal tyAsn)
+              (mkAp tyVal (tyArr tyField (tyArr tyVal tyAsn))
+                    (mkConst (tyArr tyVal (tyArr tyField (tyArr tyVal tyAsn))) 
+                             fPointsto)
+                    (App fStackGet (mkVar x)))
+              (mkConst tyField (mkField f)))
+        e.
+
+Require Import MirrorCore.RTac.RTac.
+Require Import MirrorCore.Subst.FMapSubst.
+Require Import Coq.PArith.BinPos.
+
+Definition goalD_aux tus tvs goal (us : HList.hlist typD tus) (vs : HList.hlist typD tvs) :=
+  match goalD tus tvs goal with
+    | Some e => Some (e us vs)
+    | None => None
+  end.
+    
+Ltac cbv_denote e :=
+          eval cbv [
+          
+          goalD_aux
+          
 		  (* ExprD' *)
           exprD' funcAs  typeof_sym typeof_func type_cast type_cast_typ
           exprD'_simul func_simul
+          ExprD.Expr_expr
+          ExprDsimul.ExprDenote.exprD'
           (* RSym *)
           
           SymSum.RSym_sum Rcast Relim Rsym eq_sym symD RSym_env
@@ -328,7 +357,7 @@ Ltac cbv_denote e t :=
           
           exprT_GetVAs exprT_GetUAs
           
-          (* ILOGIC *)
+          (* ILogicFunc*)
           
           ILogicFunc.mkEntails ILogicFunc.mkTrue ILogicFunc.mkFalse 
           ILogicFunc.mkAnd ILogicFunc.mkOr ILogicFunc.mkImpl
@@ -341,6 +370,46 @@ Ltac cbv_denote e t :=
           MirrorCharge.ModularFunc.ILogicFunc.ILogicFuncInst
           
           ILogicFunc.funcD ILogicFunc.typ2_cast_quant ILogicFunc.typ2_cast_bin
+          
+          (* BILogicFunc *)
+          
+          BILogicFunc.mkEmp BILogicFunc.mkStar BILogicFunc.mkWand
+          
+          BILogicFunc.fEmp BILogicFunc.fStar BILogicFunc.fWand
+          
+          BILogicFuncSumL BILogicFuncSumR BILogicFuncExpr
+          BILogicFunc.RSym_bilfunc BILogicFunc.BILogicFuncInst
+          
+          BILogicFunc.funcD BILogicFunc.typ2_cast_bin
+          
+          BILogicFunc.typeof_bilfunc
+          
+          (* LaterFunc *)
+          
+          LaterFunc.mkLater
+          
+          LaterFunc.fLater
+          
+          LaterFunc.LaterFuncSumL LaterFunc.LaterFuncSumR LaterFunc.LaterFuncExpr          
+          LaterFunc.RSym_later_func LaterFunc.LaterFuncInst
+          
+          LaterFunc.funcD LaterFunc.typ2_cast'
+          
+          LaterFunc.typeof_later_func
+          
+          (* EmbedFunc *)
+          
+          EmbedFunc.mkEmbed
+          
+          EmbedFunc.fEmbed
+          
+          EmbedFunc.EmbedFuncSumL EmbedFunc.EmbedFuncSumR EmbedFuncExpr
+          EmbedFunc.RSym_embed_func EmbedFunc.EmbedFuncInst
+          
+          EmbedFunc.funcD EmbedFunc.typ2_cast_bin
+          
+
+          EmbedFunc.typeof_embed_func
           
           (* BaseFunc *)
           
@@ -358,21 +427,113 @@ Ltac cbv_denote e t :=
           BaseFunc.typeof_base_func BaseFunc.base_func_eq BaseFunc.base_func_symD
           BaseFunc.RelDec_base_func
           
+          (* ListFunc *)
+          
+          ListFunc.ListFuncSumL ListFunc.ListFuncSumR ListFunc.ListFuncExpr
+          
+          ListFunc.ListFuncInst
+          ListFunc.mkNil ListFunc.mkCons ListFunc.mkLength 
+          ListFunc.mkZip ListFunc.mkMap ListFunc.mkFold
+          
+          ListFunc.fNil ListFunc.fCons ListFunc.fLength
+          ListFunc.fZip ListFunc.fMap ListFunc.fFold
+          
+          ListFunc.typeof_list_func ListFunc.list_func_eq ListFunc.list_func_symD
+          ListFunc.RelDec_list_func
+          
+		  (* OpenFunc *)
+		  
+		  OpenFunc.mkConst OpenFunc.mkAp OpenFunc.mkVar OpenFunc.mkNull OpenFunc.mkStackGet
+		  OpenFunc.mkStackSet OpenFunc.mkApplySubst OpenFunc.mkSingleSubst OpenFunc.mkSubst
+		  OpenFunc.mkTruncSubst
+		    
+		  OpenFunc.fConst OpenFunc.fAp OpenFunc.fVar OpenFunc.fNull OpenFunc.fStackGet
+		  OpenFunc.fApplySubst OpenFunc.fSingleSubst OpenFunc.fSubst OpenFunc.fTruncSubst
+		  
+		  OpenFunc.OpenFuncSumL OpenFunc.OpenFuncSumR OpenFunc.OpenFuncExpr
+		  OpenFunc.OpenFuncInst
+		  
+		  OpenFunc.typeof_open_func OpenFunc.RSym_OpenFunc
+		  OpenFunc.typ2_cast_bin OpenFunc.typ3_cast_bin
+		  OpenFunc.RelDec_open_func
+		  
+		  RSym_OpenFunc_obligation_1
+
+          (* BaseType *)
+          
+          BaseType.tyPair BaseType.tyNat BaseType.tyString BaseType.tyBool
+          BaseType.btPair BaseType.btNat BaseType.btBool BaseType.btString
+          
+          (* ListType *)
+          
+          ListType.tyList ListType.btList
+          
+          (* SubstType *)
+          
+          SubstType.tyVar SubstType.tyVal SubstType.tySubst
+          SubstType.stSubst
+          
           (* JavaType *)
          
           Typ2_Fun Typ0_Prop RType_typ typD
           should_not_be_necessary should_also_not_be_necessary
          
+          JavaType.BaseType_typ JavaType.BaseTypeD_typ JavaType.ListType_typ
+          JavaType.ListTypeD_typ JavaType.bilops JavaType.ilops
+          JavaType.eops JavaType.lops
+          
+       (*   JavaType.typD *)
 		 (* JavaFunc *)
           
           ilops is_pure func RSym_JavaFunc typeof_java_func java_func_eq
           java_func_symD RelDec_java_func
-          
-          
-          RSym_ilfunc RSym_open_func RSym_OpenFunc
+                   
+          RSym_ilfunc RSym_open_func RSym_OpenFunc RSym_ListFunc
+          JavaFunc.RSym_bilfunc JavaFunc.RSym_embed_func JavaFunc.RSym_later_func
           JavaFunc.RSym_ilfunc
-          ] in (exprD' nil nil t e) in e'.
+          JavaFunc.Expr_expr
+          mkPointstoVar
+          
+          JavaFunc.mkField JavaFunc.mkClass JavaFunc.mkVal JavaFunc.mkVarList
+          JavaFunc.mkProg JavaFunc.mkCmd JavaFunc.mkDExpr JavaFunc.mkFields
+          JavaFunc.fMethodSpec JavaFunc.fProgEq JavaFunc.fTriple JavaFunc.fTypeOf
+          JavaFunc.fFieldLookup JavaFunc.fPointsto JavaFunc.mkNull
+          JavaFunc.fPlus JavaFunc.fMinus JavaFunc.fTimes JavaFunc.fAnd
+          JavaFunc.fOr JavaFunc.fNot JavaFunc.fLt JavaFunc.fValEq
+          JavaFunc.mkTriple JavaFunc.mkFieldLookup JavaFunc.mkTypeOf
+          JavaFunc.mkProgEq JavaFunc.mkExprList JavaFunc.evalDExpr
+          
+          (* Applicative *)
+  (*        
+          ExtLib.Structures.Applicative.ap ExtLib.Structures.Applicative.pure
+ 	      Applicative_Fun
+          
+          Charge.Logics.Pure.pure
+    *)      
+          SubstType_typ
+          
+          goalD propD exprD'_typ0 exprD split_env
+          
+          amap_substD
+          substD
+          SUBST.raw_substD
+          UVarMap.MAP.fold
+          FMapPositive.PositiveMap.fold
+          FMapPositive.PositiveMap.xfoldi
+          FMapPositive.append
+          UVarMap.MAP.from_key
+          pred
+          plus
+          Pos.to_nat
+          Pos.iter_op
+          app
+          HList.hlist_app
+          Quant._foralls
+          Quant._exists
+          ] in e.
+          Check app.
 
+Set Printing Depth 200.
 
 Ltac reify := 
   let name := fresh "e" in
@@ -387,20 +548,122 @@ Ltac reify :=
 		    | Some ?r => 
 		      let r' := constr:(r HList.Hnil HList.Hnil) in 
 		      	replace P with r' by exact eq_refl; clear name
+		    | _ => idtac e'
 		  end
+      | _ => idtac 1
 	  end
    end.
 
-Goal exists (x y : nat) z, (x, y) = z.
-reify_imp (exists (x y : nat) (z : nat * nat), (x, y) = z).
-let e' := eval unfold e in e in 
-let e'' := cbv_denote e' tyProp in 
-  idtac e''.
+Definition run_tac tac goal :=
+  runOnGoals tac nil nil 0 0 (CTop nil nil) 
+    (ctx_empty (typ := typ) (expr := expr typ func)) goal.
+
+Lemma run_rtac_More tac s goal P e e'
+  (H : exprD nil nil e tyProp = Some P)
+  (Hres : run_tac tac (GGoal e) = More_ s goal) 
+  (Heval : goalD_aux nil nil goal HList.Hnil HList.Hnil = Some e')
+  (Hsound : rtac_sound tac) :
+  e' -> P.
+Proof.
+  intros He'.
+  unfold run_tac in Hres.
+  unfold rtac_sound in Hsound.
+  assert (WellFormed_Goal nil nil (GGoal (typ := typ) e)) as H1 by constructor.
+  assert (WellFormed_ctx_subst (TopSubst (expr typ func) nil (@nil typ))) as H2 by constructor.
+  specialize (Hsound _ _ _ _ Hres H1 H2).
+  destruct Hsound as [Hwfs [Hwfg Hsound]].
+  simpl in Hsound.
+  unfold propD, exprD'_typ0 in Hsound.
+  unfold exprD in H. simpl in H. 
   
-let t := eval vm_compute in (typeof_expr nil nil e) in idtac t.
-Check exprD'.
-Print exprD'.
-simpl.
-unfold e.
-let e := reify (mkTrue tyProp) in idtac e.
+  Require Import ExtLib.Tactics.
+  simpl in Hsound.
+  forward; inv_all; subst; destruct Hsound as [Hsubst2 Hsound].
+  inversion Hsubst2; subst.
+  specialize (Hsound HList.Hnil HList.Hnil).
+  simpl in Hsound.
+  inv_all; subst.
+  inversion Hwfs; subst.
+  simpl in H3; inv_all; subst.
+  apply Hsound.
+  unfold goalD_aux in Heval. forward; inv_all; subst.
+  assumption.
+Qed.
+
+Lemma run_rtac_Solved tac s P e
+  (H : exprD nil nil e tyProp = Some P)
+  (Hres : run_tac tac (GGoal e) = Solved s)
+  (Hsound : rtac_sound tac) :
+  P.
+Proof.
+  unfold run_tac in Hres.
+  unfold rtac_sound in Hsound.
+  assert (WellFormed_Goal nil nil (GGoal (typ := typ) e)) as H1 by constructor.
+  assert (WellFormed_ctx_subst (TopSubst (expr typ func) nil (@nil typ))) as H2 by constructor.
+  specialize (Hsound _ _ _ _ Hres H1 H2).
+  destruct Hsound as [Hwfs Hsound].
+  simpl in Hsound.
+  unfold propD, exprD'_typ0 in Hsound.
+  unfold exprD in H. simpl in H. 
+
+  simpl in Hsound.
+  forward; inv_all; subst; destruct Hsound as [Hsubst2 Hsound].
+  inversion Hsubst2; subst.
+  specialize (Hsound HList.Hnil HList.Hnil).
+  simpl in Hsound.
+  inv_all; subst.
+  inversion Hwfs; subst.
+  simpl in H3; inv_all; subst.
+  apply Hsound.
+Qed.
+
+Ltac run_rtac tac_sound :=
+  match type of tac_sound with
+    | rtac_sound ?tac =>
+	  let name := fresh "e" in
+	  match goal with
+	    | |- ?P => 
+	      reify_aux P name;
+	      let t := eval vm_compute in (typeof_expr nil nil name) in
+	      let goal := eval unfold name in name in
+	      match t with
+	        | Some ?t =>
+	          let goal_result := constr:(run_tac tac (GGoal goal)) in 
+	          let result := eval vm_compute in goal_result in 
+	          match result with
+	            | More_ ?s ?g =>
+	              let Q := cbv_denote (goalD_aux nil nil g HList.Hnil HList.Hnil) in
+	              match Q with
+	                | Some ?Q' => 
+	                  cut (Q' HList.Hnil HList.Hnil); [
+		              let P := cbv_denote (exprD nil nil goal tyProp) in 
+		              let H1 := fresh "H" in
+		              let H2 := fresh "H" in
+		              let H3 := fresh "H" in     
+		              let H4 := fresh "H" in      
+		              pose (H1 := @eq_refl (option Prop) P <: 
+		              	exprD nil nil goal tyProp = P);
+		              pose (H2 := @eq_refl (Result (CTop nil nil)) result <: 
+		              	run_tac tac (GGoal goal) = result);
+		              pose (H3 := @eq_refl (option (exprT nil nil Prop)) Q <:
+		              	goalD_aux nil nil g HList.Hnil HList.Hnil = Q);
+		              exact (@run_rtac_More tac _ _ _ _ _ H1 H2 H3 tac_sound) |]
+		            | None => idtac "Unable to find a denotation for" Q
+		          end
+	            | Solved ?s =>
+	              let P := cbv_denote (exprD nil nil goal tyProp) in
+	              let H1 := fresh "H" in
+	              pose (H1 := @eq_refl (option Prop) P <:
+	                exprD nil nil goal tyProp = P);
+		          pose (H2 := @eq_refl (Result (CTop nil nil)) result <: 
+		            run_tac tac (GGoal goal) = result);
+	              exact (@run_rtac_Solved tac _ _ _ H1 H2 tac_sound)
+	            | Fail => idtac "Tactic" tac "failed."
+	            | _ => idtac "Error: run_rtac could not resolve the result from the tactic :" result
+	          end
+	        | None => idtac "expression " goal "is ill typed" t
+	      end
+	  end
+	| _ => idtac tac_sound "is not a soudness theorem."
+  end.
 
