@@ -76,8 +76,8 @@ Set Strict Implicit.
 
 	Definition typeof_java_func bf :=
 		match bf with
-		    | pField _ => Some tyField
-		    | pClass _ => Some tyClass
+		    | pField _ => Some tyString
+		    | pClass _ => Some tyString
 		    | pVal _ => Some tyVal
 		    | pVarList _ => Some tyVarList
 		    | pProg _ => Some tyProg
@@ -85,16 +85,16 @@ Set Strict Implicit.
 		    | pDExpr _ => Some tyDExpr
 		    | pFields _ => Some tyFields
 		
-		    | pMethodSpec => Some (tyArr tyClass (tyArr tyString (tyArr tyVarList
-		    	 (tyArr tyVar (tyArr tySasn (tyArr tySasn tySpec))))))
+		    | pMethodSpec => Some (tyArr tyString (tyArr tyString (tyArr tyVarList
+		    	 (tyArr tyString (tyArr tySasn (tyArr tySasn tySpec))))))
 		    | pProgEq => Some (tyArr tyProg tySpec)
 		    | pTriple => Some (tyArr tySasn (tyArr tySasn (tyArr tyCmd tySpec)))
 		    
-		    | pTypeOf => Some (tyArr tyClass (tyArr tyVal tyProp))
+		    | pTypeOf => Some (tyArr tyString (tyArr tyVal tyProp))
 		    
-		    | pFieldLookup => Some (tyArr tyProg (tyArr tyClass (tyArr tyFields tyProp)))
+		    | pFieldLookup => Some (tyArr tyProg (tyArr tyString (tyArr tyFields tyProp)))
 		    
-		    | pPointsto => Some (tyArr tyVal (tyArr tyField (tyArr tyVal tyAsn)))
+		    | pPointsto => Some (tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn)))
 		    
 		    | pNull => Some tyVal
 		    
@@ -356,9 +356,25 @@ Definition is_pure (e : expr typ func) : bool :=
 					     | Some (eilf_embed tyPure tySasn) => true
 					     | Some (eilf_embed tyProp tySasn) => true
 					     | _ => false
-					 end 
-		| _ => false
+					 end
+			
+ 		| e =>
+ 		  match ilogicS e with
+ 		    | Some (ilf_true _) => true
+ 		    | Some (ilf_false _) => true
+ 		    | _ => false
+ 		  end
 	end.
+
+Definition mkPointstoVar x f e : expr typ func :=
+   mkAp tyVal tyAsn 
+        (mkAp tyString (tyArr tyVal tyAsn)
+              (mkAp tyVal (tyArr tyString (tyArr tyVal tyAsn))
+                    (mkConst (tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn))) 
+                             fPointsto)
+                    (App fStackGet (mkVar x)))
+              (mkConst tyString (mkField f)))
+        e.
 
 Definition test_lemma :=
   @lemmaD typ (expr typ func) RType_typ Expr_expr (expr typ func)

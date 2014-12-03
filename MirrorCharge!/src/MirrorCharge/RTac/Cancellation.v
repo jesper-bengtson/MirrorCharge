@@ -55,7 +55,7 @@ Section Canceller.
 
   Let doUnifySepLog c (tus tvs : EnvI.tenv typ) (s : ctx_subst (typ := typ) (expr := expr typ func) c) (e1 e2 : expr typ func)
   : option (ctx_subst c) :=
-    @exprUnify (ctx_subst c) typ func RType_typ RSym_func Typ2_typ _ _ 10 tus tvs 0 s e1 e2 tyLogic.
+    @exprUnify (ctx_subst c) typ func RType_typ RSym_func Typ2_typ _ _ 10 tus tvs 0 e1 e2 tyLogic s.
 
   Let ssl : SynSepLog typ func :=
   {| e_star := fun l r =>

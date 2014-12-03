@@ -141,7 +141,7 @@ Section SubstTac.
   Variable Typ0_Prop : Typ0 _ Prop.
   Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
 
-  Definition substTac (e : expr typ func) (args : list (expr typ func))
+  Definition substTac (l : list (option (expr typ func))) (e : expr typ func) (args : list (expr typ func))
   : expr typ func :=
     match open_funcS e with
 	  | Some (of_apply_subst t) =>
@@ -152,8 +152,11 @@ Section SubstTac.
 	    end
 	  | _ => apps e args
 	end.
-
-  Definition SUBST := SIMPLIFY (typ := typ) (fun _ _ _ _ => beta_all substTac nil nil).
+Check @SIMPLIFY.
+Check @beta_all.
+Print full_reducer.
+Check apps.	
+  Definition SUBST := SIMPLIFY (typ := typ) (fun _ _ _ _ => beta_all substTac).
 
   Lemma SUBST_sound : rtac_sound SUBST.
   Proof.

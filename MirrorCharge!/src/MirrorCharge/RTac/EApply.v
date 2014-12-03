@@ -21,7 +21,7 @@ Section EAutoTac.
                       (@vars_to_uvars _ _)
                       (fun subst SS SU tus tvs n l r t s =>
                          @exprUnify subst typ func RType_typ RSym_func Typ2_typ 
-                                    SS SU 10 tus tvs n s l r t).
+                                    SS SU 10 tus tvs n l r t s).
 
 End EAutoTac.
 
