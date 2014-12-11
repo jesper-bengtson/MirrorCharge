@@ -132,41 +132,41 @@ Require Import Charge.Logics.BILogic.
   	admit.
   Qed.
 
-(*
-  Lemma rule_static_complete C (m : String.string) (ps : list String.string) (es : list dexpr) (x r : var) G
+Check apply_subst.
+  Lemma rule_static_complete (x : Lang.var) C (m : String.string) (es : list dexpr) (ps : list String.string) (r : Lang.var) G
     (P Q F Pm Qm : sasn)
     (HSpec : G |-- |> method_spec C m ps r Pm Qm)
-    (HPre: P |-- apply_subst2 asn Pm (substl_trunc (zip ps (@map _ (stack -> sval) eval2 es))) ** F)
+    (HPre: P |-- apply_subst Pm (substl_trunc (zip ps (@map _ (stack -> val) eval es))) ** F)
     (HLen: length ps = length es) :
-          G |-- {[ P ]} cscall x C m es {[ Exists v:sval, apply_subst asn Qm (substl_trunc (zip (@cons String.string r ps) 
-                                     (@cons (stack -> sval) (stack_get x)
-                                      (@map (stack -> sval) _ (fun e => apply_subst2 sval e (subst2 (pure (T := Fun stack) v) x)) 
-                                          (@map dexpr (stack -> sval) eval2 es))))) ** 
-                           apply_subst2 asn F (subst2 (pure (T := Fun stack) v) x)]}.
+          G |-- {[ P ]} cscall x C m es {[ Exists v:val, apply_subst Qm (substl_trunc (zip (@cons String.string r ps) 
+                                     (@cons (stack -> val) (stack_get x)
+                                      (@map (stack -> val) _ (fun e => apply_subst e (subst1 (pure (T := Fun stack) v) x)) 
+                                          (@map dexpr (stack -> val) eval es))))) ** 
+                           apply_subst F (subst1 (pure (T := Fun stack) v) x)]}.
 Proof.
 	admit.
 Qed.
 
-Lemma rule_dynamic_complete C (m : String.string) (ps : list String.string) (es : list dexpr) (x y r : var) G
-    (P F Pm Qm : sasn)
-    (HSpec : G |-- |> method_spec2 C m ps r Pm Qm)
+Lemma rule_dynamic_complete (x y : Lang.var) (m : String.string) (es : list dexpr) (ps : list String.string) C (r : Lang.var) G
+    (P Q F Pm Qm : sasn)
+    (HSpec : G |-- |> method_spec C m ps r Pm Qm)
     (HPre: P |-- (embed (ap_typeof [stack_get y, C]) //\\ 
-                  apply_subst2 asn Pm (substl_trunc (zip ps (@map _ (stack -> sval) eval2 (E_var y :: es))))) ** 
+                  apply_subst Pm (substl_trunc (zip ps (@map _ (stack -> val) eval (E_var y :: es))))) ** 
                  F)
+    (HPost : Exists v:val, embed (ap_typeof [apply_subst (stack_get y) (subst1 (pure (T := Fun stack) v) x), C]) //\\
+                    apply_subst Qm (substl_trunc (zip (@cons String.string r ps) 
+                    (@cons (stack -> val) (stack_get x) (@cons (stack -> val) (apply_subst (stack_get y) (subst1 (pure (T := Fun stack) v) x))
+			        (@map (stack -> val) _ (fun e => apply_subst e (subst1 (pure (T := Fun stack) v) x)) 
+			        (@map dexpr (stack -> val) eval es)))))) ** 
+                    apply_subst F (subst1 (pure (T := Fun stack) v) x) |-- Q)
     (HLen: length ps = length (E_var y :: es)) :
-           G |-- {[ P ]} cdcall x y m es 
-                 {[ Exists v:sval, embed (ap_typeof [apply_subst2 sval (stack_get y) (subst2 (pure (T := Fun stack) v) x), C]) //\\
-                    apply_subst2 asn Qm (substl_trunc (zip (@cons String.string r ps) 
-                    (@cons (stack -> sval) (stack_get x) (@cons (stack -> sval) (apply_subst2 sval (stack_get y) (subst2 (pure (T := Fun stack) v) x))
-			        (@map (stack -> sval) _ (fun e => apply_subst2 sval e (subst2 (pure (T := Fun stack) v) x)) 
-			        (@map dexpr (stack -> sval) eval2 es)))))) ** 
-                    apply_subst2 asn F (subst2 (pure (T := Fun stack) v) x) ]}.
+           G |-- {[ P ]} cdcall x y m es {[ Q ]}.
 Proof.
     eapply rule_dcall_forward.
     eassumption.
     rewrite HPre. 
     reflexivity.
     assumption.
+    rewrite <- HPost.
     reflexivity.
 Qed.
-*)

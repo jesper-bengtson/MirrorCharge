@@ -144,8 +144,8 @@ Reify Pattern patterns_java_typ += (!! @Subst.subst (String.string) val) => tySu
 Reify Pattern patterns_java_typ += (!! Fun @ ?0 @ ?1) => (fun (a b : function reify_imp_typ) => tyArr a b).
 
 Reify Pattern patterns_java += (RHasType String.string (?0)) => (fun (s : id String.string) => mkString (func := func) (typ := typ) s).
-Reify Pattern patterns_java += (RHasType field (?0)) => (fun (f : id field) => mkField f).
-Reify Pattern patterns_java += (RHasType Lang.var (?0)) => (fun (f : id Lang.var) => mkVar (func := func) f).
+Reify Pattern patterns_java += (RHasType field (?0)) => (fun (f : id field) => mkString (func := func) f).
+Reify Pattern patterns_java += (RHasType Lang.var (?0)) => (fun (f : id Lang.var) => mkString (func := func) f).
 Reify Pattern patterns_java += (RHasType val (?0)) => (fun (v : id val) => mkVal v).
 Reify Pattern patterns_java += (RHasType bool (?0)) => (fun (b : id bool) => mkBool (func := func) b).
 Reify Pattern patterns_java += (RHasType nat (?0)) => (fun (n : id nat) => mkNat (func := func) n).
@@ -153,7 +153,7 @@ Reify Pattern patterns_java += (RHasType cmd (?0)) => (fun (c : id cmd) => mkCmd
 Reify Pattern patterns_java += (RHasType dexpr (?0)) => (fun (e : id dexpr) => mkDExpr e).
 Reify Pattern patterns_java += (RHasType Program (?0)) => (fun (P : id Program) => mkProg P).
 Reify Pattern patterns_java += (RHasType (list field) (?0)) => (fun (fs : id (list field)) => mkFields fs).
-Reify Pattern patterns_java += (RHasType class (?0)) => (fun (c : id class) => mkClass c).
+Reify Pattern patterns_java += (RHasType class (?0)) => (fun (c : id class) => mkString (func := func) c).
 
 Reify Pattern patterns_java += (RHasType (@list dexpr) (?0)) => (fun (es : id (@list dexpr)) => mkExprList es).
 Reify Pattern patterns_java += (RHasType (@list String.string) (?0)) => (fun (vs : id (@list String.string)) => mkVarList vs).
@@ -243,6 +243,7 @@ Require Import ILogic.
 Goal (forall (Pr : Program) (C : class) (v : val) (fields : list field), True).
   intros Pr C v fields.
   reify_imp (typeof C v).
+
   reify_imp (field_lookup).
   reify_imp (field_lookup Pr C fields).
 
@@ -251,6 +252,8 @@ Goal (forall (Pr : Program) (C : class) (v : val) (fields : list field), True).
 
 
   reify_imp (pure (T := Fun stack) pointsto).
+
+  reify_imp (fun a b c => pointsto a b c).
 
   reify_imp e2.
 
@@ -290,13 +293,10 @@ Goal (forall (Pr : Program) (C : class) (v : val) (fields : list field), True).
 
   reify_imp (x = x).
 
+  reify_imp (@ltrue sasn _).
   exact I.
 
 Defined.
-Locate ExprUVar_expr.
-Locate ILogicFunc.BaseFuncInst.
-
-Check typeof_expr.
 
 Ltac reify_aux e n :=
   let k fs e :=

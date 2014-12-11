@@ -178,11 +178,11 @@ Ltac cbv_denote :=
           
 		  (* OpenFunc *)
 		  
-		  OpenFunc.mkConst OpenFunc.mkAp OpenFunc.mkVar OpenFunc.mkNull OpenFunc.mkStackGet
+		  OpenFunc.mkConst OpenFunc.mkAp OpenFunc.mkNull OpenFunc.mkStackGet
 		  OpenFunc.mkStackSet OpenFunc.mkApplySubst OpenFunc.mkSingleSubst OpenFunc.mkSubst
 		  OpenFunc.mkTruncSubst
 		    
-		  OpenFunc.fConst OpenFunc.fAp OpenFunc.fVar OpenFunc.fNull OpenFunc.fStackGet
+		  OpenFunc.fConst OpenFunc.fAp OpenFunc.fNull OpenFunc.fStackGet
 		  OpenFunc.fApplySubst OpenFunc.fSingleSubst OpenFunc.fSubst OpenFunc.fTruncSubst
 		  
 		  OpenFunc.OpenFuncSumL OpenFunc.OpenFuncSumR OpenFunc.OpenFuncExpr
@@ -205,7 +205,7 @@ Ltac cbv_denote :=
           
           (* SubstType *)
           
-          SubstType.tyVar SubstType.tyVal SubstType.tySubst
+          SubstType.tyVal SubstType.tySubst
           SubstType.stSubst
           
           (* JavaType *)
@@ -229,7 +229,7 @@ Ltac cbv_denote :=
           JavaFunc.Expr_expr
           mkPointstoVar
           
-          JavaFunc.mkField JavaFunc.mkClass JavaFunc.mkVal JavaFunc.mkVarList
+          JavaFunc.mkVal JavaFunc.mkVarList
           JavaFunc.mkProg JavaFunc.mkCmd JavaFunc.mkDExpr JavaFunc.mkFields
           JavaFunc.fMethodSpec JavaFunc.fProgEq JavaFunc.fTriple JavaFunc.fTypeOf
           JavaFunc.fFieldLookup JavaFunc.fPointsto JavaFunc.mkNull
@@ -339,6 +339,42 @@ Ltac run_rtac reify term_table tac_sound :=
 	        | Some ?t =>
 	          let goal_result := constr:(run_tac tac (GGoal name)) in 
 	          let result := eval vm_compute in goal_result in
+	          match result with
+	            | More_ ?s ?g => 
+	              cut (goalD_Prop nil nil g); [
+	                let goal_resultV := g in
+	               (* change (goalD_Prop nil nil goal_resultV -> exprD_Prop nil nil name);*)
+	                exact_no_check (@run_rtac_More tac _ _ _ tac_sound
+	                	(@eq_refl (Result (CTop nil nil)) (More_ s goal_resultV) <:
+	                	   run_tac tac (GGoal goal) = (More_ s goal_resultV)))
+	                | cbv_denote
+	              ]
+	            | Solved ?s =>
+	              exact_no_check (@run_rtac_Solved tac s name tac_sound 
+	                (@eq_refl (Result (CTop nil nil)) (Solved s) <: run_tac tac (GGoal goal) = Solved s))
+	            | Fail => idtac "Tactic" tac "failed."
+	            | _ => idtac "Error: run_rtac could not resolve the result from the tactic :" tac
+	          end
+	        | None => idtac "expression " goal "is ill typed" t
+	      end
+	  end
+	| _ => idtac tac_sound "is not a soudness theorem."
+  end.
+
+Ltac run_rtac_debug reify term_table tac_sound :=
+  match type of tac_sound with
+    | rtac_sound ?tac =>
+	  let name := fresh "e" in
+	  match goal with
+	    | |- ?P => 
+	      reify_aux reify term_table P name;
+	      let t := eval vm_compute in (typeof_expr nil nil name) in
+	      let goal := eval unfold name in name in
+	      match t with
+	        | Some ?t =>
+	          let goal_result := constr:(run_tac tac (GGoal name)) in 
+	          let result := eval vm_compute in goal_result in
+	          idtac result;
 	          match result with
 	            | More_ ?s ?g => 
 	              cut (goalD_Prop nil nil g); [

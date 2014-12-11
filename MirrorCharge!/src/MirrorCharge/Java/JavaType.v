@@ -263,14 +263,13 @@ Instance ListTypeD_typ : ListTypeD := {
 }.
 
 Instance SubstType_typ : SubstType typ := {
-	tyVar := tyString;
 	tyVal := tyVal;
 	tySubst := tySubst
 }.
 
 Definition null' : TypesI.typD tyVal := null.
 
-Program Instance SubstTypeD_typ : @SubstTypeD typ _ _ := {
+Program Instance SubstTypeD_typ : @SubstTypeD typ _ _ _ := {
 	stSubst := eq_refl
 }.
 

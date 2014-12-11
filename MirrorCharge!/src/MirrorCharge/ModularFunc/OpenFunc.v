@@ -1,12 +1,16 @@
 Require Import ExtLib.Core.RelDec.
 Require Import ExtLib.Structures.Applicative.
 Require Import ExtLib.Data.Fun.
+Require Import ExtLib.Data.String.
 Require Import ExtLib.Tactics.Consider.
+Require Import ExtLib.Tactics.
 
 Require Import MirrorCore.TypesI.
 Require Import MirrorCore.syms.SymEnv.
 Require Import MirrorCore.Lambda.Expr.
+Require Import MirrorCore.Lambda.ExprVariables.
 Require Import MirrorCore.SymI.
+Require Import MirrorCore.syms.SymSum.
 
 Require Import Charge.Open.Stack.
 Require Import Charge.Open.Subst.
@@ -14,6 +18,7 @@ Require Import Charge.Rel.
 
 Require Import Coq.Strings.String.
 Require Import Coq.Bool.Bool.
+Require Import FunctionalExtensionality.
 
 Require Import MirrorCharge.ModularFunc.BaseType.
 Require Import MirrorCharge.ModularFunc.ListType.
@@ -27,7 +32,6 @@ Set Maximal Implicit Insertion.
   Inductive open_func typ {RType_typ : RType typ} {HST : SubstType typ} :=
     | of_const (_ : typ)
     | of_ap (_ _ : typ)
-    | of_var (_ : typD tyVar)
     | of_null
     | of_stack_get
     | of_stack_set
@@ -42,7 +46,6 @@ Class OpenFunc (typ func : Type) {RType_typ : RType typ} {HST : SubstType typ} :
   fConst : typ -> func;
   fAp : typ -> typ -> func;
   
-  fVar : typD tyVar -> func;
   fNull : func;
   
   fStackGet : func;
@@ -66,7 +69,6 @@ Section OpenFuncSum.
 		  fConst t := inl (fConst t);
 		  fAp t u := inl (fAp t u);
 		  
-		  fVar x := inl (fVar x);
 		  fNull := inl fNull;
 		  
 		  fStackGet := inl fStackGet;
@@ -88,7 +90,6 @@ Section OpenFuncSum.
 		  fConst t := inr (fConst t);
 		  fAp t u := inr (fAp t u);
 		  
-		  fVar x := inr (fVar x);
 		  fNull := inr fNull;
 		  
 		  fStackGet := inr fStackGet;
@@ -111,7 +112,6 @@ Section OpenFuncSum.
 		  fConst t := Inj (fConst t);
 		  fAp t u := Inj (fAp t u);
 		  
-		  fVar x := Inj (fVar x);
 		  fNull := Inj fNull;
 		  
 		  fStackGet := Inj fStackGet;
@@ -143,22 +143,21 @@ Section OpenFuncInst.
     Context {HSTD : SubstTypeD}.
     Context {HBTD : BaseTypeD} {HLTD : ListTypeD}.
     
-	Context {RelDec_var : RelDec (@eq (typD tyVar))}.
-	Context {RelDec_var_Correct : RelDec_Correct RelDec_var}.
+	Context {RelDec_string : RelDec (@eq (typD tyString))}.
+	Context {RelDec_string_Correct : RelDec_Correct RelDec_string}.
 	
     Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
     Let tyProp : typ := @typ0 _ _ _ _.
 
-	Local Notation "'tyStack'" := (tyArr tyVar tyVal).
+	Local Notation "'tyStack'" := (tyArr tyString tyVal).
 	Local Notation "'tyExpr'" := (tyArr tyStack tyVal).
-	Local Notation "'tySubstList'" := (tyList (tyPair tyVar (tyArr tyStack tyVal))).
+	Local Notation "'tySubstList'" := (tyList (tyPair tyString (tyArr tyStack tyVal))).
 
-	Definition stack := @stack (typD tyVar) (typD tyVal).
+	Definition stack := @stack (typD tyString) (typD tyVal).
 
 	Global Instance OpenFuncInst : OpenFunc typ (open_func typ) := {
 	  fConst := of_const;
 	  fAp := of_ap;
-	  fVar := of_var;
 	  fNull := of_null;
 	  fStackGet := of_stack_get;
 	  fStackSet := of_stack_set;
@@ -175,11 +174,10 @@ Section OpenFuncInst.
     | of_const t => Some (tyArr t (tyArr tyStack t))
     | of_ap t u => Some (tyArr (tyArr tyStack (tyArr t u)) (tyArr (tyArr tyStack t) (tyArr tyStack u)))
     | of_apply_subst t => Some (tyArr (tyArr tyStack t) (tyArr tySubst (tyArr tyStack t)))
-	| of_var _ => Some tyVar
 	| of_null => Some tyVal
-    | of_stack_get => Some (tyArr tyVar tyExpr)
-    | of_stack_set => Some (tyArr tyVar (tyArr tyVal (tyArr tyStack tyStack)))
-    | of_single_subst => Some (tyArr tyExpr (tyArr tyVar tySubst))
+    | of_stack_get => Some (tyArr tyString tyExpr)
+    | of_stack_set => Some (tyArr tyString (tyArr tyVal (tyArr tyStack tyStack)))
+    | of_single_subst => Some (tyArr tyExpr (tyArr tyString tySubst))
     | of_subst => Some (tyArr tySubstList tySubst)
     | of_trunc_subst => Some (tyArr tySubstList tySubst)
 	end.
@@ -190,7 +188,6 @@ Section OpenFuncInst.
 	  	       | of_const t, of_const t'
 	  	       | of_apply_subst t, of_apply_subst t' => t ?[eq] t'
 	  	       | of_ap t u, of_ap t' u' => (t ?[eq] t' && u ?[eq] u')%bool
-	  	       | of_var v, of_var v' => v ?[ eq ] v'
 	  	       | of_null, of_null
 	  	       | of_stack_get, of_stack_get
 	  	       | of_stack_set, of_stack_set
@@ -213,22 +210,36 @@ Section OpenFuncInst.
 	; ap := fun _ _ f x y => (f y) (x y)
 	}.
 
-  Definition typ2_cast_bin (a b c : typ)
-  : (typD a -> typD b -> typD c) -> typD (tyArr a (tyArr b c)) :=
-    fun f =>
-      match eq_sym (typ2_cast a (tyArr b c)) in _ = t
-            return t with
-        | eq_refl => match eq_sym (typ2_cast b c) in _ = t
-                           return _ -> t with
-                       | eq_refl => f
-                     end
-        end.
+  Definition fun1_wrap {a b : typ} (f : typD a -> typD b) :=
+      eq_rect_r id f (typ2_cast a b).
+  
+  Definition fun1D {a b : typ} (f : typD (tyArr a b)) (x : typD a) : typD b :=
+  (fun g : typD a -> typD b => g x)
+    (eq_rect (typD (typ2 a b)) id f (typD a -> typD b)
+       (typ2_cast a b)).
+        
+  Definition fun2_wrap {a b c : typ} (f : typD a -> typD b -> typD c) :=
+    eq_rect_r id 
+      (eq_rect_r (fun T : Type => Fun (typD a) T) f (typ2_cast b c)) 
+        (typ2_cast a (typ2 b c)).
+  
+  Definition fun2D {a b c : typ} (f : typD (tyArr a (tyArr b c))) (x : typD a) (y : typD b) : typD c :=
+    (fun g : typD a -> typD (typ2 b c) =>
+      (fun h : typD a -> typD b -> typD c => h x y)
+        (eq_rect (typD (typ2 b c)) (fun T : Type => typD a -> T) g
+          (typD b -> typD c) (typ2_cast b c)))
+      (eq_rect (typD (typ2 a (typ2 b c))) id f
+         (typD a -> typD (typ2 b c)) (typ2_cast a (typ2 b c))).
+  
+  Definition fun3_wrap {a b c d : typ} (f : typD a -> typD b -> typD c -> typD d) :  
+   typD (tyArr a (tyArr b (tyArr c d))) :=
+     fun2_wrap
+       (fun x y => eq_rect_r id (fun z : typD c => f x y z) (typ2_cast c d)).
 
-  Program Definition typ3_cast_bin (a b c d : typ)
-  : (typD a -> typD b -> typD c -> typD d) -> typD (tyArr a (tyArr b (tyArr c d))).
-  intros.
-  unfold tyArr; repeat rewrite typ2_cast. unfold Fun. apply X.
-  Defined.
+  Definition fun4_wrap {a b c d e : typ} (f : typD a -> typD b -> typD c -> typD d -> typD e) :  
+   typD (tyArr a (tyArr b (tyArr c (tyArr d e)))) :=
+     fun3_wrap
+       (fun x y z => eq_rect_r id (fun z' : typD d => f x y z z') (typ2_cast d e)).
 
 (*
 	 Program Definition open_func_symD bf :=
@@ -278,39 +289,61 @@ Section OpenFuncInst.
 	 Defined.
 *)
 
+	    Definition substListD (lst : typD tySubstList) : substlist (A := typD tyString) (val := (typD tyVal)).
+	    Proof.
+	      rewrite btList, btPair, btString in lst.
+	      unfold tyArr in lst.
+	      repeat rewrite typ2_cast in lst.
+	      rewrite btString in lst.
+	      rewrite btString.
+	      apply lst.
+	   Defined.
+
+	 Definition open_func_symD f : match typeof_open_func f with
+	                                 | Some t => typD t
+	                                 | None => unit
+	                               end :=
+		match f as f return match typeof_open_func f with
+								| Some t => typD t
+								| None => unit
+							  end with
+	      | of_const t =>
+	        fun2_wrap
+		      (eq_rect_r (fun T : Type => typD t -> T -> typD t) pure
+		         (typ2_cast tyString tyVal))
+	      | of_ap t1 t2 => 
+	        fun3_wrap 
+	          (fun a b c => @ap (Fun (typD tyStack)) (Applicative_Fun _) (typD t1) (typD t2)
+	            (fun2D a)
+	            (fun1D b)
+	            c)
+	      | of_null => null
+	      | of_stack_get => fun2_wrap (fun x s => (fun1D s) x)
+	      | of_stack_set => 
+	        (fun4_wrap
+	          (fun a b c d => stack_add a b (fun1D c) d))
+	      | of_apply_subst t => fun3_wrap
+	         (fun a b c => apply_subst 
+	           (fun x => fun1D a (fun1_wrap x))
+	           (eq_rect (typD tySubst) id b subst stSubst)
+	           (fun1D c))
+	      | of_single_subst => 
+	        fun2_wrap (fun a b => eq_rect_r id (subst1 (fun x => fun1D a (fun1_wrap x)) b) stSubst)
+	      | of_subst => 
+	        fun1_wrap 
+	          (fun a => eq_rect_r id 
+	            (substl_aux (substListD a)) stSubst)
+	      | of_trunc_subst =>
+	        fun1_wrap 
+	          (fun a => eq_rect_r id 
+	            (substl_trunc_aux (substListD a)) stSubst)
+	    end.
+
 	Global Program Instance RSym_OpenFunc : SymI.RSym (open_func typ) := {
 	  typeof_sym := typeof_open_func;
-	  symD := _;
+	  symD := open_func_symD;
 	  sym_eqb := (fun a b => Some (rel_dec a b))
 	}.
-	Next Obligation.
-		destruct f; simpl.
-		+ apply typ2_cast_bin.
-		  unfold tyArr. rewrite typ2_cast.
-		  apply (@pure (Fun stack) (Applicative_Fun _) (typD t)).
-		+ apply typ3_cast_bin.
-		  unfold tyArr. repeat rewrite typ2_cast. unfold Fun.
-		  apply (@ap (Fun stack) (Applicative_Fun _) (typD t) (typD t0)).
-		+ apply t.
-		+ apply HV.
-		+ apply typ2_cast_bin.
-	      unfold tyArr. rewrite typ2_cast.
-	      apply (fun (x : typD tyVar) (s : stack) => s x).
-		+ unfold tyArr; repeat rewrite typ2_cast; unfold Fun.
-	 	  pose (@stack_add (typD tyVar) (typD tyVal) _). apply s.
-		+ unfold tyArr; repeat rewrite typ2_cast; unfold Fun.
-	  	  rewrite stSubst.
-		  apply (@apply_subst (typD tyVar) (typD tyVal) (typD t)).
-		+ unfold tyArr; repeat rewrite typ2_cast; unfold Fun.
-		  rewrite stSubst.
-		  apply (@subst1 (typD tyVar) (typD tyVal) _).
-		+ unfold tyArr; rewrite typ2_cast; unfold Fun.
-	      rewrite btList, btPair, stSubst; repeat rewrite typ2_cast.
-	      apply (@substl_aux (typD tyVar) (typD tyVal) _).
-		+ unfold tyArr; rewrite typ2_cast; unfold Fun.
-		  rewrite btList, btPair, stSubst. repeat rewrite typ2_cast.
-		  apply (@substl_trunc_aux (typD tyVar) (typD tyVal) _ _).
-	Defined.
 
   Global Instance RSymOk_lopen_func : SymI.RSymOk RSym_OpenFunc.
   Proof.
@@ -321,6 +354,150 @@ Section OpenFuncInst.
 
 End OpenFuncInst.
 
+Section OpenFuncOk.
+  Context {typ func : Type} {HBT : BaseType typ} {HLT : ListType typ} {HST : SubstType typ}.
+  Context {HR : RType typ} {HO: OpenFunc typ func} {Heq' : RelDec (@eq typ)}. 
+  Context {HS : RSym func} {Heq : RelDec (@eq (typD tyString))}.
+  Context {HV : ValNull (typD tyVal)}.
+
+  Context {HSTD : SubstTypeD}.
+  Context {HBTD : BaseTypeD} {HLTD : ListTypeD}.
+
+  Context  {Typ2_tyArr : Typ2 _ Fun}.
+  Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
+
+  Class OpenFuncOk := {
+    of_funcAsOk f e : open_funcS f = Some e -> forall t, funcAs f t = funcAs e t;
+    of_fConstOk t : open_funcS (fConst t) = Some (of_const t);
+    of_fApOk t u : open_funcS (fAp t u) = Some (of_ap t u);
+    of_fNullOk : open_funcS fNull = Some of_null;
+    of_fStackGetOk : open_funcS fStackGet = Some of_stack_get;
+    of_fStackSetOk : open_funcS fStackSet = Some of_stack_set;
+    of_fApplySubstOk t : open_funcS (fApplySubst t) = Some (of_apply_subst t);
+    of_fSingleSubstOk : open_funcS fSingleSubst = Some of_single_subst;
+    of_fSubstOk : open_funcS fSubst = Some of_subst;
+    of_fTruncSubstOk : open_funcS fTruncSubst = Some of_trunc_subst
+  }.
+
+End OpenFuncOk.
+
+Implicit Arguments OpenFuncOk [[HBT] [HLT] [HST] [HR] [HO] [Heq'] [HS] [Heq] [HV] [HSTD] [HBTD] [HLTD] [Typ2_tyArr]].
+
+Section OpenFuncBaseOk.
+  Context {typ func : Type} {HBT : BaseType typ} {HLT : ListType typ} {HST : SubstType typ}.
+  Context {HR : RType typ} {HO: OpenFunc typ func} {Heq' : RelDec (@eq typ)}. 
+  Context {HS : RSym func} {Heq : RelDec (@eq (typD tyString))}.
+  Context {HV : ValNull (typD tyVal)}.
+
+  Context {HSTD : SubstTypeD}.
+  Context {HBTD : BaseTypeD} {HLTD : ListTypeD}.
+
+  Context  {Typ2_tyArr : Typ2 _ Fun}.
+  Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
+
+  Program Instance open_funcOk : OpenFuncOk typ (open_func typ) := {
+    of_funcAsOk := fun _ _ _ _ => eq_refl;
+    of_fConstOk t := eq_refl;
+    of_fApOk t u := eq_refl;
+    of_fNullOk := eq_refl;
+    of_fStackGetOk := eq_refl;
+    of_fStackSetOk := eq_refl;
+    of_fApplySubstOk t := eq_refl;
+    of_fSingleSubstOk := eq_refl;
+    of_fSubstOk := eq_refl;
+    of_fTruncSubstOk := eq_refl
+  }.
+  
+End OpenFuncBaseOk.
+
+Section OpenFuncExprOk.
+  Context {typ func : Type} `{HOK : OpenFuncOk typ func}.
+  Context {HROk : RTypeOk}.
+
+  Lemma open_funcSome (f : func) (e : open_func typ) (t : typ)
+    (H : open_funcS f = Some e) : 
+      match typeof_open_func _ e with
+        | Some t => funcAs f t <> None
+        | None => False
+      end.
+  Proof.
+    destruct HOK as [H1].
+    specialize (H1 _ _ H).
+    destruct e; simpl in *; intros H2;
+    match goal with 
+      | H : funcAs _ ?t = None |- _ => 
+        specialize (H1 t); rewrite H in H1; clear H;
+              unfold funcAs in H1; simpl in H1; 
+              rewrite type_cast_refl in H1; [|apply _]; inversion H1
+    end.
+  Qed.
+
+  Lemma OpenFunc_typeOk (f : func) (e : open_func typ) (H : open_funcS f = Some e) :
+    typeof_sym f = typeof_open_func _ e.
+  Proof.
+    destruct HOK as [H1].
+    specialize (H1 _ _ H).
+ 	destruct e; simpl in *;
+    match goal with 
+      | |- typeof_sym ?f = Some ?t => 
+	 	specialize (H1 t);
+	 	simpl in H1;
+ 	 	unfold funcAs in H1; simpl in H1; rewrite type_cast_refl in H1; [|apply _];
+ 		generalize dependent (symD f);
+ 		destruct (typeof_sym f); simpl; intros; [forward|]; inversion H1
+    end.
+  Qed.
+
+  Existing Instance RSym_sum.
+  Existing Instance RSymOk_sum.
+
+  Context {A : Type} {RSymA : RSym A}.
+
+
+  Global Program Instance OpenFuncOkSumR : OpenFuncOk typ (A + func) := {
+    of_funcAsOk := 
+      fun a f H t => 
+        match a with
+          | inl b => _
+          | inr b => _
+        end;
+    of_fConstOk t := of_fConstOk t (func := func);
+    of_fApOk t u := of_fApOk t u (func := func);
+    of_fNullOk := of_fNullOk (func := func);
+    of_fStackGetOk := of_fStackGetOk (func := func);
+    of_fStackSetOk := of_fStackSetOk (func := func);
+    of_fApplySubstOk t := of_fApplySubstOk t (func := func);
+    of_fSingleSubstOk := of_fSingleSubstOk (func := func);
+    of_fSubstOk := of_fSubstOk (func := func);
+    of_fTruncSubstOk := of_fTruncSubstOk (func := func)
+  }.
+  Next Obligation.
+    apply (of_funcAsOk _ H).
+  Qed.
+
+  Global Program Instance OpenFuncOkSumL : OpenFuncOk typ (func + A) := {
+    of_funcAsOk := 
+      fun a f H t => 
+        match a with
+          | inl b => _
+          | inr b => _
+        end;
+    of_fConstOk t := of_fConstOk t (func := func);
+    of_fApOk t u := of_fApOk t u (func := func);
+    of_fNullOk := of_fNullOk (func := func);
+    of_fStackGetOk := of_fStackGetOk (func := func);
+    of_fStackSetOk := of_fStackSetOk (func := func);
+    of_fApplySubstOk t := of_fApplySubstOk t (func := func);
+    of_fSingleSubstOk := of_fSingleSubstOk (func := func);
+    of_fSubstOk := of_fSubstOk (func := func);
+    of_fTruncSubstOk := of_fTruncSubstOk (func := func)
+  }.
+  Next Obligation.
+    apply (of_funcAsOk _ H).
+  Qed.
+  
+End OpenFuncExprOk.
+
 Section MakeOpen.
 	Context {typ func : Type} {HR : RType typ} {HS : SubstType typ}.
 	Context {H : OpenFunc typ func} {H1 : ListFunc typ func}
@@ -329,10 +506,9 @@ Section MakeOpen.
     Context  {Typ2_tyArr : Typ2 _ Fun}.
     Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
 
-	Local Notation "'tyStack'" := (tyArr tyVar tyVal).
+	Local Notation "'tyStack'" := (tyArr tyString tyVal).
 
     Definition mkNull : expr typ func := Inj fNull.
-	Definition mkVar (v : typD tyVar) : expr typ func := Inj (fVar v). 
 	Definition mkConst (t : typ) (e : expr typ func) := App (fConst t) e.
 	Definition mkAp (t u : typ) (f e : expr typ func) := App (App (fAp t u) f) e.
 	Definition mkStackGet (x s : expr typ func) := App (App fStackGet x) s.
@@ -501,3 +677,120 @@ Section MakeOpen.
 		end.
 *)	
 End MakeOpen.
+
+Require Import MirrorCharge.ModularFunc.BaseFunc.
+Require Import MirrorCharge.ModularFunc.EmbedFunc.
+
+Require Import MirrorCore.Lambda.ExprTac.
+
+Section TypeOfFunc.
+  Context {typ func : Type}.
+  Context {RType_typ : RType typ}.
+  Context {RTypeOk_typ : RTypeOk}.
+  Context {RSym_func : RSym func}.
+    Lemma typeof_funcAs f t e (H : funcAs f t = Some e) : typeof_sym f = Some t.
+    Proof.
+      unfold funcAs in H.
+      generalize dependent (symD f).
+      destruct (typeof_sym f); intros; [|congruence].
+      destruct (type_cast t0 t); [|congruence].
+      destruct r; reflexivity.
+    Qed.
+    
+      Lemma funcAs_Some f t (pf : typeof_sym f = Some t) :
+        funcAs f t =
+        Some (match pf in (_ = z)
+          return match z with
+                   | Some z' => typD z'
+                   | None => unit
+                 end
+          with
+          | eq_refl => symD f
+          end).
+      Proof.
+        unfold funcAs.
+        generalize (symD f).
+        rewrite pf. intros.
+        rewrite type_cast_refl. reflexivity. apply _.
+      Qed.
+
+End TypeOfFunc.
+
+Section MakeOpenSound.
+  Context {typ func subst : Type} {ST : SubstType typ} {BT : BaseType typ} {RType_typ : RType typ}.
+  Context {OF : OpenFunc typ func} {ILF : ILogicFunc typ func} {BILF : BILogicFunc typ func} {BF : BaseFunc typ func}.
+  Context {LT : ListType typ}.
+  Context {EF : EmbedFunc typ func}.
+  Context {RelDec_string : RelDec (@eq (typD tyString))}.
+  Context {RelDec_typ : RelDec (@eq typ)}.
+  Context {RTypeOk_typ : RTypeOk}.
+  Context {RSym_func : RSym func}.
+  Context {RSym_funcOk : RSymOk RSym_func}.
+  Context {Typ2_tyArr : Typ2 _ Fun}.
+  Context {Typ0_Prop : Typ0 _ Prop}.
+  Context {Typ2_tyArrOk : Typ2Ok Typ2_tyArr}.
+  Context {HV : ValNull (typD tyVal)}.
+  Context {HSTD : SubstTypeD}.
+  Context {HBTD : BaseTypeD} {HLTD : ListTypeD}.
+  Context {OFOK : OpenFuncOk typ func}.
+
+  Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
+
+  Let Expr_expr := Expr_expr (typ := typ) (func := func).
+  Let ExprOk_expr := ExprOk_expr (typ := typ) (func := func).
+  Let ExprUVar_expr := ExprUVar_expr (typ := typ) (func := func).
+  
+  Local Existing Instance Expr_expr.
+  Local Existing Instance ExprOk_expr.
+  Local Existing Instance ExprUVar_expr.
+
+  Local Notation "'tyStack'" := (tyArr tyString tyVal).
+
+  Lemma mkNull_sound (tus tvs : tenv typ) (f : func)
+    (df : typD tyVal)
+    (Ho : open_funcS f = Some of_null)
+    (Hf : funcAs f tyVal = Some df) :
+    exprD' tus tvs tyVal mkNull = Some (fun _ _ => df).
+  Proof.
+    unfold mkNull; simpl.
+    autorewrite with exprD_rw; simpl; forward; inv_all; subst.
+    pose proof (of_funcAsOk _ Ho) as H; rewrite H in Hf.
+    pose proof (of_fNullOk) as H1.
+    pose proof (of_funcAsOk _ H1) as H2. rewrite <- H2 in Hf.
+    pose proof (OpenFunc_typeOk _ H1) as H3. simpl in H3.
+    rewrite (funcAs_Some _ H3).
+    rewrite (funcAs_Some _ H3) in Hf.
+    inv_all; subst. reflexivity.
+  Qed.
+
+  Lemma mkApplySubst_sound (tus tvs : tenv typ) (t : typ) (f : func) (e s : expr typ func)
+    (df : typD (tyArr (tyArr tyStack t) (tyArr tySubst (tyArr tyStack t))))
+    (de : ExprI.exprT tus tvs (typD (tyArr tyStack t)))
+    (ds : ExprI.exprT tus tvs (typD tySubst))
+    (Ho : open_funcS f = Some (of_apply_subst t))
+    (Hf : funcAs f
+            (tyArr (tyArr tyStack t)
+              (tyArr tySubst (tyArr tyStack t))) = Some df)
+    (Hs : exprD' tus tvs tySubst s = Some ds)
+    (He : exprD' tus tvs (tyArr tyStack t) e = Some de) : 
+    exprD' tus tvs (tyArr tyStack t) (mkApplySubst t e s) =
+      Some (exprT_App (exprT_App (fun _ _ => df) de) ds).
+  Proof.
+    unfold mkApplySubst; simpl.
+    pose proof (exprD_typeof_Some _ _ _ _ _ Hs) as Hts.
+    pose proof (exprD_typeof_Some _ _ _ _ _ He) as Hte.
+    autorewrite with exprD_rw; simpl; forward; inv_all; subst.
+    autorewrite with exprD_rw; simpl; forward; inv_all; subst.
+    autorewrite with exprD_rw; simpl; forward; inv_all; subst.
+    pose proof (of_funcAsOk _ Ho) as H3; rewrite H3 in Hf.
+    pose proof (of_fApplySubstOk t) as H5.
+    pose proof (of_funcAsOk _ H5) as H6. rewrite <- H6 in Hf.
+    pose proof (OpenFunc_typeOk _ H5) as H7. simpl in H7.
+    unfold tyArr in *.
+    rewrite (funcAs_Some _ H7).
+    rewrite (funcAs_Some _ H7) in Hf.
+    inv_all; subst. reflexivity.
+  Qed.
+
+
+End MakeOpenSound.

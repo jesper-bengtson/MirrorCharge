@@ -134,6 +134,14 @@ reify_lemma reify_imp rule_skip.
 Defined.
 Print skip_lemma.
 
+Lemma skip_lemma_sound : 
+	lemmaD (exprD'_typ0 (T:=Prop)) nil nil skip_lemma.
+Proof.
+  unfold lemmaD; simpl; intros.
+  unfold exprT_App, exprT_Inj, Rcast_val, Rcast in * ; simpl in *.
+  apply rule_skip. apply H.
+Qed.
+
 Example test_skip_lemma : test_lemma skip_lemma. Admitted.
 
 Definition skip_lemma2 : lemma typ (expr typ func) (expr typ func).
@@ -149,6 +157,14 @@ Proof.
 Defined.
 Print seq_lemma.
 
+Lemma seq_lemma_sound c1 c2 : 
+	lemmaD (exprD'_typ0 (T:=Prop)) nil nil (seq_lemma c1 c2).
+Proof.
+  unfold lemmaD; simpl; intros.
+  unfold exprT_App, exprT_Inj, Rcast_val, Rcast in * ; simpl in *.
+  eapply rule_seq; [apply H | apply H0].
+Qed.
+
 Example test_seq_lemma (c1 c2 : cmd) : test_lemma (seq_lemma c1 c2). Admitted.
 
 Definition if_lemma (e : dexpr) (c1 c2 : cmd) : lemma typ (expr typ func) (expr typ func).
@@ -156,14 +172,66 @@ Proof.
   reify_lemma reify_imp (@rule_if e c1 c2).
 Defined.
 
-Print if_lemma.
+Require Import ExtLib.Tactics.
+(*
+Lemma if_lemma_sound e c1 c2 : 
+	lemmaD (exprD'_typ0 (T:=Prop)) nil nil (if_lemma e c1 c2).
+Proof.
+  remember (exprD nil nil (evalDExpr e) tyExpr).
+  Check rule_if.
+  unfold lemmaD; simpl.
+  unfold lemmaD', exprD'_typ0.
+  unfold le
+  unfold if_lemma.
+  destruct o.
+  unfold exprD in Heqo. simpl in Heqo.
+  remember (ExprDsimul.ExprDenote.exprD' nil nil tyVal (evalDExpr e)).
+  destruct o; inv_all; subst; try congruence.
+  unfold lemmaD, lemmaD', exprD'_typ0, ExprDsimul.ExprDenote.exprD'; simpl in *; intros.
+ unfold ExprDsimul.ExprDenote.exprD' in *; simpl in *; intros.
+ unfold exprT_App, exprT_Inj, Rcast_val, Rcast in *; simpl in *.
+ unfold OpenFunc.typ2_cast_bin, OpenFunc.typ3_cast_bin in *; simpl in *.
+ unfold exprT, OpenT in *; simpl in *.
+ rewrite <- Heqo0.
+ unfold ExprDsimul.ExprDenote.exprD' in Heqo0. simpl in Heqo0.
+ rewrite <- Heqo0.
+ repeat red.
+ setoid_rewrite <- Heqo.
+ rewrite <- Heqo.
+    unfold exprT_App, exprT_Inj, Rcast_val, Rcast in * ; simpl in *.
+    eapply rule_if; [eapply H | eapply H0].
+  + unfold lemmaD; simpl; intros.
+    unfold exprT_App, exprT_Inj, Rcast_val, Rcast in * ; simpl in *.
+    eapply rule_if; [eapply H | eapply H0].
+  + unfold lemmaD; simpl; intros.
+    unfold exprT_App, exprT_Inj, Rcast_val, Rcast in * ; simpl in *.
+    eapply rule_if; [eapply H | eapply H0].
 
+  Print if_lemma.
+  vm_compute.
+  unfold lemmaD'. simpl.
+  unfold exprD'_typ0. simpl.
+  unfold ExprDsimul.ExprDenote.exprD'.
+  simpl.
+  unfold if_lemma. simpl.
+  apply rule_skip. apply H.
+Qed.
+*)
 Example test_if_lemma e (c1 c2 : cmd) : test_lemma (if_lemma e c1 c2). Admitted.
 
 Definition read_lemma (x y : var) (f : field) : lemma typ (expr typ func) (expr typ func).
 Proof.  
   reify_lemma reify_imp (@rule_read_fwd x y f).
 Defined.
+
+Lemma read_lemma_sound x y f : 
+	lemmaD (exprD'_typ0 (T:=Prop)) nil nil (read_lemma x y f).
+Proof.
+  unfold lemmaD; simpl; intros.
+  unfold exprT_App, exprT_Inj, Rcast_val, Rcast, OpenFunc.typ3_cast_bin, OpenFunc.typ2_cast_bin, eq_rect_r in * ; simpl in *.
+  eapply rule_read_fwd; [eapply H | eapply H0].
+Qed.
+
 
 Example test_read_lemma x y f : test_lemma (read_lemma x y f). Admitted.
 
@@ -173,7 +241,21 @@ Definition write_lemma (x : var) (f : field) (e : dexpr) : lemma typ (expr typ f
 Proof.
   reify_lemma reify_imp (@rule_write_fwd x f e).
 Defined.
-Print write_lemma.
+(*
+Lemma write_lemma_sound x f e : 
+	lemmaD (exprD'_typ0 (T:=Prop)) nil nil (write_lemma x f e).
+Proof.
+  induction e.
+  Check evalDExpr.
+  unfold lemmaD, lemmaD'; simpl; intros.
+  unfold exprT_App, exprT_Inj, Rcast_val, Rcast, OpenFunc.typ3_cast_bin, OpenFunc.typ2_cast_bin, eq_rect_r, 
+  fPointsto, typ2_cast_bin, BaseFunc.mkString; simpl.
+  unfold exprD'_typ0; simpl.
+  unfold ExprDsimul.ExprDenote.exprD'; simpl.
+  vm_compute.
+  eapply rule_write_fwd; [eapply H | eapply H0].
+Qed.
+*)
 
 Example test_write_lemma x f e : test_lemma (write_lemma x f e). Admitted.
 
@@ -209,48 +291,254 @@ Proof.
 Defined.
 Eval vm_compute in eq_to_subst_lemma.
 Example test_eq_lemma : test_lemma (eq_to_subst_lemma). Admitted.
+Check rule_static_complete.
+Definition scall_lemma (x : Lang.var) (C : class) (m : string) (es : list dexpr) 
+  : lemma typ (expr typ func) (expr typ func).
+Proof.
+  reify_lemma reify_imp rule_static_complete.
+Qed.
+
+Print scall_lemma.
 
 Print pull_exists_lemma.
 
 Example test_pull_exists : test_lemma (pull_exists_lemma). Admitted.
 
+Require Import MirrorCharge.ModularFunc.BaseFunc.
+
 Definition fieldLookupTac : rtac typ (expr typ func) :=
 	fun tus tvs n m c s e =>
 		match e with
-		  | App (App (App (Inj (inr pFieldLookup)) (Inj (inr (pProg P)))) (Inj (inr (pClass C)))) f =>
-		  	match class_lookup C P with
-    	      | Some Class =>
-    	        match @exprUnify (ctx_subst c) typ func _ _ _ _ _ 3
-                                 tus tvs 0 f (mkFields (c_fields Class)) tyVarList s with
-                  | Some s => Solved s
-                  | None   => Fail
-                end
-    	      | None => Fail 
-		    end
+		  | App (App (App (Inj (inr pFieldLookup)) (Inj (inr (pProg P)))) C) f =>
+		    match baseS C with
+		      | Some C' =>
+		        match C' with
+		          | pString C'' =>
+				  	match class_lookup C'' P with
+		    	      | Some Class =>
+		    	        match @exprUnify (ctx_subst c) typ func _ _ _ _ _ 3
+		                                 tus tvs 0 f (mkFields (c_fields Class)) tyVarList s with
+		                  | Some s => Solved s
+		                  | None   => Fail
+		                end
+		    	      | None => Fail 
+				    end
+				  | _ => Fail
+				end
+			  | None => Fail
+			end
 		  | _ => Fail
 		end.
 
 Definition FIELD_LOOKUP := fieldLookupTac.
 
+Require Import ExtLib.Tactics.
+
+Lemma FIELD_LOOKUP_sound : rtac_sound FIELD_LOOKUP.
+Proof.
+  unfold rtac_sound, rtac_spec; intros.
+  unfold FIELD_LOOKUP, fieldLookupTac in H.
+  destruct g; subst; try apply I.
+  forward.
+  simpl in H10.
+  forward.
+  SearchAbout exprUnify'.
+  Print exprUnify'.
+  Print ExprUnify_common.unify_sound_ind.
+  pose proof (exprUnify_sound).
+  specialize(H13 (ctx_subst ctx) typ func _ _ _ _ _ _ _ _ _ _ 3).
+  red in H13.
+  red in H13.
+  apply H13 with (tv' := nil) in H10; clear H13; [|assumption].
+  forward_reason; split; auto.
+  forward. simpl in H13.
+  simpl in H15.
+  unfold propD, exprD'_typ0 in H15.
+  forward; inv_all; subst.
+  simpl in H15.
+  autorewrite with exprD_rw in H15; [|apply _].
+  simpl in H15; forward; inv_all; subst.
+  autorewrite with exprD_rw in H0; [|apply _].
+  simpl in H0; forward; inv_all; subst.
+  autorewrite with exprD_rw in H2; [|apply _];
+  simpl in H2; forward; inv_all; subst.
+  autorewrite with exprD_rw in H2; [|apply _];
+  simpl in H2; forward; inv_all; subst.
+  unfold funcAs in H2. simpl in H2.
+  forward; inv_all; subst.
+  pose proof (pctxD_substD H12 H14).
+  destruct H as [? [? ?]].
+  specialize (H13 _ _ _ H5 eq_refl H).
+  forward; inv_all; subst.
+  destruct H6 as [? [? ?]].
+  pose proof (substD_pctxD _ H10 H14 H6).
+  destruct H13 as [? [? ?]].
+  simpl in *. unfold Expr_expr.
+  rewrite H13.
+  split. admit.
+  intros. unfold exprT_App, exprT_Inj in *; simpl in *.
+  destruct e0; inv_all; try congruence.
+  destruct f; try congruence.
+  destruct s1; try congruence.
+  destruct s1; try congruence.
+  destruct s1; try congruence.
+  destruct s1; try congruence.
+  destruct s1; try congruence.
+  inv_all; subst. simpl in *.
+  Check Ap_pctxD.
+  gather_facts.
+  eapply Pure_pctxD; eauto.
+  intros.
+  specialize (H7 _ _ H8).
+  destruct H7 as [? ?]. specialize (H15 HList.Hnil). simpl in H15.
+  rewrite H15; clear H15.
+  unfold field_lookup. exists c; split; [|reflexivity].
+  autorewrite with exprD_rw in H3; [|apply _];
+  simpl in H2; forward; inv_all; subst.
+  simpl.
+  unfold eq_rect_r. simpl.
+  
+  Require Import ExtLib.Data.String.
+  
+  Lemma class_lookup_sound s p c (H : class_lookup s p = Some c) : In (s, c) (p_classes p).
+  Proof.
+    destruct p. induction p_classes; simpl in *.
+    * unfold class_lookup in H. simpl in H; congruence.
+    * unfold class_lookup in H. simpl in H.
+      destruct a; simpl in *. consider (s ?[ eq ] s0); intros; subst.
+      + left. rewrite rel_dec_eq_true in H; inv_all; subst; [reflexivity| apply _|reflexivity].
+      + right. rewrite rel_dec_neq_false in H; [apply IHp_classes; apply H | apply _ | apply H0].
+  Qed.
+  
+  apply class_lookup_sound.
+  apply H9.
+Qed.
+
 Require Import MirrorCharge.ModularFunc.ListFunc.
 
-	Definition foldTac (l : list (option (expr typ func))) (e : expr typ func) (args : list (expr typ func))
+	Definition foldTac (e : expr typ func) (args : list (expr typ func))
 	: expr typ func :=
 	  match listS e with
 	    | Some (pFold t u) =>
 	      match args with
 	        | f :: acc :: (Inj (inr (pFields fs)))::nil =>
-	            fold_right (fun x acc => beta (beta (App (App f (mkField x)) acc))) acc fs
+	            fold_right (fun x acc => beta (beta (App (App f (mkString x)) acc))) acc fs
 	        | _ => apps e args
 	      end
 	    | _ => apps e args
 	  end.
 
-Definition FOLD := SIMPLIFY (typ := typ) (fun _ _ _ _ => beta_all foldTac).
+Require Import MirrorCore.Lambda.ExprTac.
+
+  Lemma foldTacOk : partial_reducer_ok foldTac.
+  Proof.
+    unfold partial_reducer_ok; intros.
+    unfold foldTac.
+    remember (listS e); destruct o; [| exists val; tauto].
+    destruct l; try (exists val; tauto).
+    destruct es; try (exists val; tauto).
+    destruct es; try (exists val; tauto).
+    destruct es; try (exists val; tauto).
+    destruct e2; try (exists val; tauto).
+    destruct f; try (exists val; tauto).
+    destruct j; try (exists val; tauto).
+    destruct es; try (exists val; tauto).
+    destruct e; simpl in Heqo; try congruence.
+    destruct f; simpl in Heqo; try congruence.
+    destruct s; simpl in Heqo; try congruence.
+    destruct s; simpl in Heqo; try congruence.
+    destruct s; simpl in Heqo; try congruence.
+    destruct s; simpl in Heqo; try congruence.
+    inv_all; subst.
+    autorewrite with exprD_rw in H; simpl in H; forward; inv_all; subst.
+    autorewrite with exprD_rw in H; simpl in H; forward; inv_all; subst; [|apply _].
+    autorewrite with exprD_rw in H; simpl in H; forward; inv_all; subst; [|apply _].
+    autorewrite with exprD_rw in H0; simpl in H0; forward; inv_all; subst; [|apply _].
+    autorewrite with exprD_rw in H2; simpl in H2; forward; inv_all; subst; [|apply _].
+    unfold funcAs in H2. 
+    Opaque type_cast.
+    simpl in H2. forward; inv_all; subst. red in r. inv_all.
+    inversion r; subst.
+    rewrite (UIP_refl r) in H4. unfold Rcast in H4; simpl in H4.
+    inversion H4; unfold eq_rect_r in H6; simpl in H6.
+    subst. clear H4.
+    clear H2 r.
+    Opaque beta.
+    simpl.
+    unfold exprT_App, eq_rect_r. simpl.
+    cut (exists val' : exprT tus tvs (typD t),
+  ExprDsimul.ExprDenote.exprD' tus tvs t
+    (fold_right
+       (fun (x : string) (acc : expr typ func) =>
+        beta (beta (App (App e0 (mkString x)) acc))) e1 l) = Some val' /\
+  (forall (us : hlist typD tus) (vs : hlist typD tvs),
+   fold_right (e4 us vs) (e3 us vs) (exprT_Inj tus tvs l us vs) = val' us vs)).
+   intros [? [? ?]].
+   eexists; split; [eassumption | intros; apply H4].
+    induction l; simpl; intros.
+
+    + exists e3; tauto.
+    + destruct IHl as [? [? ?]].
+      eexists; split; [|intros; reflexivity].
+
+  Lemma exprD'_remove_beta tus tvs t e de (H : exprD' tus tvs e t = Some de) :
+    exprD' tus tvs (beta e) t = Some de.
+  Proof.
+    pose proof (beta_sound tus tvs e t).
+    unfold exprD' in *. simpl in *. forward; inv_all; subst.
+	Require Import FunctionalExtensionality.
+	f_equal. symmetry.
+    apply functional_extensionality; intros.
+    apply functional_extensionality; intros.
+    apply H2.
+  Qed.
+  
+  
+      do 2 (apply exprD'_remove_beta).
+      unfold exprD'. simpl.
+      
+      red_exprD; [|apply _].
+      pose proof (exprD_typeof_Some).
+      specialize (H5  _ _ _ _ _ _ _ _ _ _ _ _ _ H2). rewrite H5; clear H5.
+      red_exprD; [|apply _].
+      forward; inv_all; subst.
+      unfold mkString. forward.
+      red_exprD; [|apply _]. 
+      Transparent type_cast.
+      unfold funcAs. simpl.
+	  f_equal. unfold exprT_App; simpl. 
+	  unfold eq_rect_r. simpl.
+	  apply functional_extensionality; intros.
+	  apply functional_extensionality; intros.
+	  rewrite H4. reflexivity.
+Qed.
+SearchAbout partial_reducer_ok.
+
+Print partial_reducer_ok.
+Print apps_reducer.
+Print full_reducer_ok.
+Print full_reducer.
+Check @idred.
+SearchAbout idred.
+Print idred.
+Print idred'.
+Definition FOLD := SIMPLIFY (typ := typ) (fun _ _ _ _ => beta_all (fun _ ).
 
 Require Import ExtLib.Tactics.Consider.
 Require Import ExtLib.Tactics.
 Require Import MirrorCore.Lambda.RedAll.
+Print partial_reducer.
+  Lemma foldTacOk : partial_reducer_ok foldTac.
+  Proof.
+    unfold full_reducer_ok; intros.
+    Print var_termsP.
+    Print partial_reducer_ok.
+    unfold exprT, OpenT in P.
+    unfold foldTac.
+    remember (listS e). destruct o.
+    Focus 2.
+    simpl.
+  Qed.
 Lemma FOLD_sound : rtac_sound FOLD.
 Proof.
   unfold FOLD.
@@ -258,6 +546,10 @@ Proof.
   intros; simpl.
   forward.
   rewrite <- H.
+  simpl.
+  unfold propD, exprD'_typ0 in H3; forward; inv_all; subst.
+  destruct (beta_all_sound foldTacOk _ _ e1 H3) as [v [H4 H5]].
+  apply beta_all_sound.
   Check beta_all_sound.
   (* beta_all_sound is missing *)
   admit.
@@ -285,11 +577,15 @@ Proof.
   admit.
 Qed.
 
+Definition THEN' := @MirrorCore.RTac.Then.THEN typ (expr typ func).
+Require Import MirrorCharge.RTac.Minify.
+
+Let EAPPLY lem := THEN' (EAPPLY typ func lem) (MINIFY typ func).
+
 Definition THEN (r1 r2 : rtac typ (expr typ func)) := 
   THEN (THEN (THEN (INSTANTIATE typ func) (runOnGoals r1)) (runOnGoals (INSTANTIATE typ func))) (runOnGoals r2).
 
-Definition EQSUBST := THEN (THEN (APPLY typ func eq_to_subst_lemma) 
-	(INSTANTIATE typ func)) (SUBST typ func).
+Definition EQSUBST := THEN (EAPPLY eq_to_subst_lemma) (SUBST typ func).
 
 
 
@@ -354,7 +650,7 @@ Definition step_unfold vars rw :=
       end.
 
 Definition PULL_TRIPLE_EXISTS : rtac typ (expr typ func) :=
-  THEN (THEN (THEN (APPLY typ func pull_exists_lemma) (INTRO typ func)) (INSTANTIATE typ func)) BETA.
+  THEN (THEN (EAPPLY pull_exists_lemma) (INTRO typ func)) BETA.
 
 Definition solve_entailment (rw : rewriter (typ := typ) (func := func)) : rtac typ (expr typ func) :=
 	THEN (INSTANTIATE typ func) 
@@ -370,42 +666,29 @@ Definition solve_alloc rw : rtac typ (expr typ func) :=
                         FIELD_LOOKUP ::
                         THEN FOLD (solve_entailment rw) :: nil)).
 
-Require Import MirrorCore.RTac.Minify.
 Check MINIFY.
 Print rtacK.
 Check runOnGoals (SUBST typ func).
 Check THENK.
 Print rtacK.
-Definition THEN' := @MirrorCore.RTac.Then.THEN typ (expr typ func).
 
 Definition simStep (rw : rewriter (typ := typ) (func := func)) (r : rtac typ (expr typ func)) :=
-    THEN (THEN' IDTAC (@MINIFY typ (expr typ func) _)) r.
-    (*
-    THEN (THEN (THEN (THEN (THENK (@MINIFY typ func _) (@runOnGoals typ (expr typ func) _ (SUBST typ func)))
+    THEN (THEN (THEN (THEN (SUBST typ func)
     	(TRY PULL_TRIPLE_EXISTS)) (STEP_REWRITE rw)) (REPEAT 10 PULL_TRIPLE_EXISTS)) r.
-*)
-Set Printing Depth 100.
-Check MirrorCore.RTac.ThenK.THENK.
-Check FIRST.
+
+
+Require Import MirrorCharge.RTac.Minify.
+
 Fixpoint tripleE (c : cmd) rw : rtac typ (expr typ func) :=
 	match c with
-	    | cskip => simStep rw (THEN' (APPLY typ func skip_lemma) 
-	                 (THENK (@MINIFY typ (expr typ func) _)
-	                   (THENK (runOnGoals (solve_entailment rw))
-	                      (@MINIFY typ (expr typ func) _))))
-	    | calloc x C => simStep rw (THEN (EAPPLY typ func (alloc_lemma x C)) 
-	    	(FIRST (solve_alloc rw :: solve_entailment rw :: nil)))
-		| cseq c1 c2 => simStep rw (THEN (EAPPLY typ func (seq_lemma c1 c2))
-						              
-						                (FIRST ((fun x => tripleE c1 rw x)::(fun x => tripleE c2 rw x)::nil)))
-						                
-(*		| cseq c1 c2 => simStep rw (THEN' (EAPPLY typ func (seq_lemma c1 c2))
-						              (THENK (@MINIFY typ (expr typ func) _) 
-						                (THENK (runOnGoals (FIRST ((fun x => tripleE c1 rw x)::(fun x => tripleE c2 rw x)::nil))
-						                ) (@MINIFY typ (expr typ func) _))))
-*)		| cassign x e => simStep rw (THEN (EAPPLY typ func (assign_lemma x e)) (solve_entailment rw))
-		| cread x y f => simStep rw (THEN (EAPPLY typ func (read_lemma x y f)) (solve_entailment rw))
-		| cwrite x f e => simStep rw (THEN (EAPPLY typ func (write_lemma x f e)) (solve_entailment rw))
+	    | cskip => simStep rw (THEN (EAPPLY skip_lemma) (solve_entailment rw))
+	    | calloc x C => simStep rw (THEN (EAPPLY (alloc_lemma x C)) 
+	        (FIRST (solve_alloc rw::solve_entailment rw::nil)))
+		| cseq c1 c2 => simStep rw (THEN' (EAPPLY (seq_lemma c1 c2))
+		    (THENK (runOnGoals (TRY (tripleE c1 rw))) (THENK (MINIFY typ func) (runOnGoals (tripleE c2 rw)))))
+		| cassign x e => simStep rw (THEN (EAPPLY (assign_lemma x e)) (solve_entailment rw))
+		| cread x y f => simStep rw (THEN (EAPPLY (read_lemma x y f)) (solve_entailment rw))
+		| cwrite x f e => simStep rw (THEN (EAPPLY (write_lemma x f e)) (solve_entailment rw))
 		| _ => IDTAC
 	end.
 
@@ -438,17 +721,7 @@ Definition mkPointsto (x : expr typ func) (f : field) (e : expr typ func) : expr
                     (mkConst (tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn))) 
                              fPointsto)
                     x)
-              (mkConst tyString (mkField f)))
-        e.
-        
-Definition mkPointstoVar x f e : expr typ func :=
-   mkAp tyVal tyAsn 
-        (mkAp tyString (tyArr tyVal tyAsn)
-              (mkAp tyVal (tyArr tyString (tyArr tyVal tyAsn))
-                    (mkConst (tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn))) 
-                             fPointsto)
-                    (App fStackGet (mkVar x)))
-              (mkConst tyString (mkField f)))
+              (mkConst tyString (mkString f)))
         e.
         
 Require Import Java.Semantics.OperationalSemantics.
@@ -457,331 +730,12 @@ Require Import Java.Logic.AssertionLogic.
 Require Import Java.Examples.ListClass.
 Require Import Charge.Logics.ILogic.
 
-Definition typecheck_goal g :=
-  match goalD nil nil g with
-    | None => false
-    | Some _ => true
-  end.
-
 Fixpoint seq_skip n := 
 	match n with
 	  | 0 => cskip
 	  | S n => cseq cskip (seq_skip n)
 	end.
-	Check triple.
 
-Ltac solve_equation :=
-	intros; repeat ((repeat eexists); try reflexivity).
-	
-Definition goalD_Prop (uvar_env var_env : env) goal :=
-  let (tus, us) := split_env uvar_env in
-  let (tvs, vs) := split_env var_env in
-  match goalD tus tvs goal with
-    | Some e => e us vs
-    | None => False
-  end.
-  
-Definition exprD_Prop (uvar_env var_env : env) e :=
-  match exprD uvar_env var_env e tyProp with
-    | Some e' => e' 
-    | None => True
-  end.
-(*
-Ltac cbv_denote :=
-          cbv [
-          goalD_aux
-          
-		  (* ExprD' *)
-          exprD' funcAs  typeof_sym typeof_func type_cast type_cast_typ
-          exprD'_simul func_simul
-          ExprD.Expr_expr
-          ExprDsimul.ExprDenote.exprD'
-          (* RSym *)
-          
-          SymSum.RSym_sum Rcast Relim Rsym eq_sym symD RSym_env
-          Rcast_val eq_rect_r eq_rect Datatypes.id
-          
-          (* Monad *)
-          
-          Monad.bind Monad.ret
-          
-          OptionMonad.Monad_option
-          
-          (* HList *)
-          
-          HList.hlist_hd HList.hlist_tl
-          
-          (* TypesI *)
-          
-          TypesI.typD 
-          typ2_match typ2 typ2_cast
-          typ0_match typ0 typ0_cast SubstTypeD_typ
-          (* ExprI *)
-          
-          MirrorCore.VariablesI.Var ExprVariables.ExprVar_expr
-          MirrorCore.VariablesI.UVar
-          MirrorCore.Lambda.ExprVariables.ExprUVar_expr
-          ExprI.exprT_Inj ExprI.exprT_UseV ExprI.exprT_UseU
-          exprT_App ExprI.exprT OpenT
-          nth_error_get_hlist_nth
-          
-          exprT_GetVAs exprT_GetUAs
-          
-          (* ILogicFunc*)
-          
-          ILogicFunc.mkEntails ILogicFunc.mkTrue ILogicFunc.mkFalse 
-          ILogicFunc.mkAnd ILogicFunc.mkOr ILogicFunc.mkImpl
-          ILogicFunc.mkExists ILogicFunc.mkForall
-          
-          ILogicFunc.fEntails ILogicFunc.fTrue ILogicFunc.fFalse ILogicFunc.fAnd 
-          ILogicFunc.fOr ILogicFunc.fImpl ILogicFunc.fExists ILogicFunc.fForall
-          ILogicFuncSumL ILogicFuncSumR ILogicFuncExpr
-          ILogicFunc.RSym_ilfunc 
-          MirrorCharge.ModularFunc.ILogicFunc.ILogicFuncInst
-          
-          ILogicFunc.funcD ILogicFunc.typ2_cast_quant ILogicFunc.typ2_cast_bin
-          
-          (* BILogicFunc *)
-          
-          BILogicFunc.mkEmp BILogicFunc.mkStar BILogicFunc.mkWand
-          
-          BILogicFunc.fEmp BILogicFunc.fStar BILogicFunc.fWand
-          
-          BILogicFuncSumL BILogicFuncSumR BILogicFuncExpr
-          BILogicFunc.RSym_bilfunc BILogicFunc.BILogicFuncInst
-          
-          BILogicFunc.funcD BILogicFunc.typ2_cast_bin
-          
-          BILogicFunc.typeof_bilfunc
-          
-          (* LaterFunc *)
-          
-          LaterFunc.mkLater
-          
-          LaterFunc.fLater
-          
-          LaterFunc.LaterFuncSumL LaterFunc.LaterFuncSumR LaterFunc.LaterFuncExpr          
-          LaterFunc.RSym_later_func LaterFunc.LaterFuncInst
-          
-          LaterFunc.funcD LaterFunc.typ2_cast'
-          
-          LaterFunc.typeof_later_func
-          
-          (* EmbedFunc *)
-          
-          EmbedFunc.mkEmbed
-          
-          EmbedFunc.fEmbed
-          
-          EmbedFunc.EmbedFuncSumL EmbedFunc.EmbedFuncSumR EmbedFuncExpr
-          EmbedFunc.RSym_embed_func EmbedFunc.EmbedFuncInst
-          
-          EmbedFunc.funcD EmbedFunc.typ2_cast_bin
-          
-
-          EmbedFunc.typeof_embed_func
-          
-          (* BaseFunc *)
-          
-          BaseFunc.BaseFuncSumL BaseFunc.BaseFuncSumR BaseFunc.BaseFuncExpr
-          
-          BaseFunc.BaseFuncInst
-          BaseFunc.mkNat BaseFunc.mkString BaseFunc.mkBool
-          BaseFunc.mkEq BaseFunc.mkPair
-          
-          BaseFunc.fNat BaseFunc.fString BaseFunc.fBool
-          BaseFunc.fEq BaseFunc.fPair
-          
-          BaseFunc.RSym_BaseFunc
-          
-          BaseFunc.typeof_base_func BaseFunc.base_func_eq BaseFunc.base_func_symD
-          BaseFunc.RelDec_base_func
-          
-          (* ListFunc *)
-          
-          ListFunc.ListFuncSumL ListFunc.ListFuncSumR ListFunc.ListFuncExpr
-          
-          ListFunc.ListFuncInst
-          ListFunc.mkNil ListFunc.mkCons ListFunc.mkLength 
-          ListFunc.mkZip ListFunc.mkMap ListFunc.mkFold
-          
-          ListFunc.fNil ListFunc.fCons ListFunc.fLength
-          ListFunc.fZip ListFunc.fMap ListFunc.fFold
-          
-          ListFunc.typeof_list_func ListFunc.list_func_eq ListFunc.list_func_symD
-          ListFunc.RelDec_list_func
-          
-		  (* OpenFunc *)
-		  
-		  OpenFunc.mkConst OpenFunc.mkAp OpenFunc.mkVar OpenFunc.mkNull OpenFunc.mkStackGet
-		  OpenFunc.mkStackSet OpenFunc.mkApplySubst OpenFunc.mkSingleSubst OpenFunc.mkSubst
-		  OpenFunc.mkTruncSubst
-		    
-		  OpenFunc.fConst OpenFunc.fAp OpenFunc.fVar OpenFunc.fNull OpenFunc.fStackGet
-		  OpenFunc.fApplySubst OpenFunc.fSingleSubst OpenFunc.fSubst OpenFunc.fTruncSubst
-		  
-		  OpenFunc.OpenFuncSumL OpenFunc.OpenFuncSumR OpenFunc.OpenFuncExpr
-		  OpenFunc.OpenFuncInst
-		  
-		  OpenFunc.typeof_open_func OpenFunc.RSym_OpenFunc
-		  OpenFunc.typ2_cast_bin OpenFunc.typ3_cast_bin
-		  OpenFunc.RelDec_open_func
-		  
-		  RSym_OpenFunc_obligation_1
-
-          (* BaseType *)
-          
-          BaseType.tyPair BaseType.tyNat BaseType.tyString BaseType.tyBool
-          BaseType.btPair BaseType.btNat BaseType.btBool BaseType.btString
-          
-          (* ListType *)
-          
-          ListType.tyList ListType.btList
-          
-          (* SubstType *)
-          
-          SubstType.tyVar SubstType.tyVal SubstType.tySubst
-          SubstType.stSubst
-          
-          (* JavaType *)
-         
-          Typ2_Fun Typ0_Prop RType_typ typD
-          should_not_be_necessary should_also_not_be_necessary
-         
-          JavaType.BaseType_typ JavaType.BaseTypeD_typ JavaType.ListType_typ
-          JavaType.ListTypeD_typ JavaType.bilops JavaType.ilops
-          JavaType.eops JavaType.lops
-          
-       (*   JavaType.typD *)
-		 (* JavaFunc *)
-          
-          ilops is_pure func RSym_JavaFunc typeof_java_func java_func_eq
-          java_func_symD RelDec_java_func
-                   
-          RSym_ilfunc RSym_open_func RSym_OpenFunc RSym_ListFunc
-          JavaFunc.RSym_bilfunc JavaFunc.RSym_embed_func JavaFunc.RSym_later_func
-          JavaFunc.RSym_ilfunc
-          JavaFunc.Expr_expr
-          mkPointstoVar
-          
-          JavaFunc.mkField JavaFunc.mkClass JavaFunc.mkVal JavaFunc.mkVarList
-          JavaFunc.mkProg JavaFunc.mkCmd JavaFunc.mkDExpr JavaFunc.mkFields
-          JavaFunc.fMethodSpec JavaFunc.fProgEq JavaFunc.fTriple JavaFunc.fTypeOf
-          JavaFunc.fFieldLookup JavaFunc.fPointsto JavaFunc.mkNull
-          JavaFunc.fPlus JavaFunc.fMinus JavaFunc.fTimes JavaFunc.fAnd
-          JavaFunc.fOr JavaFunc.fNot JavaFunc.fLt JavaFunc.fValEq
-          JavaFunc.mkTriple JavaFunc.mkFieldLookup JavaFunc.mkTypeOf
-          JavaFunc.mkProgEq JavaFunc.mkExprList JavaFunc.evalDExpr
-          
-(* OTHER *)
-  
-          SubstType_typ
-          
-          goalD propD exprD'_typ0 exprD split_env
-          
-          amap_substD
-          substD
-          SUBST.raw_substD
-          UVarMap.MAP.fold
-          FMapPositive.PositiveMap.fold
-          FMapPositive.PositiveMap.xfoldi
-          FMapPositive.append
-          UVarMap.MAP.from_key
-          pred
-          plus
-          Pos.to_nat
-          Pos.iter_op
-          app
-          HList.hlist_app
-          Quant._foralls
-          Quant._exists
-          goalD_Prop
-          ].
-
-Lemma run_rtac_More tac s goal e
-  (Hsound : rtac_sound tac) 
-  (Hres : run_tac tac (GGoal e) = More_ s goal) :
-  goalD_Prop nil nil goal -> exprD_Prop nil nil e.
-Proof.
-  intros He'.
-  apply runOnGoals_sound_ind with (g := GGoal e) (ctx := CTop nil nil) 
-  	(s0 := TopSubst (expr typ func) nil nil) in Hsound.
-  unfold rtac_spec in Hsound. simpl in Hsound.
-  unfold run_tac in Hres. simpl in Hres.
-  rewrite Hres in Hsound.
-  assert (WellFormed_Goal nil nil (GGoal (typ := typ) e)) as H1 by constructor.
-  assert (WellFormed_ctx_subst (TopSubst (expr typ func) nil (@nil typ))) as H2 by constructor.
-  specialize (Hsound H1 H2).
-  destruct Hsound as [Hwfs [Hwfg Hsound]].
-  unfold propD, exprD'_typ0 in Hsound.
-  simpl in Hsound. unfold exprD_Prop, exprD; simpl.
-  forward; inv_all; subst.
-
-  destruct Hsound.
-  inversion Hwfs; subst.
-  simpl in H0; inv_all; subst.
-  unfold pctxD in H0; inv_all; subst.
-  apply H5.
-  unfold goalD_Prop in He'. simpl in He'. forward; inv_all; subst.
-Qed.
-
-Lemma run_rtac_Solved tac s e
-  (Hsound : rtac_sound tac) 
-  (Hres : run_tac tac (GGoal e) = Solved s) :
-  exprD_Prop nil nil e.
-Proof.
-  unfold run_tac in Hres.
-  unfold rtac_sound in Hsound.
-  assert (WellFormed_Goal nil nil (GGoal (typ := typ) e)) as H1 by constructor.
-  assert (WellFormed_ctx_subst (TopSubst (expr typ func) nil (@nil typ))) as H2 by constructor.
-  specialize (Hsound _ _ _ _ Hres H1 H2).
-  destruct Hsound as [Hwfs Hsound].
-  simpl in Hsound.
-  unfold propD, exprD'_typ0 in Hsound.
-  unfold exprD_Prop.
-  
-  simpl in Hsound. unfold exprD. simpl. forward.
-  destruct Hsound. 
-  SearchAbout pctxD.
-  inversion Hwfs; subst. simpl in H8. inv_all; subst.
-  admit.
-Qed.
-
-Ltac run_rtac tac_sound :=
-  match type of tac_sound with
-    | rtac_sound ?tac =>
-	  let name := fresh "e" in
-	  match goal with
-	    | |- ?P => 
-	      reify_aux P name;
-	      let t := eval vm_compute in (typeof_expr nil nil name) in
-	      let goal := eval unfold name in name in
-	      match t with
-	        | Some ?t =>
-	          let goal_result := constr:(run_tac tac (GGoal name)) in 
-	          let result := eval vm_compute in goal_result in
-	          match result with
-	            | More_ ?s ?g => 
-	              cut (goalD_Prop nil nil g); [
-	                let goal_resultV := g in
-	               (* change (goalD_Prop nil nil goal_resultV -> exprD_Prop nil nil name);*)
-	                exact_no_check (@run_rtac_More tac _ _ _ tac_sound
-	                	(@eq_refl (Result (CTop nil nil)) (More_ s goal_resultV) <:
-	                	   run_tac tac (GGoal goal) = (More_ s goal_resultV)))
-	                | cbv_denote
-	              ]
-	            | Solved ?s =>
-	              exact_no_check (@run_rtac_Solved tac s name tac_sound 
-	                (@eq_refl (Result (CTop nil nil)) (Solved s) <: run_tac tac (GGoal goal) = Solved s))
-	            | Fail => idtac "Tactic" tac "failed."
-	            | _ => idtac "Error: run_rtac could not resolve the result from the tactic :" tac
-	          end
-	        | None => idtac "expression " goal "is ill typed" t
-	      end
-	  end
-	| _ => idtac tac_sound "is not a soudness theorem."
-  end.
-*)
 Require Import ExtLib.Structures.Applicative.
 Local Instance Applicative_Fun A : Applicative (Fun A) :=
 { pure := fun _ x _ => x
@@ -791,16 +745,35 @@ Local Instance Applicative_Fun A : Applicative (Fun A) :=
 Definition testSkip n : Prop :=
   forall (G : spec) (P : sasn), G |-- triple P P (seq_skip n).
 
-Require Import MirrorCharge.RTac.Tactics.
+Lemma INTRO_sound : rtac_sound (INTRO typ func).
+Proof.
+  admit.
+Qed.
 
-Lemma test_skip_lemma3 : testSkip 0.
+Require Import MirrorCharge.RTac.Tactics.
+Check IDTAC_sound.
+
+Ltac rtac_result reify term_table tac :=
+	  let name := fresh "e" in
+	  match goal with
+	    | |- ?P => 
+	      reify_aux reify term_table P name;
+	      let t := eval vm_compute in (typeof_expr nil nil name) in
+	      let goal := eval unfold name in name in 
+	      match t with
+	        | Some ?t =>
+	          let goal_result := constr:(run_tac tac (GGoal name)) in 
+	          let result := eval vm_compute in goal_result in 
+	          idtac result
+	        | None => idtac "expression " goal "is ill typed" t 
+	      end
+	  end.
+	  
+Lemma test_skip_lemma3 : testSkip 100.
 Proof.
   idtac "start".
   unfold testSkip; simpl.
   Time run_rtac reify_imp term_table (@runTac_sound rw_fail).
-  Print THEN.
-  intros.
-  eexists. eexists. eexists. eexists.
 Time Qed.
 
 Definition test_alloc : expr typ func :=
@@ -812,123 +785,11 @@ Require Import Charge.Logics.BILogic.
   Lemma test_alloc_correct : 
   prog_eq ListProg |-- triple empSP lfalse ((calloc "x" "NodeC");;Skip).
 Proof.
-  Time run_rtac (@runTac_sound rw_fail).
-  simpl.
-(*
-  eexists.
-  eexists.
-  eexists.
-  eexists.
-  
-  split.
-  split.
-  split.
-  split.
-  reflexivity.
-  split.
-  reflexivity.
-  split.
-  reflexivity.
-  apply I.
-  eexists.  
-  eexists.
-  eexists.
-  eexists.
-  eexists.
-  eexists.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  eexists.
-  eexists.
-  eexists.
-  eexists.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  intros.
-  eexists.
-  eexists.
-  eexists.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  eexists.
-  eexists.
-  eexists.
-  eexists.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  split.
-  reflexivity.
-   eexists. 
-  split.
-  eexists.
-  do 3 eexists.
-  solve_equation.
-*)
-admit.
+  Time run_rtac reify_imp term_table (@runTac_sound rw_fail).
+  admit.
 Qed.
-(*
-Eval vm_compute in runTac test_alloc rw_fail.
-*)
-Definition runTac2 (tac : expr typ func) rw := 
-   (THEN (THEN (THEN (THEN (REPEAT 1000 (INTRO typ func)) (symE rw)) 
-	(INSTANTIATE typ func)) BETA) (CANCELLATION typ func tySasn is_pure))
-	 nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ func)) tac.
-Check @App.
-Definition test_read : expr typ func := 
-    mkExists tySasn tyProp
-  	(mkEntails tySpec (mkTrue tySpec)
-  	           (mkTriple (mkPointstoVar "o" "f" (mkConst tyVal (mkVal (vint 3))))
-  	                     (mkCmd (cseq (cread "x" "o" "f") cskip))
-  	                     (Var 0))).
 
-Eval vm_compute in (CANCELLATION typ func tySasn is_pure) nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ func))
-  (mkEntails tySasn (mkTrue tySasn) (mkTrue tySasn)).
-  
-
-(*
-Definition test_read2 :=
-  	(mkEntails tySpec (mkTrue tySpec)
-  	           (mkTriple (mkPointstoVar "o" "f" (mkConst tyVal (mkVal (vint 3))))
-  	                     (mkCmd (cseq (cread "x" "o" "f") cskip))
-  	                     (mkPointstoVar "o" "f" (mkConst tyVal (mkVal (vint 3)))))).
-*)  	                     
-
-Check ExtLib.Structures.Applicative.pure.
-
-
-Lemma test_read2 : ltrue |-- 
+Lemma test_read : ltrue |-- 
     triple 
       (ap_pointsto [("o": var), ("f" : field), pure (T := Fun (Lang.stack)) (vint 3)] ** 
        ap_pointsto [("o": var), ("g" : field), pure (T := Fun (Lang.stack)) (vint 4)]) 
@@ -936,7 +797,7 @@ Lemma test_read2 : ltrue |--
       (ap_pointsto [("o": var), ("g": field), pure (T := Fun (Lang.stack)) (vint 4)]))
       (cseq (cread "x" "o" "f") (cseq (cread "y" "o" "g") cskip)).                    
 Proof.
-  Time run_rtac (@runTac_sound rw_fail).
+  Time run_rtac reify_imp term_table (@runTac_sound rw_fail).
 Qed.
 
 Lemma test_write :
@@ -946,16 +807,15 @@ Lemma test_write :
       (ap_pointsto [("o": var), ("f": field), pure (T := Fun (Lang.stack)) (vint 4)])
       (cseq (cwrite "o" "f" (E_val (vint 4))) cskip).                    
 Proof.
-  Time run_rtac (@runTac_sound rw_fail).
+  Time run_rtac reify_imp term_table (@runTac_sound rw_fail).
 Qed.
-*)
-Require Import Charge.Logics.BILogic.
+
 Require Import BinInt.
-SearchAbout nat Z.
+
 Fixpoint mkSwapPre n : sasn :=
 	match n with
 	  | 0   => empSP
-	  | S n => ap_pointsto [("o": var), (append "f" (nat2string10 n) : field), 
+	  | S n => ap_pointsto [("o": Lang.var), (append "f" (nat2string10 n) : field), 
 	  	                     (eval (E_val (vint (Z.of_nat n))))] **
 	           mkSwapPre n
 	end.  
@@ -964,7 +824,7 @@ Fixpoint mkSwapPre n : sasn :=
 Fixpoint mkSwapPostAux n m :=
   match n with
     | 0 => empSP
-	| S n => ap_pointsto [("o": var), (append "f" (nat2string10 n) : field), 
+	| S n => ap_pointsto [("o": Lang.var), (append "f" (nat2string10 n) : field), 
 	  	                     (eval (E_val (vint (Z.of_nat (m - (S n))))))] **
 	         mkSwapPostAux n m
   end.           
@@ -974,53 +834,29 @@ Definition mkSwapPost n := mkSwapPostAux n n.
 Fixpoint mkRead n c :=
 	match n with
 	  | 0 => c
-	  | S n => cseq (cread ((append "x" (nat2string10 n):var)) ("o":var) ((append "f" (nat2string10 n)):field))
+	  | S n => cseq (cread ((append "x" (nat2string10 n):Lang.var)) ("o":Lang.var) ((append "f" (nat2string10 n)):field))
 	                (mkRead n c)
     end.
 						
 Fixpoint mkWriteAux n m c :=
 	match n with
 	  | 0 => c
-	  | S n => cseq (cwrite ("o":var) (append "f" (nat2string10 n)) (E_var (append "x" (nat2string10 (m - (S n))))))
+	  | S n => cseq (cwrite ("o":Lang.var) (append "f" (nat2string10 n)) (E_var (append "x" (nat2string10 (m - (S n))))))
 	                (mkWriteAux n m c)
     end.
 
 Definition mkWrite n c := mkWriteAux n n c.
 
-Definition mkSwapProg (n : nat) (c : cmd) := mkRead n (*(mkWrite n c) *) c.
+Definition mkSwapProg (n : nat) (c : cmd) := mkRead n (mkWrite n c).
 	
 Definition mkSwap n :=
 	ltrue |-- triple (mkSwapPre n) (mkSwapPost n) (mkSwapProg n cskip).
 
-Lemma test_swap : mkSwap 1.
+Set Printing Depth 100.
+
+Lemma test_swap : mkSwap 5.
 Proof.
   Opaque ap.
   unfold mkSwap, mkSwapPre, mkSwapPost, mkSwapProg, mkSwapPostAux, mkRead, mkWrite, mkWriteAux.
-  run_rtac (@runTac_sound rw_fail).
-  repeat eexists.
-  reflexivity.
-  reflexivity.
-  admit.
-Qed.
-  cbv [SubstTypeD_typ].
-  simpl.
-  assert (("o" : String.string) = "o").
-  simpl.
-  cbv [mkRead mkWrite mkWriteAux app nat2string10 nat2string Wf.Fix_sub Wf.Fix_F_sub NPeano.ltb NPeano.leb
-       Char.digit2ascii ascii_of_nat nat_of_ascii BinNat.N.of_nat BinNat.N.to_nat N_of_ascii ascii_of_N
-       N_of_digits BinNat.N.add BinNat.N.mul].
-  run
-  
-Time Eval vm_compute in runTac (mkSwap 4) rw_fail.
-
-Time Eval vm_compute in 
-	match (runTac (mkSwap 20) rw_fail) with
-		| More_ _ g => 
-		  Some (match goalD nil nil g with
-		          | Some _ => true
-		          | _ => false
-		        end
-		       )
-		| _ => None
-	end.
-
+  Time run_rtac reify_imp term_table (@runTac_sound rw_fail).
+Time Qed.

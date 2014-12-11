@@ -38,10 +38,7 @@ Require Import MirrorCharge.ModularFunc.EmbedFunc.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-
 	Inductive java_func :=
-	| pField (_ : field)
-	| pClass (_ : class)
 	| pVal (_ : val)
 	| pVarList (_ : list var) 
 	| pProg (_ : Program)
@@ -76,8 +73,6 @@ Set Strict Implicit.
 
 	Definition typeof_java_func bf :=
 		match bf with
-		    | pField _ => Some tyString
-		    | pClass _ => Some tyString
 		    | pVal _ => Some tyVal
 		    | pVarList _ => Some tyVarList
 		    | pProg _ => Some tyProg
@@ -110,8 +105,6 @@ Set Strict Implicit.
 
 	Definition java_func_eq (a b : java_func) : option bool :=
 	  match a , b with
-	    | pField a, pField b => Some (a ?[ eq ] b)
-	    | pClass a, pClass b => Some (a ?[ eq ] b)
 		| pVal a, pVal b => Some (a ?[ eq ] b)
 	    | pVarList a, pVarList b => Some (a ?[ eq ] b)
 	    | pProg a, pProg b => Some (a ?[ eq ] b)
@@ -163,8 +156,6 @@ Definition set_fold_fun (x : String.string) (f : field) (P : sasn) :=
 								| Some t => typD t
 								| None => unit
 							  end with
-              | pClass c => c
-              | pField f => f
               | pProg p => p
               | pVal v => v
               | pVarList vs => vs
@@ -200,14 +191,10 @@ Definition set_fold_fun (x : String.string) (f : field) (P : sasn) :=
 	  sym_eqb := java_func_eq
 	}.
 
-Print SymI.RSymOk.
-
 	Global Instance RSymOk_JavaFunc : SymI.RSymOk RSym_JavaFunc.
 	Proof.
 		split; intros.
 		destruct a, b; simpl; try apply I; try reflexivity.
-		+ consider (f ?[ eq ] f0); intuition congruence.
-		+ consider (c ?[ eq ] c0); intuition congruence.
 		+ consider (v ?[ eq ] v0); intuition congruence.
 		+ consider (l ?[ eq ] l0); intuition congruence.
 		+ consider (p ?[ eq ] p0); intuition congruence. 
@@ -221,8 +208,6 @@ Definition func := (SymEnv.func + @ilfunc typ + @bilfunc typ +
                     @embed_func typ + @later_func typ + java_func)%type.
 
 Section MakeJavaFunc.
-	Definition mkField f : expr typ func := Inj (inr (pField f)).
-	Definition mkClass c : expr typ func := Inj (inr (pClass c)).
 	Definition mkVal v : expr typ func := Inj (inr (pVal v)).
 	Definition mkVarList vs : expr typ func := Inj (inr (pVarList vs)).
 	Definition mkProg P : expr typ func := Inj (inr (pProg P)).
@@ -260,7 +245,7 @@ Section MakeJavaFunc.
 	Fixpoint evalDExpr (e : dexpr) : expr typ func :=
 		match e with
 			| E_val v => mkConst tyVal (mkVal v)
-			| E_var x => App (fStackGet (func := expr typ func)) (mkVar (func := func) x)
+			| E_var x => App (fStackGet (func := expr typ func)) (mkString (func := func) x)
 			| E_plus e1 e2 => mkAps fPlus ((evalDExpr e2, tyVal)::(evalDExpr e1, tyVal)::nil) tyVal
 			| E_minus e1 e2 => mkAps fMinus ((evalDExpr e2, tyVal)::(evalDExpr e1, tyVal)::nil) tyVal
 			| E_times e1 e2 => mkAps fTimes ((evalDExpr e2, tyVal)::(evalDExpr e1, tyVal)::nil) tyVal
@@ -283,10 +268,8 @@ Definition fs : @SymEnv.functions typ _ :=
 
 (*Definition fs : @SymEnv.functions typ _ := SymEnv.from_list nil.
 *)
-Locate RSym_func.
-Instance RSym_env : RSym SymEnv.func := RSym_func fs.
 
-Print RSymOk.
+Instance RSym_env : RSym SymEnv.func := RSym_func fs.
 
 Instance RSym_ilfunc : RSym (@ilfunc typ) := 
 	RSym_ilfunc _ _ ilops.
@@ -314,16 +297,18 @@ Require Import MirrorCore.Lambda.ExprVariables.
 Instance ExprVar_expr : ExprVar (expr typ func) := _.
 Instance ExprVarOk_expr : ExprVarOk ExprVar_expr := _.
 
+Instance ExprUVar_expr : ExprUVar (expr typ func) := _.
+Instance ExprUVarOk_expr : ExprUVarOk ExprUVar_expr := _.
+
 Definition subst : Type :=
   FMapSubst.SUBST.raw (expr typ func).
 Instance SS : SubstI.Subst subst (expr typ func) :=
   @FMapSubst.SUBST.Subst_subst _.
-  (*
 Instance SU : SubstI.SubstUpdate subst (expr typ func) :=
-  FMapSubst.SUBST.SubstUpdate_subst (@instantiate typ _ _ _ func). 
+  @FMapSubst.SUBST.SubstUpdate_subst _ _. 
 Instance SO : SubstI.SubstOk SS := 
   @FMapSubst.SUBST.SubstOk_subst typ RType_typ (expr typ func) _ _.
-*)
+Instance SUO :SubstI.SubstUpdateOk SU SO :=  @FMapSubst.SUBST.SubstUpdateOk_subst typ RType_typ (expr typ func) _ _ _.
 
 Instance MA : MentionsAny (expr typ func) := {
   mentionsAny := ExprCore.mentionsAny
@@ -372,8 +357,8 @@ Definition mkPointstoVar x f e : expr typ func :=
               (mkAp tyVal (tyArr tyString (tyArr tyVal tyAsn))
                     (mkConst (tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn))) 
                              fPointsto)
-                    (App fStackGet (mkVar x)))
-              (mkConst tyString (mkField f)))
+                    (App fStackGet (mkString x)))
+              (mkConst tyString (mkString f)))
         e.
 
 Definition test_lemma :=

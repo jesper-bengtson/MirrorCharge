@@ -41,7 +41,7 @@ Definition mkList (p : var) (xs : expr typ JavaFunc.func) : expr typ JavaFunc.fu
 	 mkAps fList 
 	 	((xs, tyList tyVal)::
 	 	(((App (fStackGet (func := expr typ JavaFunc.func)) 
-	 	(mkVar (func := JavaFunc.func) p)), tyVal)::nil)) tyAsn.
+	 	(mkString (func := JavaFunc.func) p)), tyVal)::nil)) tyAsn.
 
 Definition mkNode (p xs : expr typ JavaFunc.func) :=
 	 mkAps fNode 
@@ -52,7 +52,7 @@ Definition apCons t (p : var) (xs : expr typ JavaFunc.func) :=
 	mkAps (fCons (func := expr typ JavaFunc.func) tyVal)
 	 	((xs, tyList t)::
 	 	(((App (fStackGet (func := expr typ JavaFunc.func)) 
-	 	(mkVar (func := JavaFunc.func) p)), tyVal)::nil)) (tyList t).
+	 	(mkString (func := JavaFunc.func) p)), tyVal)::nil)) (tyList t).
 
 Definition rw_true (e : expr typ JavaFunc.func) 
 	(rvars : list (RG (expr typ JavaFunc.func))) (rg : RG (expr typ JavaFunc.func)) :
@@ -73,14 +73,6 @@ Eval vm_compute in typeof_expr nil nil (mkExists tyVal tySasn
 
 (* Unfold predicate for list *)
 
-Definition test_op : expr typ JavaFunc.func :=
-  ((App (Inj (inl (inl (inl (inr of_stack_get))))) 
-  (Inj (inl (inl (inl (inr (of_var "p")))))))).
-
-Eval vm_compute in typeof_expr nil nil test_op.
-
-Eval vm_compute in mkNode (Var 0) (apCons tyVal "n" (Var 0)).
-
 Definition rw_unfold_list (e : expr typ JavaFunc.func) 
 	(rvars : list (RG (expr typ JavaFunc.func))) (rg : RG (expr typ JavaFunc.func)) :
  	m (expr typ JavaFunc.func) :=
@@ -91,7 +83,7 @@ Definition rw_unfold_list (e : expr typ JavaFunc.func)
               (App (Inj (inl (inl (inl (inr (of_ap tyVal (tyArr (tyList tyVal) tyAsn)))))))
                  (App (Inj (inl (inl (inl (inr (of_const (tyArr tyVal (tyArr (tyList tyVal) tyAsn))))))))
                     (Inj (inl (inl (inl (inl (inl (inl (inl (inl 1%positive)))))))))))
-              (App (Inj (inl (inl (inl (inr of_stack_get))))) (Inj (inl (inl (inl (inr (of_var p)))))))))
+              (App (Inj (inl (inl (inl (inr of_stack_get))))) (Inj (inl (inl (inl (inl (inl (inr (pString p)))))))))))
         xs =>
           rg_plus
             (rg_bind (unifyRG (@rel_dec (expr typ JavaFunc.func) _ _) rg (RGinj (fEntails tySasn)))
@@ -133,7 +125,8 @@ Eval vm_compute in
               (App (Inj (inl (inl (inl (inr (of_ap tyVal (tyArr (tyList tyVal) tyAsn)))))))
                  (App (Inj (inl (inl (inl (inr (of_const (tyArr tyVal (tyArr (tyList tyVal) tyAsn))))))))
                     (Inj (inl (inl (inl (inl (inl (inl (inl (inl 1%positive)))))))))))
-              (App (Inj (inl (inl (inl (inr of_stack_get))))) (Inj (inl (inl (inl (inr (of_var p)))))))))
+              (App (Inj (inl (inl (inl (inr of_stack_get))))) 
+                (Inj (inl (inl (inl (inl (inl (inr (pString "this")))))))))))
         xs => true
     | _ => false
     end.
@@ -215,6 +208,30 @@ Eval vm_compute in
                                                     (sr_combine spec_respects refl)))))
     (fun _ => rw_fail) tySasn (mkList "x" (mkConst (tyList tyVal) (mkNil tyVal))).
 
+Require Import Charge.Logics.ILogic.
+Require Import Java.Logic.SpecLogic.
+
+Require Import ExtLib.Structures.Applicative.
+Local Instance Applicative_Fun A : Applicative (Fun A) :=
+{ pure := fun _ x _ => x
+; ap := fun _ _ f x y => (f y) (x y)
+}.
+
+
+
+Notation "'ap_List' '[' x ',' xs ']'" := 
+	(ap (T := Fun stack) (ap (T := Fun stack)
+		(pure (T := Fun stack) List) (stack_get x)) 
+			xs).
+
+
+Notation "'ap_cons' '[' x ',' xs ']'" := 
+	(ap (T := Fun stack) (ap (T := Fun stack)
+		(pure (T := Fun stack) cons) x) xs).
+
+Definition add_pre xs := ap_List ["this", pure (T := Fun stack) xs].
+Definition add_post xs := ap_List ["this", ap_cons [stack_get "n", pure (T := Fun stack) xs]].
+
 Definition add_body := 
       cseq (calloc "tn" "NodeC")
          (cseq (cwrite "tn" "val" (E_var "n"))
@@ -222,6 +239,12 @@ Definition add_body :=
                     (cseq (cwrite "tn" "next" (E_var "lst"))
                           (cseq (cwrite "this" "head" (E_var "tn")) cskip)))).
 
+Require Import Java.Semantics.OperationalSemantics.
+Require Import MirrorCharge.RTac.Tactics.
+Lemma test_cons : forall (xs : list val) , |-- triple (add_pre xs) (add_post xs) add_body.
+Proof.
+  unfold add_pre, add_body, add_post.
+  run_rtac reify_imp term_table (@runTac_sound rw_unfold_list).
 Definition testAdd :=
 		(mkForall (tyList tyVal) tyProp
 		  	(mkEntails tySpec (mkProgEq (mkProg ListProg))
@@ -260,6 +283,8 @@ Definition runTac2 (tac : expr typ JavaFunc.func) rw :=
 	 nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ JavaFunc.func)) tac.
 
 Time Eval vm_compute in runTac2 testAdd rw_unfold_list.
+Check mkList.
+Lemma test_cons : ltrue |-- 
 
 Time Eval vm_compute in 
 	match (runTac testAdd rw_unfold_list) with
