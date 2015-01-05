@@ -269,7 +269,7 @@ Definition subst : Type :=
 Definition SS : SubstI.Subst subst (expr typ func) :=
   @FMapSubst.SUBST.Subst_subst _.
 Definition SU : SubstI.SubstUpdate subst (expr typ func) :=
-  FMapSubst.SUBST.SubstUpdate_subst (@instantiate typ func).
+  @FMapSubst.SUBST.SubstUpdate_subst _ _.
 Definition SO := FMapSubst.SUBST.SubstOk_subst.
 
 Local Existing Instance SS.
@@ -373,7 +373,6 @@ Definition lupdate (t : typ) (a b : expr typ func) : expr typ func :=
 
 (** Testing function **)
 Definition test_lemma :=
-  @lemmaD typ RType_typ (expr typ func) Expr_expr (expr typ func)
+  @lemmaD typ (expr typ func) RType_typ Expr_expr (expr typ func)
           (fun tus tvs e => exprD' tus tvs tyProp e)
-          tyProp
-          (fun x => x) nil nil.
+          Typ0_Prop nil nil.

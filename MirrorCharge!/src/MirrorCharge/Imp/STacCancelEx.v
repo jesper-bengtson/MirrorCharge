@@ -1,10 +1,9 @@
+Require Import MirrorCore.RTac.RTac.
 Require Import MirrorCore.Lambda.Expr.
-Require Import MirrorCore.STac.STac.
 Require MirrorCore.syms.SymEnv.
 Require MirrorCore.syms.SymSum.
 Require Import MirrorCore.Lambda.ExprUnify_simul.
 Require Import MirrorCore.Lambda.ExprLift.
-Require Import MirrorCore.Subst.CascadeSubst.
 Require Import MirrorCharge.ILogicFunc.
 Require Import MirrorCharge.OrderedCanceller.
 Require Import MirrorCharge.BILNormalizeEx.
@@ -77,6 +76,7 @@ Section inst_2.
     end.
 End inst_2.
 
+(*
 Let Subst_CS : SubstI.Subst (CascadeSubst subst subst) (expr typ func) :=
   @Subst_CascadeSubst (expr typ func) subst _ subst _ (@lift typ func 0).
 Let SubstU_CS : SubstI.SubstUpdate (CascadeSubst subst subst) (expr typ func) :=
@@ -87,6 +87,7 @@ Let SubstU_CS : SubstI.SubstUpdate (CascadeSubst subst subst) (expr typ func) :=
                             instantiate.
 Local Existing Instance Subst_CS.
 Local Existing Instance SubstU_CS.
+*)
 
 Let doUnifySepLog (tus tvs : EnvI.tenv typ) (s : CascadeSubst subst subst) (e1 e2 : expr typ func)
 : option (CascadeSubst subst subst) :=

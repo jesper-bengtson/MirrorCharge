@@ -1,6 +1,6 @@
 Require Import ExtLib.Core.RelDec.
+Require Import MirrorCore.RTac.RTac.
 Require Import MirrorCore.Lambda.Expr.
-Require Import MirrorCore.STac.STac.
 Require MirrorCore.syms.SymEnv.
 Require MirrorCore.syms.SymSum.
 Require Import MirrorCore.Lambda.ExprUnify_simul.
@@ -36,7 +36,7 @@ Local Notation "a >> b" := (tyArr a b) (at level 31,right associativity).
 Fixpoint lentails_conjunct T (P : expr typ func -> option T) (e : expr typ func)
 : option T.
   (** This function will look through e to find a conjunct that matches P.
-   ** This is essentiall [assumption] for ILogic
+   ** This is essentially [assumption] for ILogic
    **)
 Admitted.
 

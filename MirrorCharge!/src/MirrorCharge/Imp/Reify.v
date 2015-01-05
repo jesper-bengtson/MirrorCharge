@@ -45,8 +45,8 @@ Reify Pattern patterns_imp_typ += (!! nat)  => tyNat.
 Reify Pattern patterns_imp_typ += (!! value)  => tyNat.
 Reify Pattern patterns_imp_typ += (!! Fun @ ?0 @ ?1) => (fun (a b : function reify_imp_typ) => tyArr a b).
 
-Reify Pattern patterns_imp += (RHasType var (?!0)) => (fun (x : id var) => fVar x).
-Reify Pattern patterns_imp += (RHasType String.string (?!0)) => (fun (x : id var) => fVar x).
+Reify Pattern patterns_imp += (RHasType var (?!0)) => (fun (x : id Imp.var) => fVar x).
+Reify Pattern patterns_imp += (RHasType String.string (?!0)) => (fun (x : id Imp.var) => fVar x).
 Reify Pattern patterns_imp += (RHasType nat (?!0)) => (fun (x : id nat) => fConst x).
 Reify Pattern patterns_imp += (!! (@eq) @ ?0) => (fun (x : function reify_imp_typ) => (fEq x)).
 
