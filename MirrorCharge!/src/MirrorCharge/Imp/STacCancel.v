@@ -101,7 +101,7 @@ Section the_canceller.
              (s : subst)
   : (expr typ func * expr typ func * subst) + subst:=
     match @normalize typ _ _ func _ sls tus tvs tyLProp lhs
-          , @normalize typ _ _ func _ sls tus tvs tyLProp rhs
+        , @normalize typ _ _ func _ sls tus tvs tyLProp rhs
     with
       | Some lhs_norm , Some rhs_norm =>
         match lhs_norm tt , rhs_norm tt with
@@ -124,10 +124,14 @@ Section the_canceller.
     end.
 End the_canceller.
 
+Axiom no_match : forall {T : Type}, T.
+
 Definition stac_cancel : rtac typ (expr typ func) :=
   fun tus tvs _ _ ctx sub e =>
     match e with
-      | App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) L) R =>
+      | App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) _)
+            (App (Inj (inr (ilf_embed _ _)))
+                 (App (App (Inj (inr (ilf_entails _))) L) R)) =>
         match the_canceller _ _ tus tvs L R sub with
           | inl (l,r,s') =>
             let e' :=
@@ -136,5 +140,5 @@ Definition stac_cancel : rtac typ (expr typ func) :=
             More sub (GGoal e')
           | inr s' => @Solved _ _ _ s'
         end
-      | _ => More sub (GGoal e)
+      | _ => no_match
     end.

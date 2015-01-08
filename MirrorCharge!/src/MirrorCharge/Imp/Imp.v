@@ -60,6 +60,14 @@ Parameter eval_iexpr : iexpr -> locals -> value.
 
 Parameter triple : lprop -> icmd -> lprop -> SProp.
 
+(** Consequence **)
+Axiom Conseq_rule
+: forall G P P' Q' Q c,
+    G |-- embed (P |-- P') ->
+    G |-- embed (Q' |-- Q) ->
+    G |-- triple P' c Q' ->
+    G |-- triple P c Q.
+
 (** Quantifier Rules **)
 Axiom triple_exL
 : forall G P c Q,
@@ -78,6 +86,10 @@ Axiom Skip_rule
 : forall G P Q,
     G |-- embed (P |-- Q) ->
     G |-- triple P Skip Q.
+
+Axiom Skip_rule_refl
+: forall G P,
+    G |-- triple P Skip P.
 
 (** Sequence **)
 Parameter Seq : icmd -> icmd -> icmd.
@@ -101,8 +113,40 @@ Axiom Assign_rule
     G |-- triple P
                  (Assign x e)
                  (fun l => Exists v' : value,
-                             embed (locals_get x l = eval_iexpr e l)
-                       //\\  P  (locals_upd x v' l)).
+                             P  (locals_upd x v' l) //\\
+                             embed (locals_get x l = eval_iexpr e (locals_upd x v' l))).
+
+(** Assert **)
+Parameter Assert : lprop -> icmd.
+
+Axiom Assert_rule
+: forall G (P Q : lprop),
+    G |-- embed (P |-- Q) ->
+    G |-- triple P (Assert Q) Q.
+
+(** If **)
+Parameter If : iexpr -> icmd -> icmd -> icmd.
+
+Definition local_Prop_lprop (P : Fun locals Prop) : lprop :=
+  fun l => embed (P l).
+
+Definition exprProp (P : value -> Prop) (e : locals -> value) : lprop :=
+  local_Prop_lprop (fun l => P (e l)).
+
+(*
+Eval cbv beta iota zeta delta [ exprProp local_Prop_lprop ] in
+  forall G (P Q : lprop) x c1 c2,
+    G |-- triple (P //\\ exprProp (fun v => v <> 0) (eval_iexpr x)) c1 Q ->
+    G |-- triple (P //\\ exprProp (fun v => v = 0) (eval_iexpr x)) c2 Q ->
+    G |-- triple P (If x c1 c2) Q.
+*)
+
+Axiom If_rule
+: forall (G : SProp) (P Q : lprop) (x : iexpr) (c1 c2 : icmd),
+       G |-- triple (P //\\ (fun l : locals => embed (eval_iexpr x l <> 0))) c1 Q ->
+       G |-- triple (P //\\ (fun l : locals => embed (eval_iexpr x l = 0))) c2  Q ->
+       G |-- triple P (If x c1 c2) Q.
+
 
 (** Read **)
 Parameter Read : var -> iexpr -> icmd.
@@ -116,8 +160,8 @@ Axiom Read_rule
                  (Read x e)
                  (fun l =>
                     Exists v' : value,
-                          embed (locals_get x l = v (locals_upd x v' l))
-                    //\\  P (locals_upd x v' l)).
+                          P (locals_upd x v' l)
+                    //\\  embed (locals_get x l = v (locals_upd x v' l))).
 
 (** Write **)
 Parameter Write : iexpr -> iexpr -> icmd.
@@ -129,21 +173,110 @@ Axiom Write_rule
            (Write p v)
            (ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr p)) (eval_iexpr v) ** Q).
 
-(** If **)
-Parameter If : iexpr -> icmd -> icmd -> icmd.
+(** Continuation Rules **)
+(** Seq_rule **)
+Theorem Assign_seq_rule
+: forall G P Q x e c,
+    G |-- triple (fun l => Exists v' : value,
+                             P  (locals_upd x v' l) //\\
+                             embed (locals_get x l = eval_iexpr e (locals_upd x v' l))) c Q ->
+    G |-- triple P
+                 (Seq (Assign x e) c)
+                 Q.
+Proof.
+  intros. eapply Seq_rule. eapply Assign_rule. eassumption.
+Qed.
 
-Definition local_Prop_lprop (P : Fun locals Prop) : lprop :=
-  fun l => embed (P l).
+Theorem Assign_tail_rule
+: forall G P Q x e,
+    G |-- embed ((fun l => Exists v' : value,
+                             P  (locals_upd x v' l) //\\
+                             embed (locals_get x l = eval_iexpr e (locals_upd x v' l))) |-- Q) ->
+    G |-- triple P (Assign x e) Q.
+Proof.
+  intros.
+  eapply Conseq_rule. 3: eapply Assign_rule.
+  2: eapply H.
+  admit.
+Qed.
 
-Definition exprProp (P : value -> Prop) (e : locals -> value) : lprop :=
-  local_Prop_lprop (fun l => P (e l)).
+Theorem Read_seq_rule
+: forall G (P Q : lprop) x e (v : locals -> value) c,
+    (G |-- embed (P |-- ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr e)) v ** ltrue)) ->
+    (G |-- triple (fun l =>
+                    Exists v' : value,
+                          P (locals_upd x v' l)
+                    //\\  embed (locals_get x l = v (locals_upd x v' l))) c Q) ->
+    G |-- triple P (Seq (Read x e) c) Q.
+Proof.
+  intros. eapply Seq_rule. eapply Read_rule. eapply H. assumption.
+Qed.
 
-Axiom If_rule
-: forall G (P Q : lprop) x c1 c2,
-    G |-- triple (P //\\ exprProp (fun v => v <> 0) (eval_iexpr x)) c1 Q ->
-    G |-- triple (P //\\ exprProp (fun v => v = 0) (eval_iexpr x)) c2 Q ->
-    G |-- triple P (If x c1 c2) Q.
+Theorem Read_tail_rule
+: forall G (P Q : lprop) x e (v : locals -> value),
+    (G |-- embed (P |-- ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr e)) v ** ltrue)) ->
+    (G |-- embed ((fun l =>
+                    Exists v' : value,
+                          P (locals_upd x v' l)
+                    //\\  embed (locals_get x l = v (locals_upd x v' l))) |-- Q)) ->
+    G |-- triple P (Read x e) Q.
+Proof.
+  intros. eapply Conseq_rule; [ | | eapply Read_rule ].
+  3: eassumption. admit. eassumption.
+Qed.
 
+Theorem Write_seq_rule
+: forall G (P Q R : lprop) p v c,
+    (P |-- Exists v', ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr p)) (pure v') ** Q) ->
+    (G |-- triple (ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr p)) (eval_iexpr v) ** Q) c R) ->
+    G |-- triple P (Seq (Write p v) c) R.
+Proof.
+  intros. eapply Seq_rule. eapply Write_rule. eassumption. eassumption.
+Qed.
+
+Theorem Write_tail_rule
+: forall G (P Q R : lprop) p v,
+    (P |-- Exists v', ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr p)) (pure v') ** Q) ->
+    (G |-- embed ((ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr p)) (eval_iexpr v) ** Q) |-- R)) ->
+    G |-- triple P (Write p v) R.
+Proof.
+  intros. eapply Conseq_rule. 3: eapply Write_rule. 2: eassumption. 2: eassumption. admit.
+Qed.
+
+Theorem Skip_seq_rule
+: forall G P Q c,
+    G |-- triple P c Q ->
+    G |-- triple P (Seq Skip c) Q.
+Proof.
+  intros. eapply Seq_rule. eapply Skip_rule_refl. eassumption.
+Qed.
+
+Definition Skip_tail_rule := Skip_rule.
+
+Theorem Assert_seq_rule
+: forall G P Q A c,
+    G |-- embed (P |-- A) ->
+    G |-- triple A c Q ->
+    G |-- triple P (Seq (Assert A) c) Q.
+Proof.
+  intros. eapply Seq_rule. eapply Assert_rule. eassumption. eassumption.
+Qed.
+
+Theorem Assert_tail_rule
+: forall G P Q A,
+    G |-- embed (P |-- A) ->
+    G |-- embed (A |-- Q) ->
+    G |-- triple P (Assert A) Q.
+Proof.
+  intros. eapply Conseq_rule; try eassumption.
+  eapply Assert_rule. admit.
+Qed.
+
+
+
+
+
+(**
 (** While **)
 Parameter While : iexpr -> icmd -> icmd.
 
@@ -171,3 +304,4 @@ Axiom Call_rule
     G |-- triple P
                  (Call f e)
                  Q.
+**)

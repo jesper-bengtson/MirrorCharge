@@ -38,12 +38,14 @@ Reify Pattern patterns_imp_typ += (!! icmd) => tyCmd.
 Reify Pattern patterns_imp_typ += (!! SProp) => tySProp.
 Reify Pattern patterns_imp_typ += (!! HProp) => tyHProp.
 Reify Pattern patterns_imp_typ += (!! Prop) => tyProp.
-Reify Pattern patterns_imp_typ += (!! var) => tyVariable.
-Reify Pattern patterns_imp_typ += (!! function_name) => tyVariable.
+Reify Pattern patterns_imp_typ += (!! Imp.var) => tyVariable.
+(*Reify Pattern patterns_imp_typ += (!! function_name) => tyVariable. *)
 Reify Pattern patterns_imp_typ += (!! iexpr) => tyExpr.
 Reify Pattern patterns_imp_typ += (!! nat)  => tyNat.
 Reify Pattern patterns_imp_typ += (!! value)  => tyNat.
 Reify Pattern patterns_imp_typ += (!! Fun @ ?0 @ ?1) => (fun (a b : function reify_imp_typ) => tyArr a b).
+Reify Pattern patterns_imp_typ += (!! ILInsts.Fun @ ?0 @ ?1) => (fun (a b : function reify_imp_typ) => tyArr a b).
+
 
 Reify Pattern patterns_imp += (RHasType var (?!0)) => (fun (x : id Imp.var) => fVar x).
 Reify Pattern patterns_imp += (RHasType String.string (?!0)) => (fun (x : id Imp.var) => fVar x).
@@ -99,8 +101,8 @@ Reify Pattern patterns_imp += (!! locals_upd) => flocals_upd.
 Reify Pattern patterns_imp += (!! PtsTo) => fPtsTo.
 
 (** Applicative **)
-Reify Pattern patterns_imp += (!! @Applicative.ap @ !! (Fun locals) @ # @ ?0 @ ?1) => (fun (x y : function reify_imp_typ) => (fAp x y)).
-Reify Pattern patterns_imp += (!! @Applicative.pure @ !! (Fun locals) @ # @ ?0) => (fun (x : function reify_imp_typ) => (fPure x)).
+Reify Pattern patterns_imp += (!! @Applicative.ap @ !! (ILInsts.Fun locals) @ # @ ?0 @ ?1) => (fun (x y : function reify_imp_typ) => (fAp x y)).
+Reify Pattern patterns_imp += (!! @Applicative.pure @ !! (ILInsts.Fun locals) @ # @ ?0) => (fun (x : function reify_imp_typ) => (fPure x)).
 
 (** Table Entries **)
 Local Notation "a >> b" := (tyArr a b) (at level 31,right associativity).
@@ -112,7 +114,9 @@ Reify Seed Typed Table term_table += 4 => [ (tyVariable >> tyExpr >> tyCmd) , Re
 Reify Seed Typed Table term_table += 5 => [ (tyExpr >> tyExpr >> tyCmd) , Write ].
 Reify Seed Typed Table term_table += 6 => [ tyCmd , Skip ].
 Reify Seed Typed Table term_table += 7 => [ (tyNat >> tyNat >> tyHProp) , PtsTo ].
+(*
 Reify Seed Typed Table term_table += 8 => [ (tyVariable >> (tyNat >> tyLProp) >> (tyNat >> tyLProp) >> tySProp) , function_spec ].
+*)
 
 Definition elem_ctor : forall x : Syntax.typ, (typD x) -> @SymEnv.function _ _ :=
   @SymEnv.F _ _.

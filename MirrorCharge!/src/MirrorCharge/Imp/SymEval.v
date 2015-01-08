@@ -12,13 +12,6 @@ Require Import MirrorCore.Subst.FMapSubst.
 Require Import MirrorCore.Lambda.ExprLift.
 Require Import MirrorCore.Lambda.ExprSubst.
 Require Import MirrorCore.Lambda.ExprUnify_simul.
-(*
-Require Import MirrorCore.Lambda.RedAll.
-Require Import MirrorCore.Lambda.AppN.
-Require Import MirrorCharge.ILogicFunc.
-Require Import MirrorCharge.OrderedCanceller.
-Require Import MirrorCharge.BILNormalize.
-*)
 Require Import MirrorCharge.SynSepLog.
 Require Import MirrorCharge.SepLogFold.
 Require Import MirrorCharge.Imp.Reify.

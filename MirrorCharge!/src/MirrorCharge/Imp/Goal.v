@@ -19,11 +19,34 @@ Definition Swap : icmd :=
   "x"    <- $"y" ;;
   "y"    <- $"temp".
 
+Fixpoint Swap_n (ls : list (string * string)) : icmd :=
+  match ls with
+    | nil => Skip
+    | cons (x,y) ls =>
+      Seq (Assign "temp" (iVar x))
+          (Seq (Assign x (iVar y))
+               (Seq (Assign y (iVar "temp"))
+                    (Swap_n ls)))
+  end.
+
+Fixpoint Swap_ptr_n (ls : list (string * string)) : icmd :=
+  match ls with
+    | nil => Skip
+    | cons (x,y) ls =>
+      Seq (Read "temp1" (iVar x))
+          (Seq (Read "temp2" (iVar y))
+               (Seq (Assign x (iVar "temp2"))
+                    (Seq (Assign y (iVar "temp1"))
+                         (Swap_ptr_n ls))))
+  end.
+
 Definition IfZero : icmd :=
   If $"x"
      ("y" <- 1)
      ("y" <- 0).
 
+(*
 Definition While : icmd :=
   While (iLt $"x" 10)
         ("x" <- iPlus $"x" 1).
+*)

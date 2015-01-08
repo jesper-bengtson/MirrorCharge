@@ -221,8 +221,10 @@ Definition fs : @SymEnv.functions typ _ :=
                (Skip) ::
      @SymEnv.F typ _ (tyArr tyNat (tyArr tyNat tyHProp))
                (PtsTo) ::
+(*
      @SymEnv.F typ _ (tyVariable >> (tyNat >> tyLProp) >> (tyNat >> tyLProp) >> tySProp)
                (function_spec) ::
+*)
      nil).
 
 Definition lops : logic_ops _ :=
