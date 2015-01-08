@@ -58,6 +58,7 @@ Reify Pattern patterns_imp += (!! Seq) => fSeq.
 Reify Pattern patterns_imp += (!! Assign) => fAssign.
 Reify Pattern patterns_imp += (!! Read) => fRead.
 Reify Pattern patterns_imp += (!! Write) => fWrite.
+Reify Pattern patterns_imp += (!! Assert) => fAssert.
 (** TODO: Call **)
 
 (** Expressions **)

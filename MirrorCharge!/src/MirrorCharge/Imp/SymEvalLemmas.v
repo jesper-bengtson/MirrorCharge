@@ -30,13 +30,31 @@ Fixpoint get_impls (e : expr typ func) : list (expr typ func) * expr typ func :=
     | _ => (nil, e)
   end.
 
+Section rn.
+  Variable mx : nat.
+
+  Fixpoint renumber (skip : nat) (e : expr typ func) : expr typ func :=
+    match e with
+      | ExprCore.Var n =>
+        match Nat.lt_rem n skip with
+          | None => e
+          | Some n' => Var (mx - 1 - n' + skip)
+        end
+      | App a b => App (renumber skip a) (renumber skip b)
+      | Abs t x => Abs t (renumber (S skip) x)
+      | Inj _
+      | ExprCore.UVar _ => e
+    end.
+End rn.
+
 Definition convert_to_lemma (e : expr typ func)
 : lemma typ (expr typ func) (expr typ func) :=
   let (alls, e) := get_alls e in
   let (impls, e) := get_impls e in
-  {| vars := rev alls
-   ; premises := impls
-   ; concl := e |}.
+  let lalls := length alls in
+  {| vars := alls
+   ; premises := map (renumber lalls 0) impls
+   ; concl := renumber lalls 0 e |}.
 
 Ltac reify_lemma e :=
   match type of e with
@@ -50,20 +68,12 @@ Ltac reify_lemma e :=
        reify_expr Reify.reify_imp k [ True ] [ T ])
   end.
 
-(*
-Definition to_skip : lemma typ (expr typ func) (expr typ func) :=
-{| vars     := tyLProp :: tyCmd :: tyLProp :: tyLProp :: tySProp :: nil
- ; premises := (Var 4 |- {{ Var 0 }} (Var 1) {{ Var 3 }}) ::
-               (Var 4 |- embed ((Var 2 : texp tyLProp) |- (Var 3))) :: nil
- ; concl    := (Var 4 |- {{ Var 0 }} (Var 1) {{ Var 2 }}) : expr _ _
- |}.
-
-Eval hnf in test_lemma to_skip.
-*)
-
 (** Skip **)
 Definition Assign_seq_lemma : lemma typ (expr typ func) (expr typ func).
 reify_lemma Imp.Assign_seq_rule.
+Defined.
+Goal Lemma.lemmaD (exprD'_typ0 (T:=Prop)) nil nil Assign_seq_lemma.
+exact Imp.Assign_seq_rule.
 Defined.
 Definition Assign_tail_lemma : lemma typ (expr typ func) (expr typ func).
 reify_lemma Imp.Assign_tail_rule.

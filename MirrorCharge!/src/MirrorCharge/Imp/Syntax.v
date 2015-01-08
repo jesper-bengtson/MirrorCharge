@@ -79,6 +79,16 @@ Instance RType_typ : RType typ :=
 ; type_cast := type_cast_typ
 }.
 
+Instance RTypeOk_typ : RTypeOk.
+Proof.
+  eapply makeRTypeOk.
+  - red. induction a; solve [ constructor; inversion 1; subst; auto ].
+  - unfold type_cast; simpl.
+    induction x; try reflexivity; simpl.
+    rewrite IHx1. rewrite IHx2. reflexivity.
+  - admit.
+Qed.
+
 Instance Typ2_Fun : Typ2 _ Fun :=
 { typ2 := tyArr
 ; typ2_cast := fun _ _ => eq_refl
@@ -88,6 +98,17 @@ Instance Typ2_Fun : Typ2 _ Fun :=
                     | _ => fun fa => fa
                   end
 }.
+
+Instance Typ2Ok_Fun : Typ2Ok Typ2_Fun.
+constructor.
+- reflexivity.
+- constructor.
+- constructor.
+- inversion 1; intuition.
+- destruct x; simpl; try solve [ right; reflexivity ].
+  left. do 2 eexists. exists eq_refl. reflexivity.
+- destruct pf; reflexivity.
+Qed.
 
 Instance Typ0_Prop : Typ0 _ Prop :=
 { typ0 := tyProp
@@ -99,6 +120,13 @@ Instance Typ0_Prop : Typ0 _ Prop :=
                   end
 }.
 
+Instance Typ0Ok_Prop : Typ0Ok Typ0_Prop.
+constructor.
+- reflexivity.
+- destruct x; simpl; try solve [ right; reflexivity ].
+  left; exists eq_refl. reflexivity.
+- destruct pf; reflexivity.
+Qed.
 
 Inductive imp_func :=
 | pVar (_ : var)
@@ -200,6 +228,9 @@ Instance RSym_imp_func : SymI.RSym imp_func :=
 ; sym_eqb := imp_func_eq
 }.
 
+Instance RSymOk_imp_func : SymI.RSymOk RSym_imp_func.
+Admitted.
+
 Definition tyLProp := tyArr tyLocals tyHProp.
 
 Local Notation "a >> b" := (tyArr a b) (at level 31,right associativity).
@@ -219,6 +250,8 @@ Definition fs : @SymEnv.functions typ _ :=
                (Write) ::
      @SymEnv.F typ _ tyCmd
                (Skip) ::
+     @SymEnv.F typ _ (tyArr tyLProp tyCmd)
+               (Assert) ::
      @SymEnv.F typ _ (tyArr tyNat (tyArr tyNat tyHProp))
                (PtsTo) ::
 (*
@@ -262,9 +295,15 @@ Local Instance RSym_ilfunc : SymI.RSym (ilfunc typ) :=
 Definition RS : SymI.RSym func :=
   SymSum.RSym_sum (SymSum.RSym_sum (SymEnv.RSym_func fs) _) _.
 Local Existing Instance RS.
+Instance RSOk : SymI.RSymOk RS.
+Admitted.
 
 Let Expr_expr : ExprI.Expr _ (expr typ func) := @Expr_expr typ func _ _ _.
 Local Existing Instance Expr_expr.
+
+Let ExprOk_expr : ExprI.ExprOk Expr_expr := ExprOk_expr.
+Local Existing Instance ExprOk_expr.
+
 
 Definition subst : Type :=
   FMapSubst.SUBST.raw (expr typ func).
@@ -321,7 +360,8 @@ Definition fAssign : expr typ func := Inj (inl (inl 3%positive)).
 Definition fRead : expr typ func := Inj (inl (inl 4%positive)).
 Definition fWrite : expr typ func := Inj (inl (inl 5%positive)).
 Definition fSkip : expr typ func := Inj (inl (inl 6%positive)).
-Definition fPtsTo : expr typ func := Inj (inl (inl 7%positive)).
+Definition fAssert : expr typ func := Inj (inl (inl 7%positive)).
+Definition fPtsTo : expr typ func := Inj (inl (inl 8%positive)).
 
 Definition fVar (v : var) : expr typ func := Inj (inl (inr (pVar v))).
 Definition fConst (c : nat) : expr typ func := Inj (inl (inr (pNat c))).
