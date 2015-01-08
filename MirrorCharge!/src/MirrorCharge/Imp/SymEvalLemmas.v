@@ -1,24 +1,8 @@
-Require Import Coq.Strings.String.
-Require Import Coq.PArith.BinPos.
-Require Import ExtLib.Core.RelDec.
-Require Import ExtLib.Data.String.
-Require Import ExtLib.Data.Nat.
 Require Import MirrorCore.Lemma.
-Require Import MirrorCore.TypesI.
-Require Import MirrorCore.Lambda.Expr.
-Require Import MirrorCore.RTac.RTac.
-Require Import MirrorCore.provers.DefaultProver.
-Require Import MirrorCore.Subst.FMapSubst.
-Require Import MirrorCore.Lambda.ExprLift.
-Require Import MirrorCore.Lambda.ExprSubst.
-Require Import MirrorCore.Lambda.ExprUnify_simul.
-Require Import MirrorCharge.SynSepLog.
-Require Import MirrorCharge.SepLogFold.
 Require Import MirrorCharge.Imp.Reify.
 Require MirrorCharge.Imp.Imp.
 Require Import MirrorCharge.Imp.Syntax.
 Require Import MirrorCharge.Imp.ImpTac.
-Require Import MirrorCharge.Imp.STacCancel.
 
 Set Implicit Arguments.
 Set Strict Implicit.

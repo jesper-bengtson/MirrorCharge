@@ -129,7 +129,7 @@ Axiom no_match : forall {T : Type}, T.
 Definition stac_cancel : rtac typ (expr typ func) :=
   fun tus tvs _ _ ctx sub e =>
     match e with
-      | App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) _)
+      | App (App (Inj (inr (ilf_entails _))) _)
             (App (Inj (inr (ilf_embed _ _)))
                  (App (App (Inj (inr (ilf_entails _))) L) R)) =>
         match the_canceller _ _ tus tvs L R sub with
@@ -140,5 +140,5 @@ Definition stac_cancel : rtac typ (expr typ func) :=
             More sub (GGoal e')
           | inr s' => @Solved _ _ _ s'
         end
-      | _ => no_match
+      | _ => no_match e
     end.

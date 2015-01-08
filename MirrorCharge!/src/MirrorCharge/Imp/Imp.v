@@ -276,7 +276,6 @@ Qed.
 
 
 
-(**
 (** While **)
 Parameter While : iexpr -> icmd -> icmd.
 
@@ -287,6 +286,17 @@ Axiom While_rule
     G |-- embed (I //\\ exprProp (fun v => v = 0) (eval_iexpr t) |-- Q) ->
     G |-- triple P (While t c) Q.
 
+
+Parameter WhileI : lprop -> iexpr -> icmd -> icmd.
+
+Axiom WhileI_rule
+: forall G (P Q I : lprop) t c,
+    G |-- embed (P |-- I) ->
+    G |-- triple (I //\\ exprProp (fun v => v <> 0) (eval_iexpr t)) c I ->
+    G |-- embed (I //\\ exprProp (fun v => v = 0) (eval_iexpr t) |-- Q) ->
+    G |-- triple P (WhileI I t c) Q.
+
+(**
 (** Function Calls **)
 
 Definition function_name := string.
@@ -305,3 +315,21 @@ Axiom Call_rule
                  (Call f e)
                  Q.
 **)
+
+(*
+Fixpoint adds (n : nat) :=
+  match n with
+    | 0 => Skip
+    | S n => Seq (Assign "x" (iVar "x")) (adds n)
+  end%string.
+
+Require Import Coq.Strings.String.
+Local Open Scope string_scope.
+
+Goal ltrue |-- triple ltrue (adds 15) ltrue.
+Set Printing All.
+unfold adds.
+Time repeat first [ apply triple_exL ; apply lforallR ; intro
+                  | apply Assign_seq_rule
+                  | apply Assign_tail_rule ].
+*)
