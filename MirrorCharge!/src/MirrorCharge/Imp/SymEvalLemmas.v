@@ -2,7 +2,8 @@ Require Import MirrorCore.Lemma.
 Require Import MirrorCharge.Imp.Reify.
 Require MirrorCharge.Imp.Imp.
 Require Import MirrorCharge.Imp.Syntax.
-Require Import MirrorCharge.Imp.ImpTac.
+Require Import MirrorCore.Util.Nat.
+Require Import MirrorCore.ExprDAs.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -117,4 +118,11 @@ Defined.
 
 Definition triple_pureL_lemma : lemma typ (expr typ func) (expr typ func).
 reify_lemma Imp.triple_pureL.
+Defined.
+
+Definition go_lower_lemma : lemma typ (expr typ func) (expr typ func).
+reify_lemma Imp.go_lower.
+Defined.
+Definition embed_ltrue_lemma : lemma typ (expr typ func) (expr typ func).
+reify_lemma Imp.embed_ltrue.
 Defined.

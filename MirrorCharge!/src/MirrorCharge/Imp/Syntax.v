@@ -134,7 +134,8 @@ Inductive imp_func :=
 | pLocals_get | pLocals_upd
 | pEq (_ : typ)
 | pEval_expri
-| eVar | eConst
+| eVar | eConst | ePlus
+| natPlus
   (** Below here isn't really imp functions **)
 | pAp (_ _ : typ)
 | pPure (_ : typ)
@@ -154,6 +155,8 @@ Definition typeof_sym_imp (f : imp_func) : option typ :=
     | pEval_expri => Some (tyArr tyExpr (tyArr tyLocals tyNat))
     | eVar => Some (tyArr tyVariable tyExpr)
     | eConst => Some (tyArr tyNat tyExpr)
+    | ePlus => Some (tyArr tyExpr (tyArr tyExpr tyExpr))
+    | natPlus => Some (tyArr tyNat (tyArr tyNat tyNat))
     | pAp t u => Some (tyArr (tyArr tyLocals (tyArr t u)) (tyArr (tyArr tyLocals t) (tyArr tyLocals u)))
     | pPure t => Some (tyArr t (tyArr tyLocals t))
     | pUpdate t => Some (tyArr (tyArr tyLocals tyLocals)
@@ -183,6 +186,8 @@ Definition imp_func_eq (a b : imp_func) : option bool :=
     | pEval_expri , pEval_expri => Some true
     | eVar , eVar => Some true
     | eConst , eConst => Some true
+    | ePlus , ePlus => Some true
+    | natPlus , natPlus => Some true
     | pAp t u , pAp t' u' => Some (t ?[ eq ] t' && u ?[ eq ] u')%bool
     | pPure t , pPure t' => Some (t ?[ eq ] t')
     | pUpdate t , pUpdate t' => Some (t ?[ eq ] t')
@@ -210,6 +215,8 @@ Instance RSym_imp_func : SymI.RSym imp_func :=
               | pEval_expri => eval_iexpr
               | eVar => iVar
               | eConst => iConst
+              | ePlus => iPlus
+              | natPlus => plus
               | pPure t =>
                 @Applicative.pure (Fun locals) (Applicative_Fun _) (typD t)
               | pAp t u =>
@@ -362,6 +369,11 @@ Definition fWrite : expr typ func := Inj (inl (inl 5%positive)).
 Definition fSkip : expr typ func := Inj (inl (inl 6%positive)).
 Definition fAssert : expr typ func := Inj (inl (inl 7%positive)).
 Definition fPtsTo : expr typ func := Inj (inl (inl 8%positive)).
+
+Definition feVar : expr typ func := Inj (inl (inr eVar)).
+Definition feConst : expr typ func := Inj (inl (inr eConst)).
+Definition fePlus : expr typ func := Inj (inl (inr ePlus)).
+Definition fPlus : expr typ func := Inj (inl (inr natPlus)).
 
 Definition fVar (v : var) : expr typ func := Inj (inl (inr (pVar v))).
 Definition fConst (c : nat) : expr typ func := Inj (inl (inr (pNat c))).

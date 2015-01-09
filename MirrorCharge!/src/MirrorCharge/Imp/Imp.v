@@ -72,7 +72,7 @@ Axiom Conseq_rule
 Axiom triple_exL
 : forall G P c Q,
     (G |-- Forall x : value, triple (P x) c Q) ->
-    G |-- triple (Exists x : value, P x) c Q.
+    G |-- triple (lexists P) c Q.
 
 Axiom triple_pureL
 : forall (P : Prop) G c Q R,
@@ -177,9 +177,9 @@ Axiom Write_rule
 (** Seq_rule **)
 Theorem Assign_seq_rule
 : forall G P Q x e c,
-    G |-- triple (fun l => Exists v' : value,
+    G |-- triple (Exists v' : value, (fun l =>
                              P  (locals_upd x v' l) //\\
-                             embed (locals_get x l = eval_iexpr e (locals_upd x v' l))) c Q ->
+                             embed (locals_get x l = eval_iexpr e (locals_upd x v' l)))) c Q ->
     G |-- triple P
                  (Seq (Assign x e) c)
                  Q.
@@ -189,7 +189,7 @@ Qed.
 
 Theorem Assign_tail_rule
 : forall G P Q x e,
-    G |-- embed ((fun l => Exists v' : value,
+    G |-- embed (Exists v' : value, (fun l => 
                              P  (locals_upd x v' l) //\\
                              embed (locals_get x l = eval_iexpr e (locals_upd x v' l))) |-- Q) ->
     G |-- triple P (Assign x e) Q.
@@ -203,8 +203,7 @@ Qed.
 Theorem Read_seq_rule
 : forall G (P Q : lprop) x e (v : locals -> value) c,
     (G |-- embed (P |-- ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr e)) v ** ltrue)) ->
-    (G |-- triple (fun l =>
-                    Exists v' : value,
+    (G |-- triple (Exists v' : value, fun l =>
                           P (locals_upd x v' l)
                     //\\  embed (locals_get x l = v (locals_upd x v' l))) c Q) ->
     G |-- triple P (Seq (Read x e) c) Q.
@@ -215,8 +214,7 @@ Qed.
 Theorem Read_tail_rule
 : forall G (P Q : lprop) x e (v : locals -> value),
     (G |-- embed (P |-- ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr e)) v ** ltrue)) ->
-    (G |-- embed ((fun l =>
-                    Exists v' : value,
+    (G |-- embed (Exists v' : value, (fun l =>
                           P (locals_upd x v' l)
                     //\\  embed (locals_get x l = v (locals_upd x v' l))) |-- Q)) ->
     G |-- triple P (Read x e) Q.
@@ -296,6 +294,16 @@ Axiom WhileI_rule
     G |-- embed (I //\\ exprProp (fun v => v = 0) (eval_iexpr t) |-- Q) ->
     G |-- triple P (WhileI I t c) Q.
 
+(*
+(** Theorem, some manipulation **)
+Axiom liftEx
+: forall (t : Type) G P (Q : lprop),
+    G |-- @lexists _ _ t (fun v => embed (P v |-- Q)) ->
+    G |-- embed (@lexists _ _ t P |-- Q).
+*)
+
+
+
 (**
 (** Function Calls **)
 
@@ -316,20 +324,75 @@ Axiom Call_rule
                  Q.
 **)
 
-(*
+
 Fixpoint adds (n : nat) :=
   match n with
     | 0 => Skip
-    | S n => Seq (Assign "x" (iVar "x")) (adds n)
+    | S n => Seq (Assign "x" (iPlus (iVar "x") (iConst 1))) (adds n)
   end%string.
 
 Require Import Coq.Strings.String.
 Local Open Scope string_scope.
 
-Goal ltrue |-- triple ltrue (adds 15) ltrue.
-Set Printing All.
+Lemma go_lower
+: forall (P Q : lprop) (G : SProp),
+    G |-- lforall (fun x : locals => embed (P x |-- Q x)) ->
+    G |-- @embed Prop SProp EmbedOp_Prop_SProp (P |-- Q).
+Admitted.
+Lemma embed_ltrue
+: forall (P : Prop),
+    P ->
+    |-- @embed Prop SProp _ P.
+Admitted.
+Lemma locals_get_locals_upd
+: forall v val m,
+    locals_get v (locals_upd v val m) = val.
+Admitted.
+Lemma eval_iexpr_iPlus
+: forall a b m,
+    eval_iexpr (iPlus a b) m = eval_iexpr a m + eval_iexpr b m.
+Admitted.
+Lemma eval_iexpr_iVar
+: forall a m,
+    eval_iexpr (iVar a) m = locals_get a m.
+Admitted.
+Lemma eval_iexpr_iConst
+: forall a m,
+    eval_iexpr (iConst a) m = a.
+Admitted.
+About embed.
+
+Goal ltrue |-- triple (fun l => embed (locals_get "x"%string l = 0))
+                      (adds 2)
+                      (fun l => embed (locals_get "x"%string l = 1)).
 unfold adds.
 Time repeat first [ apply triple_exL ; apply lforallR ; intro
                   | apply Assign_seq_rule
-                  | apply Assign_tail_rule ].
-*)
+                  | apply Assign_tail_rule
+                  | apply Skip_tail_rule ].
+
+
+eapply go_lower.
+eapply lforallR. intro.
+
+eapply embed_ltrue.
+repeat rewrite embedland.
+eapply embed_sound.
+
+do 10 first [ rewrite locals_get_locals_upd
+             | rewrite eval_iexpr_iPlus
+             | rewrite eval_iexpr_iConst
+             | rewrite eval_iexpr_iVar ].
+
+(** This really needs subst **)
+Lemma subst_away_land
+: forall P (x y z : nat),
+    P |-- y = z ->
+    P //\\ x = y |-- x = z.
+Proof. Admitted.
+Lemma subst_away
+: forall (x y z : nat),
+    |-- y = z ->
+    x = y |-- x = z.
+Proof. Admitted.
+Abort.

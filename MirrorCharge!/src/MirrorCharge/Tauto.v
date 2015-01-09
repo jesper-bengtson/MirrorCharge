@@ -1,4 +1,3 @@
-(*
 Require Import Coq.Bool.Bool.
 Require Import Coq.Setoids.Setoid.
 Require Import Coq.Classes.Morphisms.
@@ -13,39 +12,33 @@ Require Import ExtLib.Tactics.Consider.
 Require Import MirrorCore.EnvI.
 Require Import MirrorCore.ExprI.
 Require Import MirrorCharge.ILogicFunc.
+Require Import MirrorCore.Lambda.Expr.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
 Section Tauto.
-  Context (funcs : fun_map ts) (gs : logic_ops ts) (es : embed_ops ts).
-  Context (H : logic_opsOk gs).
-  Context (Hembed : embed_opsOk gs es).
+  Variable typ : Type.
+  Variable sym : Type.
 
-  Local Notation "P //\\ Q" := (App (App (Inj (ilf_and _)) P) Q).
+  Inductive LogicCtor :=
+  | LTrue | LFalse | LAnd | LOr | LImpl | LEntails.
 
-  Theorem ILogic_from t z (pf : gs t = Some z) : @ILogic _ z.
-    specialize (H t). rewrite pf in *.
-    assumption.
-  Qed.
+  Record ILogicSpec : Type :=
+  { as_logic : expr typ sym -> option LogicCtor
+  }.
 
-  Ltac get_logic t :=
-    match goal with
-      | Hgs : gs ?X = Some t
-      |- _ =>
-        exact (@ILogic_from _ _ Hgs)
-    end.
+  Record EmbedSpec : Type :=
+  { is_embed : expr typ sym -> option typ
+  }.
 
-  Local Instance RSym_ilfunc : SymI.RSym (typD ts) ilfunc := @RSym_ilfunc ts funcs gs es.
-  Local Hint Extern 0 (@ILogic _ ?X) => get_logic X : typeclass_instances.
-  Local Existing Instance lentailsPre.
-  Local Hint Extern 1 (ILogic _) => eassumption : typeclass_instances.
-  Local Hint Extern 1 (@Embed _ _ _ _ _) => eassumption : typeclass_instances.
+  Variable tyProp : typ.
+  Variable ilspec : ILogicSpec.
+  Variable emspec : EmbedSpec.
 
-  Inductive Facts : Type :=
-  | Inconsistent
-  | Knows : list (expr ilfunc) -> Facts.
+  Definition Facts : Type := list (expr typ sym).
 
+(*
   (** Facts Denotation **)
   Section factsD.
     Variables (us vs : env (typD ts)).
@@ -68,31 +61,34 @@ Section Tauto.
         | Knows fs => eval_env fs
       end.
   End factsD.
+*)
 
   (** Learning **)
   Section learning.
-    Fixpoint known_learn (e : expr ilfunc) (f : list (expr ilfunc)) : Facts :=
-      match e with
-        | Inj (ilf_true _) => Knows f
-        | Inj (ilf_false _) => Inconsistent
-        | P //\\ Q =>
-          match known_learn Q f with
-            | Inconsistent => Inconsistent
-            | Knows f => known_learn P f
+    Fixpoint known_learn (e : expr typ sym) (f : Facts) : option Facts :=
+      match ilspec.(as_logic) e with
+        | Some LTrue => Some f
+        | Some LFalse => None
+        | _ =>
+          match e with
+            | App (App bop l) r =>
+              match ilspec.(as_logic) bop with
+                | Some LAnd =>
+                  match known_learn l f with
+                    | None => None
+                    | Some f' => known_learn r f'
+                  end
+                | _ => Some (e :: f)
+              end
+            | _ => Some (e :: f)
           end
-        | _ => Knows (e :: f)
       end.
 
-    Definition learn e f : Facts :=
-      match f with
-        | Inconsistent => Inconsistent
-        | Knows fs => known_learn e fs
-      end.
+    Definition learn e f : option Facts := known_learn e f.
 
-    Variables (us vs : env (typD ts)).
-    Variables (t : typ) (ILO : ILogicOps (typD ts nil t)).
-    Hypothesis (Hgs : gs t = Some ILO).
+    Variables (t : typ).
 
+(*
     Lemma FactsD_known_cons
     : forall (f : list (expr ilfunc))
              (v : typD ts nil t)
@@ -172,11 +168,12 @@ Section Tauto.
         eapply landL1. reflexivity. }
       { eapply FactsD_known_learn; eauto. }
     Qed.
-
+*)
   End learning.
 
-  Variable floor : expr ilfunc -> typ -> typ -> option (expr ilfunc).
+  Variable floor : expr typ sym -> typ -> typ -> option (expr typ sym).
 
+(*
   Definition floor_spec e e' from to : Prop :=
     forall us vs P ILT ILU eTU,
       gs from = Some ILT ->
@@ -190,12 +187,14 @@ Section Tauto.
   Hypothesis Hfloor : forall e e' from to,
                         floor e from to = Some e' ->
                         floor_spec e e' from to.
+*)
+
 
   (** Lowering **)
   Section lowering.
     Variables from to : typ.
 
-    Fixpoint known_lower_to (ls : list (expr ilfunc)) : list (expr ilfunc) :=
+    Fixpoint known_lower_to (ls : list (expr typ sym)) : list (expr typ sym) :=
       match ls with
         | nil => nil
         | l :: ls =>
@@ -206,66 +205,12 @@ Section Tauto.
       end.
 
     Definition lower_to (f : Facts) : Facts :=
-      match f with
-        | Inconsistent => Inconsistent
-        | Knows fs => Knows (known_lower_to fs)
-      end.
-
-    Variables (us vs : env (typD ts)).
-    Context {ILF} `{Hgs_from : gs from = Some ILF}.
-    Context {ILT} `{Hgs_to : gs to = Some ILT}.
-    Context {eFT} `{Hes_from_to : es from to = Some eFT}.
-
-
-    Lemma known_lower_to_sound : forall ls P ls',
-      known_lower_to ls = ls' ->
-      eval_env us vs to _ ls = Some P ->
-      exists Q,
-        eval_env us vs from _ ls' = Some Q /\
-        lentails P (embed Q).
-    Proof.
-      induction ls; simpl; intros; subst; inv_all; subst.
-      { simpl in *. eexists; split; eauto.
-        assert (Embed (typD ts nil from) (typD ts nil to)).
-        { specialize (Hembed from to).
-          rewrite Hgs_to in *. rewrite Hgs_from in *.
-          rewrite Hes_from_to in *. assumption. }
-        eapply embedltrue. }
-      { forward; inv_all; subst.
-        specialize (IHls _ _ eq_refl eq_refl).
-        destruct IHls; intuition.
-        consider (floor a from to); intros.
-        { simpl. rewrite H3.
-          specialize (Hfloor H2). red in Hfloor.
-          specialize (@Hfloor us vs _ _ _ _ Hgs_from Hgs_to Hes_from_to H0).
-          destruct Hfloor; clear Hfloor. intuition.
-          rewrite H6. eexists; split; eauto.
-          specialize (Hembed from to).
-          generalize (H from).
-          generalize (H to).
-          rewrite Hgs_from in *. rewrite Hgs_to in *.
-          rewrite Hes_from_to in *.
-          rewrite H4. rewrite H7.
-          intros. eapply embedland.  }
-        { eexists; split; eauto.
-          rewrite H4. apply landL1. reflexivity. } }
-    Qed.
-
-    Theorem lower_to_sound : forall ls P ls',
-      lower_to ls = ls' ->
-      FactsD us vs to _ ls = Some P ->
-      exists Q,
-        FactsD us vs from _ ls' = Some Q /\
-        lentails P (embed Q).
-    Proof.
-      destruct ls; simpl; intros; subst; inv_all; subst; simpl.
-      { eexists; split; eauto. }
-      { eapply known_lower_to_sound in H1; eauto. }
-    Qed.
-
+      known_lower_to f.
   End lowering.
 
-  Fixpoint known_assumption (env : list (expr ilfunc)) (p : expr ilfunc) :=
+  Variable RelDec_expr : RelDec (@eq (expr typ sym)).
+
+  Fixpoint known_assumption (env : list (expr typ sym)) (p : expr typ sym) :=
     match env with
       | nil => false
       | q :: env' =>
@@ -275,12 +220,10 @@ Section Tauto.
   	  known_assumption env' p
     end.
 
-  Definition assumption (f : Facts) (p : expr ilfunc) : bool :=
-    match f with
-      | Inconsistent => true
-      | Knows fs => known_assumption fs p
-    end.
+  Definition assumption (f : Facts) (p : expr typ sym) : bool :=
+    known_assumption f p.
 
+(*
   Section assumption.
     Variables (us vs : env (typD ts)).
     Variables (t : typ) (ILO : ILogicOps (typD ts nil t)).
@@ -315,23 +258,107 @@ Section Tauto.
       { eapply known_assumption_sound; eauto. }
     Qed.
   End assumption.
+*)
 
-  Fixpoint tauto (env : Facts) (p : expr ilfunc) : bool :=
-    match p with
-      | Inj (ilf_true _) => true
-      | App (App (Inj (ilf_and _)) p) q => andb (tauto env p) (tauto (learn p env) q)
-      | App (App (Inj (ilf_or _)) p) q => orb (tauto env p) (tauto env q)
-      | App (App (Inj (ilf_impl _)) p) q => tauto (learn p env) q
-      | App (Inj (ilf_embed from to)) p' =>
-        match gs from with
-          | None => assumption env p
-          | Some _ => tauto (lower_to from to env) p'
-        end
+  Fixpoint tauto (env : Facts) (goal : expr typ sym) (tyLogic : typ) : bool :=
+    match ilspec.(as_logic) goal with
+      | Some LTrue => true
       | _ =>
-        (** TODO: This is the source of incompleteness **)
-        assumption env p
+        match goal with
+        | App z q =>
+          match emspec.(is_embed) z with
+            | Some t' =>
+              tauto (lower_to tyLogic t' env) q t'
+            | None =>
+              match z with
+                | App bop p =>
+                  match ilspec.(as_logic) bop with
+                    | Some LAnd =>
+                      if tauto env p tyLogic then
+                        match learn p env with
+                          | None => true
+                          | Some env' => tauto env' q tyLogic
+                        end
+                      else
+                        false
+                    | Some LOr => orb (tauto env p tyLogic) (tauto env q tyLogic)
+                    | Some LImpl =>
+                      match learn p env with
+                        | None => true
+                        | Some p' => tauto p' q tyLogic
+                      end
+                    | _ => assumption env goal
+                  end
+                | _ => assumption env goal
+              end
+          end
+        | _ => assumption env goal
+        end
     end.
 
+  Fixpoint tauto_simplify (env : Facts) (goal : expr typ sym) (tyLogic : typ)
+  : option (expr typ sym) :=
+    match ilspec.(as_logic) goal with
+      | Some LTrue => None
+      | _ =>
+        match goal with
+        | App z q =>
+          match emspec.(is_embed) z with
+            | Some t' =>
+              match tauto_simplify (lower_to tyLogic t' env) q t' with
+                | None => None
+                | Some q' => Some (App z q')
+              end
+            | None =>
+              match z with
+                | App bop p =>
+                  match ilspec.(as_logic) bop with
+                    | Some LAnd =>
+                      match tauto_simplify env p tyLogic with
+                        | None =>
+                          match learn p env with
+                            | None => None
+                            | Some env' => tauto_simplify env' q tyLogic
+                          end
+                        | Some p =>
+                          match learn p env with
+                            | None => Some p
+                            | Some env' =>
+                              match tauto_simplify env' q tyLogic with
+                                | None => Some p
+                                | Some q => Some (App (App bop p) q)
+                              end
+                          end
+                      end
+                    | Some LOr =>
+                      match tauto_simplify env p tyLogic
+                          , tauto_simplify env q tyLogic
+                      with
+                        | None , _ => None
+                        | _ , None => None
+                        | Some P , Some Q => Some (App (App bop P) Q)
+                      end
+                    | Some LImpl =>
+                      match learn p env with
+                        | None => None
+                        | Some p' => tauto_simplify p' q tyLogic
+                      end
+                    | Some LEntails =>
+                      match learn p nil with
+                        | None => None
+                        | Some ps => tauto_simplify ps q tyProp
+                      end
+                    | _ => if assumption env goal then None else Some goal
+                  end
+                | _ => if assumption env goal then None else Some goal
+              end
+          end
+        | _ => if assumption env goal then None else Some goal
+        end
+    end.
+
+
+(*
   Lemma tauto_sound : forall (p : expr ilfunc) (t : typ) env us vs x v
     (_ : exprD us vs p t = Some v)
     (ILO : ILogicOps (typD ts nil t))
@@ -398,6 +425,8 @@ Section Tauto.
           2: eapply H0. 6: eassumption. 5: eassumption. 4: eauto. 3: eauto. 2: eauto with typeclass_instances.
           eauto. } } }
   Qed.
+*)
+
 
 End Tauto.
 
@@ -431,5 +460,3 @@ End Tauto.
     reflexivity.
   Qed.
 **)
-
-*)

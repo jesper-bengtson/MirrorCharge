@@ -44,6 +44,7 @@ Reify Pattern patterns_imp_typ += (!! iexpr) => tyExpr.
 Reify Pattern patterns_imp_typ += (!! nat)  => tyNat.
 Reify Pattern patterns_imp_typ += (!! value)  => tyNat.
 Reify Pattern patterns_imp_typ += (!! Fun @ ?0 @ ?1) => (fun (a b : function reify_imp_typ) => tyArr a b).
+Reify Pattern patterns_imp_typ += (!! PreFun.Fun @ ?0 @ ?1) => (fun (a b : function reify_imp_typ) => tyArr a b).
 Reify Pattern patterns_imp_typ += (!! ILInsts.Fun @ ?0 @ ?1) => (fun (a b : function reify_imp_typ) => tyArr a b).
 
 
@@ -62,8 +63,12 @@ Reify Pattern patterns_imp += (!! Assert) => fAssert.
 (** TODO: Call **)
 
 (** Expressions **)
-Reify Pattern patterns_imp += (!! iConst) => fConst.
-Reify Pattern patterns_imp += (!! iVar) => fVar.
+Reify Pattern patterns_imp += (!! iConst) => feConst.
+Reify Pattern patterns_imp += (!! iVar) => feVar.
+Reify Pattern patterns_imp += (!! iPlus) => fePlus.
+
+(** Arith **)
+Reify Pattern patterns_imp += (!! plus) => fPlus.
 
 
 (** Intuitionistic Operators **)
@@ -104,6 +109,8 @@ Reify Pattern patterns_imp += (!! PtsTo) => fPtsTo.
 (** Applicative **)
 Reify Pattern patterns_imp += (!! @Applicative.ap @ !! (ILInsts.Fun locals) @ # @ ?0 @ ?1) => (fun (x y : function reify_imp_typ) => (fAp x y)).
 Reify Pattern patterns_imp += (!! @Applicative.pure @ !! (ILInsts.Fun locals) @ # @ ?0) => (fun (x : function reify_imp_typ) => (fPure x)).
+Reify Pattern patterns_imp += (!! @Applicative.ap @ !! (PreFun.Fun locals) @ # @ ?0 @ ?1) => (fun (x y : function reify_imp_typ) => (fAp x y)).
+Reify Pattern patterns_imp += (!! @Applicative.pure @ !! (PreFun.Fun locals) @ # @ ?0) => (fun (x : function reify_imp_typ) => (fPure x)).
 
 (** Table Entries **)
 Local Notation "a >> b" := (tyArr a b) (at level 31,right associativity).

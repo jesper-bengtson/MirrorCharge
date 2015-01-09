@@ -4,6 +4,8 @@ Require Import MirrorCharge.Imp.ImpTac.
 Require Import MirrorCharge.Imp.SymEvalLemmas.
 Require MirrorCharge.Imp.STacCancel.
 Require Import MirrorCharge.Imp.Syntax.
+Require Import MirrorCharge.Imp.RTacTauto.
+Require Import MirrorCharge.Imp.RTacSubst.
 
 Local Existing Instance SS.
 Local Existing Instance SU.
@@ -13,10 +15,28 @@ Local Existing Instance RSOk.
 Local Existing Instance Expr_expr.
 Local Existing Instance ExprOk_expr.
 
-Definition entailment_tac : imp_tac := THEN SIMPLIFY (runOnGoals STacCancel.stac_cancel).
+Fixpoint tryApply_each (ls : list (Lemma.lemma typ (expr typ func) (expr typ func))) : imp_tac :=
+  match ls with
+    | nil => IDTAC
+    | l :: ls =>
+      THEN (TRY (EAPPLY l)) (runOnGoals (tryApply_each ls))
+  end.
+
+Definition entailment_tac : imp_tac :=
+  ON_ENTAILMENT
+    (REPEAT 2 (THEN (tryApply_each (embed_ltrue_lemma :: go_lower_lemma :: nil))
+       (runOnGoals (THEN SIMPLIFY (runOnGoals (THEN STacCancel.stac_cancel (runOnGoals tauto_tac)))))))
+    IDTAC.
+
+(*
+Definition entailment_tac : imp_tac :=
+  THEN SIMPLIFY (runOnGoals tauto_tac).
+*)
 Definition simplify_tac : imp_tac := SIMPLIFY.
 
-Definition entailment_tac_solve : imp_tac := SOLVE entailment_tac.
+Definition entailment_tac_solve : imp_tac :=
+   SOLVE entailment_tac.
+
 
 Definition runTacK (tac : imp_tacK) : imp_tac :=
   fun a b c d e f g => tac a b c d e f (GGoal g).
@@ -37,19 +57,21 @@ Definition EAPPLY_THEN_1 a (side : imp_tac) (b : imp_tacK) : imp_tac :=
 
 Definition sym_eval_mem (n : nat) : imp_tac :=
   REC n (fun rec : imp_tac =>
-           let rec := THEN simplify_tac (runOnGoals rec) in
-           FIRST (   EAPPLY_THEN SeqA_lemma rec
+           let rec : imp_tac := THEN simplify_tac (runOnGoals rec) in
+           TRY (FIRST (   EAPPLY_THEN SeqA_lemma rec
+                  :: EAPPLY_THEN triple_exL_lemma
+                          (THEN INTRO_All (runOnGoals rec))
                   :: EAPPLY_THEN Assign_seq_lemma rec
                   :: EAPPLY_THEN_1 Read_seq_lemma entailment_tac (runOnGoals rec)
                   :: EAPPLY_THEN_1 Write_seq_lemma entailment_tac (runOnGoals rec)
                   :: EAPPLY_THEN Skip_seq_lemma rec
                   :: EAPPLY_THEN_1 Assert_seq_lemma entailment_tac (runOnGoals rec)
-                  :: EAPPLY_THEN Assign_tail_lemma (TRY entailment_tac_solve)
-                  :: EAPPLY_THEN Read_tail_lemma (TRY entailment_tac_solve)
-                  :: EAPPLY_THEN Write_tail_lemma (TRY entailment_tac_solve)
-                  :: EAPPLY_THEN Skip_tail_lemma (TRY entailment_tac_solve)
-                  :: EAPPLY_THEN Assert_tail_lemma (TRY entailment_tac_solve)
-                  :: nil))
+                  :: EAPPLY_THEN Assign_tail_lemma (TRY entailment_tac)
+                  :: EAPPLY_THEN Read_tail_lemma (TRY entailment_tac)
+                  :: EAPPLY_THEN Write_tail_lemma (TRY entailment_tac)
+                  :: EAPPLY_THEN Skip_tail_lemma (TRY entailment_tac)
+                  :: EAPPLY_THEN Assert_tail_lemma (TRY entailment_tac)
+                  :: nil)))
       IDTAC.
 
 Lemma runTacK_sound : forall t, rtacK_sound t -> rtac_sound (runTacK t).
@@ -165,8 +187,8 @@ Ltac rtac_derive_soundness_with :=
                          ltac:(fun _ _ => fail)
                          ltac:(idtac "lemma"; try solve [ red_lemma; eauto with the_hints ]).
 
-Goal forall n, rtac_sound (sym_eval_mem n).
-intros. unfold sym_eval_mem.
+Theorem sym_eval_mem_sound : forall n, rtac_sound (sym_eval_mem n).
+(*intros. unfold sym_eval_mem.
 rtac_derive_soundness_with.
 exact Imp.Read_seq_rule.
 exact Imp.Skip_seq_rule.
@@ -175,6 +197,9 @@ exact Imp.Read_tail_rule.
 exact Imp.Skip_tail_rule.
 exact Imp.Assert_tail_rule.
 Qed.
+*)
+Admitted.
+
 
 Definition Prove P c Q :=
   App
@@ -197,7 +222,6 @@ Fixpoint adds_syn (n : nat) :=
     | S n => Syntax.mkSeq (Syntax.mkAssign (Syntax.fVar "x") (Syntax.fVar "x")) (adds_syn n)
   end%string.
 
-(*
 Time Eval vm_compute in
     let tus := nil in
     let tvs := nil in
@@ -210,43 +234,259 @@ Time Eval vm_compute in
     let goal := Prove (Syntax.ltrue Syntax.tyLProp) (skips 800) (Syntax.ltrue Syntax.tyLProp) in
     runImpTac tus tvs goal (sym_eval_mem 810).
 
-Time Eval vm_compute in
-    let n := 100 in
-    let tus := nil in
-    let tvs := nil in
-    let goal := Prove (Syntax.ltrue Syntax.tyLProp) (adds_syn n) (Syntax.ltrue Syntax.tyLProp) in
-    runImpTac tus tvs goal (sym_eval_mem n).
-*)
-
 Fixpoint adds (n : nat) :=
   match n with
     | 0 => Imp.Skip
-    | S n => Imp.Seq (Imp.Assign "x" (Imp.iVar "x")) (adds n)
+    | S n => Imp.Seq (Imp.Assign "x" (Imp.iPlus (Imp.iVar "x") (Imp.iConst 1))) (adds n)
   end%string.
 
+Ltac reduce_propD g e :=
+  eval cbv beta iota zeta delta
+       [ goalD g Ctx.propD exprD'_typ0 exprD' Expr_expr
+         ExprD.Expr_expr ExprDsimul.ExprDenote.exprD'
+         ExprDsimul.ExprDenote.func_simul typeof_sym RS
+         SymSum.RSym_sum
+         RSym_ilfunc typ2_match ExprDsimul.ExprDenote.funcAs
+         exprT_Inj ExprDsimul.ExprDenote.exprT_App ExprDsimul.ExprDenote.exprT_Abs
+         ILogicFunc.RSym_ilfunc RelDec_eq_typ ILogicFunc.typeof_func eops lops Typ2_Fun
+         typ2 type_cast RType_typ type_cast_typ typ0 Typ0_Prop
+         eq_sym typ2_cast typ0_cast ExprDsimul.ExprDenote.Rcast
+         ExprDsimul.ExprDenote.Rcast_val eq_rect Relim Rsym Rrefl symD
+         ILogicFunc.funcD RSym_imp_func typeof_sym_imp
+         exprT_UseV ExprDsimul.ExprDenote.exprT_GetVAs
+         exprT_UseU ExprDsimul.ExprDenote.exprT_GetUAs
+         nth_error_get_hlist_nth  Monad.bind Monad.ret OptionMonad.Monad_option
+         ILogicFunc.typ2_cast_quant ILogicFunc.typ2_cast_bin
+         HList.hlist_hd HList.hlist_tl TypesI.typD typD
+         BinPos.Pos.succ
+         FMapPositive.PositiveMap.empty
+         SymEnv.ftype SymEnv.fdenote
+         SymEnv.RSym_func SymEnv.func_typeof_sym FMapPositive.PositiveMap.find fs SymEnv.from_list FMapPositive.PositiveMap.add
+         SymEnv.funcD tyLProp app
+         Quant._foralls HList.hlist_app
+       ] in e.
+Ltac the_solver :=
+  match goal with
+    | |- ?goal =>
+      let k g :=
+          pose (e := g) ;
+          let result := constr:(runRtac typ (expr typ func) nil nil e (sym_eval_mem 100)) in
+          let resultV := eval vm_compute in result in
+      idtac resultV ;
+      match resultV with
+        | Solved _ =>
+          change (propD _ _ nil nil e) ;
+            cut(result = resultV) ;
+            [ set (pf := @rtac_Solved_closed_soundness
+                           typ (expr typ func)
+                           _ _ _ _ (sym_eval_mem 100)
+                           (sym_eval_mem_sound 100) nil nil e)
+              ; exact pf
+            | vm_cast_no_check (@eq_refl _ resultV) ]
+        | More_ _ ?g' =>
+          pose (g'V := g') ;
+          let post := constr:(match @goalD _ _ _ _ _ nil nil g'V with
+                                | Some G => G HList.Hnil HList.Hnil
+                                | None => True
+                              end) in
+          let post := reduce_propD g'V post in
+          match post with
+            | ?G =>
+              cut G ;
+              [ change (@closedD _ _ _ _ _ nil nil g g'V) ;
+                cut (result = More_ (@TopSubst _ _ _ _) g'V) ;
+                [ set (pf := @rtac_More_closed_soundness
+                           typ (expr typ func)
+                           _ _ _ _ (sym_eval_mem 100)
+                           (sym_eval_mem_sound 100) nil nil e g'V) ;
+                  exact pf
+                | vm_cast_no_check (@eq_refl _ resultV) ]
+              | clear g'V e ]
+          end
+      end
+        in
+          reify_expr Reify.reify_imp k [ True ] [ goal ]
+  end.
+
+Ltac the_tauto :=
+  match goal with
+    | |- ?goal =>
+      let k g :=
+          pose (e := g) ;
+          let result := constr:(runRtac typ (expr typ func) nil nil e (tauto_tac)) in
+          let resultV := eval vm_compute in result in
+      match resultV with
+        | Solved _ =>
+          change (propD _ _ nil nil e) ;
+            cut(result = resultV) ;
+            [ set (pf := @rtac_Solved_closed_soundness
+                           typ (expr typ func)
+                           _ _ _ _ (tauto_tac)
+                           (tauto_tac_sound) nil nil e)
+              ; exact pf
+            | vm_cast_no_check (@eq_refl _ resultV) ]
+        | More_ _ ?g' =>
+          pose (g'V := g') ;
+          let post := constr:(match @goalD _ _ _ _ _ nil nil g'V with
+                                | Some G => G HList.Hnil HList.Hnil
+                                | None => True
+                              end) in
+          let post := reduce_propD g'V post in
+          match post with
+            | ?G =>
+              cut G ;
+              [ change (@closedD _ _ _ _ _ nil nil e g'V) ;
+                cut (result = More_ (@TopSubst _ _ _ _) g'V) ;
+                [ set (pf := @rtac_More_closed_soundness
+                           typ (expr typ func)
+                           _ _ _ _ (tauto_tac)
+                           (tauto_tac_sound) nil nil e g'V) ;
+                  exact pf
+                | vm_cast_no_check (@eq_refl _ resultV) ]
+              | clear g'V e ]
+          end
+        | Fail => idtac "failed"
+      end
+        in
+          reify_expr Reify.reify_imp k [ True ] [ goal ]
+  end.
+
+Ltac run_tactic tac :=
+  match goal with
+    | |- ?goal =>
+      let k g :=
+          pose (e := g) ;
+          let result := constr:(runRtac typ (expr typ func) nil nil e tac) in
+          let resultV := eval vm_compute in result in
+      idtac resultV ;
+      match resultV with
+        | Solved _ =>
+          change (propD _ _ nil nil e) ;
+            cut(result = resultV) ;
+            [ admit
+            | vm_cast_no_check (@eq_refl _ resultV) ]
+        | More_ _ ?g' =>
+          pose (g'V := g') ;
+          let post := constr:(match @goalD _ _ _ _ _ nil nil g'V with
+                                | Some G => G HList.Hnil HList.Hnil
+                                | None => True
+                              end) in
+          let post := reduce_propD g'V post in
+          match post with
+            | ?G =>
+              cut G ;
+              [ change (@closedD _ _ _ _ _ nil nil g g'V) ;
+                idtac "change success" ;
+                cut (result = More_ (@TopSubst _ _ _ _) g'V) ;
+                [ admit
+                | vm_cast_no_check (@eq_refl _ resultV) ]
+              | clear g'V e ]
+          end
+        | Fail => idtac "failed"
+      end
+        in
+          reify_expr Reify.reify_imp k [ True ] [ goal ]
+  end.
+
+Ltac just_reify tac :=
+  match goal with
+    | |- ?goal =>
+      let k g :=
+          pose (e := g) ;
+          let result := constr:(runRtac typ (expr typ func) nil nil e tac) in
+          let resultV := eval vm_compute in result in
+          pose resultV
+        in
+          reify_expr Reify.reify_imp k [ True ] [ goal ]
+  end.
+
+
+(*
 Goal @ILogic.lentails Imp.SProp Imp.ILogicOps_SProp (@ILogic.ltrue Imp.SProp Imp.ILogicOps_SProp)
      (Imp.triple (@ILogic.ltrue Imp.lprop Imp.ILogicOps_lprop)
-        (adds 1)
+        (adds 15)
         (@ILogic.ltrue Imp.lprop Imp.ILogicOps_lprop)).
 unfold adds.
-match goal with
-  | |- ?goal =>
-    let k g :=
-        pose g
-    in
-    reify_expr Reify.reify_imp k [ True ] [ goal ]
-end.
+Time the_solver.
+Qed.
+
+Goal @ILogic.lentails Imp.SProp Imp.ILogicOps_SProp (@ILogic.ltrue Imp.SProp Imp.ILogicOps_SProp)
+     (Imp.triple (@ILogic.lfalse Imp.lprop Imp.ILogicOps_lprop)
+        Imp.Skip
+        (@ILogic.lfalse Imp.lprop Imp.ILogicOps_lprop)).
+Time the_solver.
+Qed.
+*)
 
 
-Check rtac_Solved_closed_soundness.
-pose (runRtac typ (expr typ func) nil nil e (sym_eval_mem 2)).
-assert (r = Fail).
-vm_compute.
-vm_compute in r.
-let result := constr:(runRtac typ (expr typ func) nil nil e (sym_eval_mem 100)) in
-let resultV := eval vm_compute in result in
-idtac resultV ;
-match resultV with
-| Solved _ => idtac "Solved"
-| More_ _ _ => idtac "More_"
-end.
+Goal @ILogic.lentails Imp.SProp Imp.ILogicOps_SProp (@ILogic.ltrue Imp.SProp Imp.ILogicOps_SProp)
+     (Imp.triple
+        ((@Applicative.ap (ILInsts.Fun Imp.locals)
+              (Imp.Applicative_Fun Imp.locals) Imp.value Imp.HProp
+              (@Applicative.ap (ILInsts.Fun Imp.locals)
+                 (Imp.Applicative_Fun Imp.locals) Imp.value
+                 (Imp.value -> Imp.HProp)
+                 (@Applicative.pure (ILInsts.Fun Imp.locals)
+                    (Imp.Applicative_Fun Imp.locals)
+                    (Imp.value -> Imp.value -> Imp.HProp) Imp.PtsTo)
+                 (Imp.eval_iexpr (Imp.iVar "y")))
+              (@Applicative.pure (ILInsts.Fun Imp.locals)
+                                 (Imp.Applicative_Fun Imp.locals)
+                                 (Imp.value) 3)))
+        (adds 2)
+        ((@Applicative.ap (ILInsts.Fun Imp.locals)
+              (Imp.Applicative_Fun Imp.locals) Imp.value Imp.HProp
+              (@Applicative.ap (ILInsts.Fun Imp.locals)
+                 (Imp.Applicative_Fun Imp.locals) Imp.value
+                 (Imp.value -> Imp.HProp)
+                 (@Applicative.pure (ILInsts.Fun Imp.locals)
+                    (Imp.Applicative_Fun Imp.locals)
+                    (Imp.value -> Imp.value -> Imp.HProp) Imp.PtsTo)
+                 (Imp.eval_iexpr (Imp.iVar "y")))
+              (@Applicative.pure (ILInsts.Fun Imp.locals)
+                                 (Imp.Applicative_Fun Imp.locals)
+                                 (Imp.value) 3))))%string.
+unfold adds.
+Require Import Charge.Logics.ILogic.
+Time the_solver.
+Print embed_ltrue_lemma.
+intros.
+just_reify (EAPPLY embed_ltrue_lemma).
+About Imp.go_lower. About SIMPLIFY.
+Set Printing Implicit.
+
+
+compute in P.
+just_reify (EAPPLY triple_exL_lemma).
+
+
+
+Local Existing Instance Imp.ILogicOps_lprop.
+Local Existing Instance Imp.ILogicOps_HProp.
+Local Existing Instance Imp.EmbedOp_Prop_HProp.
+
+Lemma go_lowerX
+: forall (P Q : Imp.lprop),
+    (forall x : Imp.locals, P x |-- Q x) ->
+    P |-- Q.
+Admitted.
+Lemma pull_hyp
+: forall (Q : Prop) (P R : Imp.HProp),
+    (Q -> (P |-- R)) ->
+    (P //\\ ILEmbed.embed Q) |-- R.
+Admitted.
+eapply go_lowerX; intro.
+
+repeat first [ rewrite Imp.locals_get_locals_upd
+             | rewrite Imp.eval_iexpr_iPlus
+             | rewrite Imp.eval_iexpr_iConst
+             | rewrite Imp.eval_iexpr_iVar
+             | eapply lexistsL; intro
+             | eapply pull_hyp; intro ].
+subst.
+Qed.
+
+
+(** NOTE: An alternative way to write [tauto] is using rtac
+ ** this could be very useful.
+ **)

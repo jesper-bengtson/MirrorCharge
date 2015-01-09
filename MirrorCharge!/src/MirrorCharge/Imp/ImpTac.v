@@ -21,6 +21,43 @@ Local Existing Instance ExprOk_expr.
 Definition imp_tac := rtac typ (expr typ func).
 Definition imp_tacK := rtacK typ (expr typ func).
 
+Definition ON_ENTAILMENT (t other : imp_tac) : imp_tac :=
+  AT_GOAL (fun _ _ e =>
+             match e with
+               | App (App (Inj (inr (ILogicFunc.ilf_entails _))) _)
+                     (App (App (Inj (inr (ILogicFunc.ilf_entails _))) _) _) =>
+                 t
+               | _ => other
+             end).
+
+Definition INTRO_All : imp_tac :=
+  INTRO (fun e =>
+           match e with
+             | App (Inj (inr (ILogicFunc.ilf_forall _ t))) P =>
+               Some (AsAl t (App P))
+             | App (App (Inj (inr (ILogicFunc.ilf_entails el))) P)
+                   (App (Inj (inr (ILogicFunc.ilf_forall t elx))) Q) =>
+               Some (AsAl t (fun e =>
+                               App (App (Inj (inr (ILogicFunc.ilf_entails el))) P)
+                                   (App Q e)))
+             | _ => None
+           end).
+
+Theorem INTRO_All_sound : rtac_sound INTRO_All.
+Admitted.
+
+Definition INTRO_Hyp : imp_tac :=
+  INTRO (fun e =>
+           match e with
+             | App (App (Inj (inr (ILogicFunc.ilf_impl _))) P) Q =>
+               Some (AsHy P Q)
+             | _ => None
+           end).
+
+Theorem INTRO_Hyp_sound : rtac_sound INTRO_Hyp.
+Admitted.
+
+
 Definition EAPPLY lem : imp_tac :=
   THEN (@EAPPLY typ (expr typ func) _ _ _ _ ExprLift.vars_to_uvars
                  (fun subst S_subst SU tus tvs n e1 e2 s t =>
@@ -60,7 +97,7 @@ Proof.
 Qed.
 
 Definition SIMPLIFY : imp_tac :=
-  SIMPLIFY (fun _ _ _ _ => beta_all (idred simplify)).
+  SIMPLIFY (fun _ _ _ _ => beta_all (idred (simplify 10))).
 
 Theorem SIMPLIFY_sound : rtac_sound SIMPLIFY.
 Proof.

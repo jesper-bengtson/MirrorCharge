@@ -90,13 +90,24 @@ Section pushUpdates.
     end.
 End pushUpdates.
 
-Definition simplify (e : expr typ func) (args : list (expr typ func))
+Fixpoint simplify (fuel : nat) (e : expr typ func) (args : list (expr typ func))
 : expr typ func :=
   match e with
     | Inj (inl (inr pEval_expri)) =>
       match args with
         | App (Inj (inl (inr eVar))) X :: xs =>
           apps (App flocals_get X) xs
+        | App (Inj (inl (inr eConst))) X :: xs =>
+          X
+        | App (App (Inj (inl (inr ePlus))) X) Y :: xs =>
+          match fuel with
+            | 0 =>
+              apps e args
+            | S fuel =>
+              let X' := simplify fuel e (X :: xs) in
+              let Y' := simplify fuel e (Y :: xs) in
+              App (App (Inj (inl (inr natPlus))) X') Y'
+          end
         | _ => apps e args
       end
     | Inj (inl (inr (pUpdate t))) =>
