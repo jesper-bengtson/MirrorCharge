@@ -22,10 +22,34 @@ Fixpoint tryApply_each (ls : list (Lemma.lemma typ (expr typ func) (expr typ fun
       THEN (TRY (EAPPLY l)) (runOnGoals (tryApply_each ls))
   end.
 
+Definition runTacK (tac : imp_tacK) : imp_tac :=
+  fun a b c d e f g => tac a b c d e f (GGoal g).
+
+Fixpoint THENS (ls : list imp_tac) : imp_tac :=
+  match ls with
+    | nil => IDTAC
+    | l :: ls => THEN l (runOnGoals (THENS ls))
+  end.
+
+Definition side_solver : imp_tac :=
+  THENS (TRY (THENS (EAPPLY go_lower_lemma ::
+                            INTRO_All ::
+                            BETA_REDUCE :: nil)) ::
+             TRY (EAPPLY embed_ltrue_lemma) ::
+             SIMPLIFY ::
+             STacCancel.stac_cancel ::
+             SIMPLIFY :: tauto_tac :: nil).
+
 Definition entailment_tac : imp_tac :=
   ON_ENTAILMENT
-    (REPEAT 2 (THEN (tryApply_each (embed_ltrue_lemma :: go_lower_lemma :: nil))
-       (runOnGoals (THEN SIMPLIFY (runOnGoals (THEN STacCancel.stac_cancel (runOnGoals tauto_tac)))))))
+    (THENS
+       (tryApply_each (embed_ltrue_lemma ::
+                       go_lower_raw_lemma ::
+                       go_lower_lemma :: nil) ::
+                      TRY INTRO_All ::
+                      SIMPLIFY ::
+                      REPEAT 10 (THENS (APPLY pull_embed_hyp_lemma :: INTRO_Hyp :: nil)) :: nil)) (*
+       (runOnGoals (TRY (THEN SIMPLIFY (runOnGoals (THEN STacCancel.stac_cancel (runOnGoals tauto_tac))))))) *)
     IDTAC.
 
 (*
@@ -37,23 +61,34 @@ Definition simplify_tac : imp_tac := SIMPLIFY.
 Definition entailment_tac_solve : imp_tac :=
    SOLVE entailment_tac.
 
-
-Definition runTacK (tac : imp_tacK) : imp_tac :=
-  fun a b c d e f g => tac a b c d e f (GGoal g).
-
 Definition EAPPLY_THEN a (b : imp_tac) : imp_tac :=
   runTacK (THENK (EAPPLY a : imp_tacK) (runOnGoals b)).
 
 
 Definition EAPPLY_THEN_1 a (side : imp_tac) (b : imp_tacK) : imp_tac :=
-  runTacK (THENK (THENK (EAPPLY a : imp_tacK) (runOnGoals (TRY (SOLVE side))))
-                 (THENK (@MINIFY _ _ _)
-                        (runOnGoals (AT_GOAL (fun _ _ goal =>
-                                                match goal with
-                                                  | App (App entails _) (App (App (App triple _) _) _) =>
-                                                    runTacK b
-                                                  | _ => FAIL
-                                                end))))).
+  THEN (THEN (EAPPLY a) (runOnGoals (TRY (SOLVE side))))
+       (THENK (@MINIFY _ _ _)
+              (runOnGoals (AT_GOAL (fun _ _ goal =>
+                                      match goal with
+                                        | App (App entails _) (App (App (App triple _) _) _) =>
+                                          runTacK b
+                                        | _ => IDTAC
+                                      end)))).
+
+Definition sym_eval_no_mem (n : nat) : imp_tac :=
+  REC n (fun rec : imp_tac =>
+           let rec : imp_tac := THEN simplify_tac (runOnGoals rec) in
+           TRY (FIRST (   EAPPLY_THEN SeqA_lemma rec
+                  :: EAPPLY_THEN triple_exL_lemma
+                          (THEN INTRO_All (runOnGoals rec))
+                  :: EAPPLY_THEN Assign_seq_lemma rec
+                  :: EAPPLY_THEN Skip_seq_lemma rec
+                  :: EAPPLY_THEN_1 Assert_seq_lemma side_solver (runOnGoals rec)
+                  :: EAPPLY_THEN Assign_tail_lemma (TRY entailment_tac)
+                  :: EAPPLY_THEN Skip_tail_lemma (TRY entailment_tac)
+                  :: EAPPLY_THEN Assert_tail_lemma (TRY entailment_tac)
+                  :: nil)))
+      IDTAC.
 
 Definition sym_eval_mem (n : nat) : imp_tac :=
   REC n (fun rec : imp_tac =>
@@ -62,10 +97,12 @@ Definition sym_eval_mem (n : nat) : imp_tac :=
                   :: EAPPLY_THEN triple_exL_lemma
                           (THEN INTRO_All (runOnGoals rec))
                   :: EAPPLY_THEN Assign_seq_lemma rec
-                  :: EAPPLY_THEN_1 Read_seq_lemma entailment_tac (runOnGoals rec)
-                  :: EAPPLY_THEN_1 Write_seq_lemma entailment_tac (runOnGoals rec)
+                  :: EAPPLY_THEN_1 Read_seq_lemma
+                       (THENS (INTRO_Ex :: side_solver :: nil))
+                       (runOnGoals rec)
+                  :: EAPPLY_THEN_1 Write_seq_lemma side_solver (runOnGoals rec)
                   :: EAPPLY_THEN Skip_seq_lemma rec
-                  :: EAPPLY_THEN_1 Assert_seq_lemma entailment_tac (runOnGoals rec)
+                  :: EAPPLY_THEN_1 Assert_seq_lemma side_solver (runOnGoals rec)
                   :: EAPPLY_THEN Assign_tail_lemma (TRY entailment_tac)
                   :: EAPPLY_THEN Read_tail_lemma (TRY entailment_tac)
                   :: EAPPLY_THEN Write_tail_lemma (TRY entailment_tac)
@@ -240,6 +277,22 @@ Fixpoint adds (n : nat) :=
     | S n => Imp.Seq (Imp.Assign "x" (Imp.iPlus (Imp.iVar "x") (Imp.iConst 1))) (adds n)
   end%string.
 
+Fixpoint seqs (ls : list Imp.icmd) thn : Imp.icmd :=
+  match ls with
+    | nil => thn
+    | l :: ls => Imp.Seq l (seqs ls thn)
+  end.
+
+Fixpoint adds_mem (n : nat) :=
+  match n with
+    | 0 => Imp.Skip
+    | S n =>
+      seqs (Imp.Read "t" (Imp.iVar "x") ::
+            Imp.Write (Imp.iVar "x") (Imp.iPlus (Imp.iVar "t") (Imp.iConst 1)) :: nil)
+           (adds_mem n)
+  end%string.
+
+
 Ltac reduce_propD g e :=
   eval cbv beta iota zeta delta
        [ goalD g Ctx.propD exprD'_typ0 exprD' Expr_expr
@@ -264,7 +317,16 @@ Ltac reduce_propD g e :=
          SymEnv.RSym_func SymEnv.func_typeof_sym FMapPositive.PositiveMap.find fs SymEnv.from_list FMapPositive.PositiveMap.add
          SymEnv.funcD tyLProp app
          Quant._foralls HList.hlist_app
+         Traversable.mapT
+         Option.Applicative_option List.Traversable_list
+         List.mapT_list map Quant._impls
+         amap_substD FMapSubst.SUBST.raw_substD UVarMap.MAP.fold
+         FMapPositive.PositiveMap.fold FMapPositive.PositiveMap.xfoldi
+         FMapPositive.append Quant._exists
+         UVarMap.MAP.from_key pred BinPos.Pos.to_nat BinPos.Pos.iter_op
+         Applicative.ap Applicative.pure
        ] in e.
+
 Ltac the_solver :=
   match goal with
     | |- ?goal =>
@@ -357,7 +419,9 @@ Ltac run_tactic tac :=
       let k g :=
           pose (e := g) ;
           let result := constr:(runRtac typ (expr typ func) nil nil e tac) in
+            idtac "starting vm_compute";
           let resultV := eval vm_compute in result in
+      idtac "finished vm_compute" ;
       idtac resultV ;
       match resultV with
         | Solved _ =>
@@ -400,13 +464,12 @@ Ltac just_reify tac :=
           reify_expr Reify.reify_imp k [ True ] [ goal ]
   end.
 
-
-(*
 Goal @ILogic.lentails Imp.SProp Imp.ILogicOps_SProp (@ILogic.ltrue Imp.SProp Imp.ILogicOps_SProp)
      (Imp.triple (@ILogic.ltrue Imp.lprop Imp.ILogicOps_lprop)
         (adds 15)
         (@ILogic.ltrue Imp.lprop Imp.ILogicOps_lprop)).
 unfold adds.
+Set Printing Depth 100.
 Time the_solver.
 Qed.
 
@@ -429,11 +492,11 @@ Goal @ILogic.lentails Imp.SProp Imp.ILogicOps_SProp (@ILogic.ltrue Imp.SProp Imp
                  (@Applicative.pure (ILInsts.Fun Imp.locals)
                     (Imp.Applicative_Fun Imp.locals)
                     (Imp.value -> Imp.value -> Imp.HProp) Imp.PtsTo)
-                 (Imp.eval_iexpr (Imp.iVar "y")))
+                 (Imp.eval_iexpr (Imp.iVar "x")))
               (@Applicative.pure (ILInsts.Fun Imp.locals)
                                  (Imp.Applicative_Fun Imp.locals)
                                  (Imp.value) 3)))
-        (adds 2)
+        (adds_mem 1)
         ((@Applicative.ap (ILInsts.Fun Imp.locals)
               (Imp.Applicative_Fun Imp.locals) Imp.value Imp.HProp
               (@Applicative.ap (ILInsts.Fun Imp.locals)
@@ -442,23 +505,408 @@ Goal @ILogic.lentails Imp.SProp Imp.ILogicOps_SProp (@ILogic.ltrue Imp.SProp Imp
                  (@Applicative.pure (ILInsts.Fun Imp.locals)
                     (Imp.Applicative_Fun Imp.locals)
                     (Imp.value -> Imp.value -> Imp.HProp) Imp.PtsTo)
-                 (Imp.eval_iexpr (Imp.iVar "y")))
+                 (Imp.eval_iexpr (Imp.iVar "x")))
               (@Applicative.pure (ILInsts.Fun Imp.locals)
                                  (Imp.Applicative_Fun Imp.locals)
                                  (Imp.value) 3))))%string.
-unfold adds.
+unfold adds_mem, seqs.
 Require Import Charge.Logics.ILogic.
-Time the_solver.
-Print embed_ltrue_lemma.
-intros.
-just_reify (EAPPLY embed_ltrue_lemma).
-About Imp.go_lower. About SIMPLIFY.
-Set Printing Implicit.
+
+Definition EAPPLY_THEN_1' a (side : imp_tac) (b : imp_tacK) : imp_tac :=
+  THEN (THEN (EAPPLY a) (runOnGoals (ON_ENTAILMENT side IDTAC))) (* 
+       (THENK (@MINIFY _ _ _)
+              (runOnGoals (AT_GOAL (fun _ _ goal =>
+                                      match goal with
+                                        | App (App entails _) (App (App (App triple _) _) _) =>
+                                          runTacK b
+                                        | _ => IDTAC
+                                      end)))) *) (runOnGoals IDTAC).
+
+run_tactic (EAPPLY_THEN_1 Read_seq_lemma
+                           (side_solver) (runOnGoals IDTAC)).
+run_tactic (THENS (EAPPLY triple_exL_lemma ::
+                   INTRO_All :: BETA_REDUCE (*  ::
+                   EAPPLY Write_seq_lemma *) :: nil)).
+just_reify (THENS (INTRO_All :: BETA_REDUCE ::
+                   EAPPLY_THEN_1' Write_seq_lemma
+                   (THENS (TRY (THENS (TRY (EAPPLY embed_ltrue_lemma) ::
+                                       BETA_REDUCE ::
+                                       TRY (EAPPLY go_lower_raw_lemma) ::
+                                       TRY INTRO_All ::
+                                       SIMPLIFY :: SIMPLIFY ::
+                                       TRY INTRO_Ex ::
+                                       BETA_REDUCE :: nil)) ::
+                               SIMPLIFY :: (*
+                               STacCancel.stac_cancel :: *) (*
+                               SIMPLIFY :: tauto_tac :: *) nil))
+                   (runOnGoals IDTAC) :: nil)).
+Eval compute in
+    @STacCancel.stac_cancel
+                          (tyArr tyLocals tyHProp :: tyNat :: nil)
+                         (tyNat :: tyLocals :: nil) 2 2
+                         (CExs
+                            (CAll
+                               (CExs (CAll (CTop nil nil) tyNat)
+                                  (tyArr tyLocals tyHProp :: nil)) tyLocals)
+                            (tyNat :: nil))
+                         (ExsSubst
+                            (AllSubst
+                               (ExsSubst
+                                  (AllSubst
+                                     (TopSubst
+                                        (expr typ
+                                           (BinNums.positive + imp_func +
+                                            ILogicFunc.ilfunc typ)) nil nil))
+                                  (FMapPositive.PositiveMap.Leaf
+                                     (expr typ
+                                        (BinNums.positive + imp_func +
+                                         ILogicFunc.ilfunc typ)))))
+                            (FMapPositive.PositiveMap.Leaf
+                               (expr typ
+                                  (BinNums.positive + imp_func +
+                                   ILogicFunc.ilfunc typ))))
+                         (App
+                            (App (Inj (inr (ILogicFunc.ilf_entails tyHProp)))
+                               (App
+                                  (App
+                                     (Inj (inr (ILogicFunc.ilf_and tyHProp)))
+                                     (App
+                                        (App
+                                           (App
+                                              (Inj
+                                                 (inl
+                                                  (inr (pAp tyNat tyHProp))))
+                                              (App
+                                                 (App
+                                                  (Inj
+                                                  (inl
+                                                  (inr
+                                                  (pAp tyNat
+                                                  (tyArr tyNat tyHProp)))))
+                                                  (App
+                                                  (Inj
+                                                  (inl
+                                                  (inr
+                                                  (pPure
+                                                  (tyArr tyNat
+                                                  (tyArr tyNat tyHProp))))))
+                                                  (Inj
+                                                  (inl (inl (BinNums.xO 4))))))
+                                                 (App
+                                                  (Inj
+                                                  (inl (inr pLocals_get)))
+                                                  (Inj
+                                                  (inl
+                                                  (inr (pVar "x"%string)))))))
+                                           (App
+                                              (Inj (inl (inr (pPure tyNat))))
+                                              (Inj (inl (inr (pNat 3))))))
+                                        (App
+                                           (App
+                                              (App
+                                                 (Inj (inl (inr pLocals_upd)))
+                                                 (Inj
+                                                  (inl
+                                                  (inr (pVar "t"%string)))))
+                                              (Var 0)) 
+                                           (Var 1))))
+                                  (App
+                                     (Inj
+                                        (inr
+                                           (ILogicFunc.ilf_embed tyProp
+                                              tyHProp)))
+                                     (App
+                                        (App (Inj (inl (inr (pEq tyNat))))
+                                           (App
+                                              (App
+                                                 (Inj (inl (inr pLocals_get)))
+                                                 (Inj
+                                                  (inl
+                                                  (inr (pVar "t"%string)))))
+                                              (Var 1)))
+                                        (App
+                                           (App
+                                              (Inj (inl (inr (pPure tyNat))))
+                                              (Inj (inl (inr (pNat 3)))))
+                                           (App
+                                              (App
+                                                 (App
+                                                  (Inj
+                                                  (inl (inr pLocals_upd)))
+                                                  (Inj
+                                                  (inl
+                                                  (inr (pVar "t"%string)))))
+                                                 (Var 0)) 
+                                              (Var 1)))))))
+                            (App
+                               (App (Inj (inl (inr (pStar tyHProp))))
+                                  (App
+                                     (App
+                                        (App
+                                           (Inj
+                                              (inl (inr (pAp tyNat tyHProp))))
+                                           (App
+                                              (App
+                                                 (Inj
+                                                  (inl
+                                                  (inr
+                                                  (pAp tyNat
+                                                  (tyArr tyNat tyHProp)))))
+                                                 (App
+                                                  (Inj
+                                                  (inl
+                                                  (inr
+                                                  (pPure
+                                                  (tyArr tyNat
+                                                  (tyArr tyNat tyHProp))))))
+                                                  (Inj
+                                                  (inl (inl (BinNums.xO 4))))))
+                                              (App
+                                                 (Inj (inl (inr pLocals_get)))
+                                                 (Inj
+                                                  (inl
+                                                  (inr (pVar "x"%string)))))))
+                                        (App (Inj (inl (inr (pPure tyNat))))
+                                           (UVar 1))) 
+                                     (Var 1))) (App (UVar 0) (Var 1)))).
 
 
-compute in P.
-just_reify (EAPPLY triple_exL_lemma).
+pose (Z := (@App typ func
+                              (@App typ func
+                                 (@Inj typ func
+                                    (@inr (SymEnv.func + imp_func)
+                                       (ILogicFunc.ilfunc typ)
+                                       (@ILogicFunc.ilf_entails typ tyHProp)))
+                                 (@App typ func
+                                    (@App typ func
+                                       (@Inj typ func
+                                          (@inr (SymEnv.func + imp_func)
+                                             (ILogicFunc.ilfunc typ)
+                                             (@ILogicFunc.ilf_and typ tyHProp)))
+                                       (@App typ func
+                                          (@App typ func
+                                             (@App typ func
+                                                (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  (pAp tyNat tyHProp))))
+                                                (@App typ func
+                                                  (@App typ func
+                                                  (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  (pAp tyNat
+                                                  (tyArr tyNat tyHProp)))))
+                                                  (@App typ func
+                                                  (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  (pPure
+                                                  (tyArr tyNat
+                                                  (tyArr tyNat tyHProp))))))
+                                                  (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inl SymEnv.func imp_func
+                                                  (BinNums.xO 4))))))
+                                                  (@App typ func
+                                                  (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  pLocals_get)))
+                                                  (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  (pVar "x"%string)))))))
+                                             (@App typ func
+                                                (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  (pPure tyNat))))
+                                                (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  (pNat 3))))))
+                                          (@App typ func
+                                             (@App typ func
+                                                (@App typ func
+                                                  (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  pLocals_upd)))
+                                                  (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  (pVar "t"%string)))))
+                                                (@Var typ func 0))
+                                             (@Var typ func 1))))
+                                    (@App typ func
+                                       (@Inj typ func
+                                          (@inr (SymEnv.func + imp_func)
+                                             (ILogicFunc.ilfunc typ)
+                                             (@ILogicFunc.ilf_embed typ
+                                                tyProp tyHProp)))
+                                       (@App typ func
+                                          (@App typ func
+                                             (@Inj typ func
+                                                (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  (pEq tyNat))))
+                                             (@App typ func
+                                                (@App typ func
+                                                  (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  pLocals_get)))
+                                                  (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  (pVar "t"%string)))))
+                                                (@Var typ func 1)))
+                                          (@App typ func
+                                             (@App typ func
+                                                (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  (pPure tyNat))))
+                                                (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  (pNat 3)))))
+                                             (@App typ func
+                                                (@App typ func
+                                                  (@App typ func
+                                                  (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  pLocals_upd)))
+                                                  (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  (pVar "t"%string)))))
+                                                  (@Var typ func 0))
+                                                (@Var typ func 1)))))))
+                              (@App typ func
+                                 (@App typ func
+                                    (@Inj typ func
+                                       (@inl (SymEnv.func + imp_func)
+                                          (ILogicFunc.ilfunc typ)
+                                          (@inr SymEnv.func imp_func
+                                             (pStar tyHProp))))
+                                    (@App typ func
+                                       (@App typ func
+                                          (@App typ func
+                                             (@Inj typ func
+                                                (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  (pAp tyNat tyHProp))))
+                                             (@App typ func
+                                                (@App typ func
+                                                  (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  (pAp tyNat
+                                                  (tyArr tyNat tyHProp)))))
+                                                  (@App typ func
+                                                  (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  (pPure
+                                                  (tyArr tyNat
+                                                  (tyArr tyNat tyHProp))))))
+                                                  (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inl SymEnv.func imp_func
+                                                  (BinNums.xO 4))))))
+                                                (@App typ func
+                                                  (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  pLocals_get)))
+                                                  (@Inj typ func
+                                                  (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  (pVar "x"%string)))))))
+                                          (@App typ func
+                                             (@Inj typ func
+                                                (@inl
+                                                  (SymEnv.func + imp_func)
+                                                  (ILogicFunc.ilfunc typ)
+                                                  (@inr SymEnv.func imp_func
+                                                  (pPure tyNat))))
+                                             (@UVar typ func 1)))
+                                       (@Var typ func 1)))
+                                 (@App typ func (@UVar typ func 0)
+                                    (@Var typ func 1))))).
+Print STacCancel.stac_cancel.
+let tvs := tyNat :: tyNat :: nil in
+let tus := tyArr tyLocals tyHProp :: tyLocals :: nil in
+STacCancel.stac_cancel tus tvs (length tus) (length tvs)
 
+Print INTRO_Ex.
+Print Imp.go_lower.
+
+Check Imp.Write_seq_rule.
+
+ EAPPLY_THEN_1 Read_seq_lemma
+                           (side_solver) (runOnGoals IDTAC)).
+cbv beta iota zeta delta [  ].
+
+Print Imp.go_lower.
+Print go_lower_lemma.
+Print Imp.embed_ltrue.
+Print Imp.SProp.
+Print tySProp.
+                       (THEN INTRO_Ex (runOnGoals entailment_tac))
+                       (runOnGoals IDTAC)).
+Print EAPPLY_THEN_1.
+Print FMapSubst.SUBST.raw_substD.
+cbv beta iota zeta delta [  ].
 
 
 Local Existing Instance Imp.ILogicOps_lprop.
@@ -485,8 +933,3 @@ repeat first [ rewrite Imp.locals_get_locals_upd
              | eapply pull_hyp; intro ].
 subst.
 Qed.
-
-
-(** NOTE: An alternative way to write [tauto] is using rtac
- ** this could be very useful.
- **)

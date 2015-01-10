@@ -58,6 +58,23 @@ Section interp_get.
       | _ =>
         App (App (Inj (inl (inr (pUpdate tyNat)))) updf) (App flocals_get v)
     end.
+
+  Fixpoint interp_get' (mem : expr typ func)
+  : expr typ func :=
+    match mem with
+      | App (App (App (Inj (inl (inr pLocals_upd))) v') val) mem' =>
+        match compare_expr v v' with
+          | Some true =>
+            val
+          | Some false =>
+            interp_get' mem'
+          | None =>
+            App (App (Inj (inl (inr pLocals_get))) v) mem
+        end
+      | _ =>
+        App (App (Inj (inl (inr pLocals_get))) v) mem
+    end.
+
 End interp_get.
 
 Section pushUpdates.
@@ -90,6 +107,14 @@ Section pushUpdates.
     end.
 End pushUpdates.
 
+Fixpoint redApplicative (a b : expr typ func) : expr typ func :=
+  match a with
+    | App (App (Inj (inl (inr (pAp _ _)))) x) y =>
+      App (redApplicative x b) (redApplicative y b)
+    | App (Inj (inl (inr (pPure _)))) x => x
+    | _ => App a b
+  end.
+
 Fixpoint simplify (fuel : nat) (e : expr typ func) (args : list (expr typ func))
 : expr typ func :=
   match e with
@@ -110,10 +135,83 @@ Fixpoint simplify (fuel : nat) (e : expr typ func) (args : list (expr typ func))
           end
         | _ => apps e args
       end
+    | Inj (inl (inr pLocals_get)) =>
+      match args with
+        | X :: Y :: xs =>
+          apps (interp_get' X Y) xs
+        | _ => apps e args
+      end
     | Inj (inl (inr (pUpdate t))) =>
       match args with
         | f :: e :: nil =>
           pushUpdates f e t
+        | _ => apps e args
+      end
+    | Inj (inr (ilf_and (tyArr _ d))) =>
+      match args with
+        | X :: Y :: Z :: args =>
+          apps (Inj (inr (ilf_and d))) (App X Z :: App Y Z :: args)
+        | _ => apps e args
+      end
+    | Inj (inr (ilf_or (tyArr _ d))) =>
+      match args with
+        | X :: Y :: Z :: args =>
+          apps (Inj (inr (ilf_or d))) (App X Z :: App Y Z :: args)
+        | _ => apps e args
+      end
+    | Inj (inr (ilf_impl (tyArr _ d))) =>
+      match args with
+        | X :: Y :: Z :: args =>
+          apps (Inj (inr (ilf_impl d))) (App X Z :: App Y Z :: args)
+        | _ => apps e args
+      end
+    | Inj (inr (ilf_forall z (tyArr t d))) =>
+      match args with
+        | X :: Y :: args =>
+          apps (Abs t (App (Inj (inr (ilf_forall z d)))
+                           (Abs z (App (App X (Var 0)) (Var 1))))) (Y :: args)
+        | _ => apps e args
+      end
+    | Inj (inr (ilf_exists z (tyArr t d))) =>
+      match args with
+        | X :: Y :: args =>
+          apps (Abs t (App (Inj (inr (ilf_exists z d)))
+                           (Abs z (App (App X (Var 0)) (Var 1))))) (Y :: args)
+        | _ => apps e args
+      end
+    | Inj (inr (ilf_true (tyArr _ d))) =>
+      match args with
+        | X :: args =>
+          apps (Inj (inr (ilf_true d))) args
+        | _ => apps e args
+      end
+    | Inj (inr (ilf_false (tyArr _ d))) =>
+      match args with
+        | X :: args =>
+          apps (Inj (inr (ilf_false d))) args
+        | _ => apps e args
+      end
+    | Inj (inl (inr (pStar (tyArr _ d)))) =>
+      match args with
+        | X :: Y :: Z :: args =>
+          apps (Inj (inl (inr (pStar d)))) (App X Z :: App Y Z :: args)
+        | _ => apps e args
+      end
+    | _ => apps e args
+  end.
+
+Definition simplifyApplicative (e : expr typ func) (args : list (expr typ func))
+: expr typ func :=
+  match e with
+    | Inj (inl (inr (pAp _ _))) =>
+      match args with
+        | X :: Y :: Z :: args =>
+          apps (App (redApplicative X Z) (redApplicative Y Z)) args
+        | _ => apps e args
+      end
+    | Inj (inl (inr (pPure _))) =>
+      match args with
+        | X :: Y :: args => apps X args
         | _ => apps e args
       end
     | _ => apps e args

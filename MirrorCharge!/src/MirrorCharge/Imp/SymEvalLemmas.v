@@ -123,6 +123,16 @@ Defined.
 Definition go_lower_lemma : lemma typ (expr typ func) (expr typ func).
 reify_lemma Imp.go_lower.
 Defined.
+Definition go_lower_raw_lemma : lemma typ (expr typ func) (expr typ func).
+reify_lemma Imp.go_lower_raw.
+Defined.
 Definition embed_ltrue_lemma : lemma typ (expr typ func) (expr typ func).
 reify_lemma Imp.embed_ltrue.
+Defined.
+
+Definition pull_embed_hyp_lemma : lemma typ (expr typ func) (expr typ func).
+reify_lemma Imp.pull_embed_hyp.
+Defined.
+Definition entails_exL_lemma : lemma typ (expr typ func) (expr typ func).
+reify_lemma Imp.entails_exL.
 Defined.

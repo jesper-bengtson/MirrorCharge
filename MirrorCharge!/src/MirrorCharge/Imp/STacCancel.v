@@ -9,6 +9,7 @@ Require Import MirrorCharge.BILNormalize.
 Require Import MirrorCharge.SynSepLog.
 Require Import MirrorCharge.SepLogFold.
 Require Import MirrorCharge.Imp.Syntax.
+Require Import ExtLib.Core.RelDec.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -19,18 +20,8 @@ Local Existing Instance RSym_ilfunc.
 Local Existing Instance RS.
 Local Existing Instance Expr_expr.
 
-Local Notation "a @ b" := (@App typ _ a b) (at level 30).
-Local Notation "\ t -> e" := (@Abs typ _ t e) (at level 40).
-Local Notation "'Ap' '[' x , y ']'" := (Inj (inl (inr (pAp x y)))) (at level 0).
-Local Notation "'Pure' '[' x ']'" := (Inj (inl (inr (pPure x)))) (at level 0).
-Local Notation "x '|-' y" :=
-  (App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) x) y) (at level 10).
-Local Notation "'{{'  P  '}}'  c  '{{'  Q  '}}'" :=
-  (Inj (inl (inl 1%positive)) @ P @ c @ Q) (at level 20).
-Local Notation "c1 ;; c2" := (Inj (inl (inl 2%positive)) @ c1 @ c2) (at level 30).
 
-(** NOTE: this is for [locals -> HProp] **)
-Definition sls : SepLogSpec typ func :=
+Definition sls (ty : typ)  : SepLogSpec typ func :=
 {| is_pure := fun (e : expr typ func) =>
                 match e with
                   | Inj (inr (ilf_true _))
@@ -40,30 +31,31 @@ Definition sls : SepLogSpec typ func :=
  ; is_emp := fun e => false
  ; is_star := fun (e : expr typ func) =>
                 match e with
-                  | Inj (inl (inr (pStar _))) => true
+                  | Inj (inl (inr (pStar ty'))) =>
+                    ty ?[eq] ty'
                   | _ => false
                 end
  |}.
 
-Let ssl : SynSepLog typ func :=
+Let ssl (ty : typ) : SynSepLog typ func :=
 {| e_star := fun l r =>
                match l with
                  | Inj (inl (inr (pEmp _))) => r
                  | _ => match r with
                           | Inj (inl (inr (pEmp _))) => l
-                          | _ => lstar tyLProp l r
+                          | _ => lstar ty l r
                         end
                end
- ; e_emp := lemp tyLProp
+ ; e_emp := lemp ty
  ; e_and := fun l r =>
               match l with
                 | Inj (inr (ilf_true _)) => r
                 | _ => match r with
                          | Inj (inr (ilf_true _)) => l
-                         | _ => land tyLProp l r
+                         | _ => land ty l r
                        end
               end
- ; e_true := ltrue tyLProp
+ ; e_true := ltrue ty
  |}.
 
 Definition is_solved (e1 e2 : conjunctives typ func) : bool :=
@@ -87,9 +79,11 @@ Section the_canceller.
   Variable Subst_subst : Subst subst (expr typ func).
   Variable SubstUpdate_subst : SubstUpdate subst (expr typ func).
 
+  Variable ty : typ.
+
   Let doUnifySepLog (tus tvs : EnvI.tenv typ) (s : subst) (e1 e2 : expr typ func)
   : option subst :=
-    @exprUnify subst typ func _ _ _ _ _ 10 tus tvs 0 e1 e2 tyLProp s.
+    @exprUnify subst typ func _ _ _ _ _ 10 tus tvs 0 e1 e2 ty s.
 
   Definition eproveTrue (s : subst) (e : expr typ func) : option subst :=
     match e with
@@ -100,12 +94,14 @@ Section the_canceller.
   Definition the_canceller tus tvs (lhs rhs : expr typ func)
              (s : subst)
   : (expr typ func * expr typ func * subst) + subst:=
-    match @normalize typ _ _ func _ sls tus tvs tyLProp lhs
-        , @normalize typ _ _ func _ sls tus tvs tyLProp rhs
+    let full := sls ty in
+    match @normalize typ _ _ func _ full tus tvs ty lhs
+        , @normalize typ _ _ func _ full tus tvs ty rhs
     with
       | Some lhs_norm , Some rhs_norm =>
         match lhs_norm tt , rhs_norm tt with
           | Some lhs_norm , Some rhs_norm =>
+            let ssl := ssl ty in
             let '(lhs',rhs',s') :=
                 OrderedCanceller.ordered_cancel
                   (doUnifySepLog tus tvs) eproveTrue
@@ -124,21 +120,18 @@ Section the_canceller.
     end.
 End the_canceller.
 
-Axiom no_match : forall {T : Type}, T.
 
 Definition stac_cancel : rtac typ (expr typ func) :=
   fun tus tvs _ _ ctx sub e =>
     match e with
-      | App (App (Inj (inr (ilf_entails _))) _)
-            (App (Inj (inr (ilf_embed _ _)))
-                 (App (App (Inj (inr (ilf_entails _))) L) R)) =>
-        match the_canceller _ _ tus tvs L R sub with
+      | App (App (Inj (inr (ilf_entails z))) L) R =>
+        match the_canceller _ _ z tus tvs L R sub with
           | inl (l,r,s') =>
             let e' :=
-                App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) l) r
+                App (App (Inj (inr (ilf_entails z))) l) r
             in
-            More sub (GGoal e')
+            More_ s' (GGoal e')
           | inr s' => @Solved _ _ _ s'
         end
-      | _ => no_match e
+      | _ => More_ sub (GGoal e)
     end.

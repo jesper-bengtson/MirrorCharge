@@ -168,7 +168,7 @@ Parameter Write : iexpr -> iexpr -> icmd.
 
 Axiom Write_rule
 : forall G (P Q : lprop) p v,
-    (P |-- Exists v', ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr p)) (pure v') ** Q) ->
+    G |-- embed (P |-- Exists v', ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr p)) (pure v') ** Q) ->
     G |-- triple P
            (Write p v)
            (ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr p)) (eval_iexpr v) ** Q).
@@ -225,7 +225,7 @@ Qed.
 
 Theorem Write_seq_rule
 : forall G (P Q R : lprop) p v c,
-    (P |-- Exists v', ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr p)) (pure v') ** Q) ->
+    (G |-- embed (P |-- Exists v', ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr p)) (pure v') ** Q)) ->
     (G |-- triple (ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr p)) (eval_iexpr v) ** Q) c R) ->
     G |-- triple P (Seq (Write p v) c) R.
 Proof.
@@ -234,7 +234,7 @@ Qed.
 
 Theorem Write_tail_rule
 : forall G (P Q R : lprop) p v,
-    (P |-- Exists v', ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr p)) (pure v') ** Q) ->
+    G |-- embed (P |-- Exists v', ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr p)) (pure v') ** Q) ->
     (G |-- embed ((ap (T := Fun locals) (ap (pure PtsTo) (eval_iexpr p)) (eval_iexpr v) ** Q) |-- R)) ->
     G |-- triple P (Write p v) R.
 Proof.
@@ -324,21 +324,26 @@ Axiom Call_rule
                  Q.
 **)
 
-
-Fixpoint adds (n : nat) :=
-  match n with
-    | 0 => Skip
-    | S n => Seq (Assign "x" (iPlus (iVar "x") (iConst 1))) (adds n)
-  end%string.
-
 Require Import Coq.Strings.String.
 Local Open Scope string_scope.
+
+Lemma entails_exL
+: forall (P : value -> locals -> HProp) Q,
+    (forall x, P x |-- Q) ->
+    lexists P |-- Q.
+Admitted.
 
 Lemma go_lower
 : forall (P Q : lprop) (G : SProp),
     G |-- lforall (fun x : locals => embed (P x |-- Q x)) ->
     G |-- @embed Prop SProp EmbedOp_Prop_SProp (P |-- Q).
 Admitted.
+Lemma go_lower_raw
+: forall (P Q : lprop),
+    (forall x : locals, P x |-- Q x) ->
+    (P |-- Q).
+Admitted.
+
 Lemma embed_ltrue
 : forall (P : Prop),
     P ->
@@ -360,39 +365,8 @@ Lemma eval_iexpr_iConst
 : forall a m,
     eval_iexpr (iConst a) m = a.
 Admitted.
-About embed.
 
-Goal ltrue |-- triple (fun l => embed (locals_get "x"%string l = 0))
-                      (adds 2)
-                      (fun l => embed (locals_get "x"%string l = 1)).
-unfold adds.
-Time repeat first [ apply triple_exL ; apply lforallR ; intro
-                  | apply Assign_seq_rule
-                  | apply Assign_tail_rule
-                  | apply Skip_tail_rule ].
-
-
-eapply go_lower.
-eapply lforallR. intro.
-
-eapply embed_ltrue.
-repeat rewrite embedland.
-eapply embed_sound.
-
-do 10 first [ rewrite locals_get_locals_upd
-             | rewrite eval_iexpr_iPlus
-             | rewrite eval_iexpr_iConst
-             | rewrite eval_iexpr_iVar ].
-
-(** This really needs subst **)
-Lemma subst_away_land
-: forall P (x y z : nat),
-    P |-- y = z ->
-    P //\\ x = y |-- x = z.
-Proof. Admitted.
-Lemma subst_away
-: forall (x y z : nat),
-    |-- y = z ->
-    x = y |-- x = z.
-Proof. Admitted.
-Abort.
+Axiom pull_embed_hyp
+: forall (P : Prop) (Q R : HProp),
+    (P -> (Q |-- R)) ->
+    Q //\\ embed P |-- R.

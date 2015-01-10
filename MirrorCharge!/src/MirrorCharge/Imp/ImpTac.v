@@ -25,7 +25,8 @@ Definition ON_ENTAILMENT (t other : imp_tac) : imp_tac :=
   AT_GOAL (fun _ _ e =>
              match e with
                | App (App (Inj (inr (ILogicFunc.ilf_entails _))) _)
-                     (App (App (Inj (inr (ILogicFunc.ilf_entails _))) _) _) =>
+                     (App (Inj (inr (ILogicFunc.ilf_embed _ _)))
+                          (App (App (Inj (inr (ILogicFunc.ilf_entails _))) _) _)) =>
                  t
                | _ => other
              end).
@@ -33,7 +34,7 @@ Definition ON_ENTAILMENT (t other : imp_tac) : imp_tac :=
 Definition INTRO_All : imp_tac :=
   INTRO (fun e =>
            match e with
-             | App (Inj (inr (ILogicFunc.ilf_forall _ t))) P =>
+             | App (Inj (inr (ILogicFunc.ilf_forall t _))) P =>
                Some (AsAl t (App P))
              | App (App (Inj (inr (ILogicFunc.ilf_entails el))) P)
                    (App (Inj (inr (ILogicFunc.ilf_forall t elx))) Q) =>
@@ -44,6 +45,22 @@ Definition INTRO_All : imp_tac :=
            end).
 
 Theorem INTRO_All_sound : rtac_sound INTRO_All.
+Admitted.
+
+Definition INTRO_Ex : imp_tac :=
+  INTRO (fun e =>
+           match e with
+             | App (Inj (inr (ILogicFunc.ilf_exists t _))) P =>
+               Some (AsEx t (App P))
+             | App (App (Inj (inr (ILogicFunc.ilf_entails el))) P)
+                   (App (Inj (inr (ILogicFunc.ilf_exists t elx))) Q) =>
+               Some (AsEx t (fun e =>
+                               App (App (Inj (inr (ILogicFunc.ilf_entails el))) P)
+                                   (App Q e)))
+             | _ => None
+           end).
+
+Theorem INTRO_Ex_sound : rtac_sound INTRO_Ex.
 Admitted.
 
 Definition INTRO_Hyp : imp_tac :=
@@ -95,6 +112,9 @@ Proof.
     admit. admit.
   - eapply MINIFY_sound.
 Qed.
+
+Definition BETA_REDUCE : imp_tac :=
+  SIMPLIFY (fun _ _ _ _ => beta_all (idred (@apps _ _))).
 
 Definition SIMPLIFY : imp_tac :=
   SIMPLIFY (fun _ _ _ _ => beta_all (idred (simplify 10))).

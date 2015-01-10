@@ -50,3 +50,16 @@ Definition While : icmd :=
   While (iLt $"x" 10)
         ("x" <- iPlus $"x" 1).
 *)
+
+Fixpoint adds (n : nat) :=
+  match n with
+    | 0 => Skip
+    | 1 => (Assign "x" (iPlus (iVar "x") (iConst 1)))
+    | S n => Seq (Assign "x" (iPlus (iVar "x") (iConst 1))) (adds n)
+  end%string.
+
+Fixpoint skips (n : nat) :=
+  match n with
+    | 0 => Skip
+    | S n => Seq Skip (skips n)
+  end%string.
