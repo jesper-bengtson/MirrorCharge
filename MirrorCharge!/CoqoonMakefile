@@ -33,6 +33,7 @@ OBJECTS = \
 	bin/MirrorCharge/ILaterFunc.vo \
 	bin/MirrorCharge/ILogicFunc.vo \
 	bin/MirrorCharge/Imp/Goal.vo \
+	bin/MirrorCharge/Imp/incr_all.vo \
 	bin/MirrorCharge/Imp/Imp.vo \
 	bin/MirrorCharge/Imp/ImpTac.vo \
 	bin/MirrorCharge/Imp/Reify.vo \
@@ -166,3 +167,4 @@ bin/MirrorCharge/SynSepLog.vo: src/MirrorCharge/SynSepLog.v bin/MirrorCharge/Sep
 bin/MirrorCharge/Tauto.vo: src/MirrorCharge/Tauto.v
 bin/MirrorCharge/TautoTests.vo: src/MirrorCharge/TautoTests.v
 bin/MirrorCharge/Imp/Bench_Mem.vo: src/MirrorCharge/Imp/Bench_Mem.v bin/MirrorCharge/Tauto.vo bin/MirrorCharge/Imp/RTacTauto.vo
+bin/MirrorCharge/Imp/incr_all.vo: src/MirrorCharge/Imp/incr_all.v bin/MirrorCharge/Tauto.vo bin/MirrorCharge/Imp/RTacTauto.vo

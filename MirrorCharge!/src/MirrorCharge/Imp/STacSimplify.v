@@ -115,6 +115,21 @@ Fixpoint redApplicative (a b : expr typ func) : expr typ func :=
     | _ => App a b
   end.
 
+Fixpoint redLogic (a b : expr typ func) : expr typ func :=
+  match a with
+    | App (App (Inj (inr (ilf_and (tyArr _ d)))) L) R =>
+      App (App (Inj (inr (ilf_and d))) (redLogic L b)) (redLogic R b)
+    | App (App (Inj (inr (ilf_or (tyArr _ d)))) L) R =>
+      App (App (Inj (inr (ilf_or d))) (redLogic L b)) (redLogic R b)
+    | App (App (Inj (inr (ilf_impl (tyArr _ d)))) L) R =>
+      App (App (Inj (inr (ilf_impl d))) (redLogic L b)) (redLogic R b)
+    | Inj (inr (ilf_true (tyArr _ d))) =>
+      Inj (inr (ilf_true d))
+    | Inj (inr (ilf_false (tyArr _ d))) =>
+      Inj (inr (ilf_false d))
+    | _ => App a b
+  end.
+
 Fixpoint simplify (fuel : nat) (e : expr typ func) (args : list (expr typ func))
 : expr typ func :=
   match e with
@@ -150,19 +165,19 @@ Fixpoint simplify (fuel : nat) (e : expr typ func) (args : list (expr typ func))
     | Inj (inr (ilf_and (tyArr _ d))) =>
       match args with
         | X :: Y :: Z :: args =>
-          apps (Inj (inr (ilf_and d))) (App X Z :: App Y Z :: args)
+          apps (Inj (inr (ilf_and d))) (redLogic X Z :: redLogic Y Z :: args)
         | _ => apps e args
       end
     | Inj (inr (ilf_or (tyArr _ d))) =>
       match args with
         | X :: Y :: Z :: args =>
-          apps (Inj (inr (ilf_or d))) (App X Z :: App Y Z :: args)
+          apps (Inj (inr (ilf_or d))) (redLogic X Z :: redLogic Y Z :: args)
         | _ => apps e args
       end
     | Inj (inr (ilf_impl (tyArr _ d))) =>
       match args with
         | X :: Y :: Z :: args =>
-          apps (Inj (inr (ilf_impl d))) (App X Z :: App Y Z :: args)
+          apps (Inj (inr (ilf_impl d))) (redLogic X Z :: redLogic Y Z :: args)
         | _ => apps e args
       end
     | Inj (inr (ilf_forall z (tyArr t d))) =>

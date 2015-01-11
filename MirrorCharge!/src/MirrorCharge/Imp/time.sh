@@ -2,7 +2,7 @@
 
 mkdir -p data
 
-for x in `seq 1 1`
+for x in `seq 1 25`
 do
 echo nonrefl-skips$x...
 (cd ../../../; coqc -noglob -R src "" -R bin ""  -R ../Charge "" -R ../coq-ext-lib/theories ExtLib -R ../mirror-core/theories MirrorCore -R ../Java "" -R ../mirror-core/src "" -R ../mirror-core/examples McExamples "src/MirrorCharge/Imp/NonRefl_NoMem_Skips.v" > src/MirrorCharge/Imp/data/nonrefl-skips$x.data)

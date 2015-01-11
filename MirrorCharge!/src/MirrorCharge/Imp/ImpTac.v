@@ -94,6 +94,12 @@ Proof.
   - eapply MINIFY_sound.
 Qed.
 
+Definition EASSUMPTION : imp_tac :=
+  @EASSUMPTION typ (expr typ func) _ _
+      (fun subst S_subst SU ctx e1 e2 s =>
+                   @exprUnify subst typ func _ RS _ S_subst SU 3
+                              (getUVars ctx) (getVars ctx) 0 e1 e2 tyProp s).
+
 Definition APPLY lem : imp_tac :=
   THEN (@APPLY typ (expr typ func) _ _ _ _ ExprLift.vars_to_uvars
                 (fun subst S_subst SU tus tvs n e1 e2 s t =>

@@ -370,3 +370,7 @@ Axiom pull_embed_hyp
 : forall (P : Prop) (Q R : HProp),
     (P -> (Q |-- R)) ->
     Q //\\ embed P |-- R.
+Axiom pull_embed_last_hyp
+: forall (P : Prop) (R : HProp),
+    (P -> |-- R) ->
+    embed P |-- R.

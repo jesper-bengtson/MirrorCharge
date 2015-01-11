@@ -133,6 +133,9 @@ Defined.
 Definition pull_embed_hyp_lemma : lemma typ (expr typ func) (expr typ func).
 reify_lemma Imp.pull_embed_hyp.
 Defined.
+Definition pull_embed_last_lemma : lemma typ (expr typ func) (expr typ func).
+reify_lemma Imp.pull_embed_last_hyp.
+Defined.
 Definition entails_exL_lemma : lemma typ (expr typ func) (expr typ func).
 reify_lemma Imp.entails_exL.
 Defined.
