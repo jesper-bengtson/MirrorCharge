@@ -57,7 +57,6 @@ Definition entailment_tac : imp_tac :=
             tauto_tac :: nil))
     IDTAC.
 
-
 Definition simplify_tac : imp_tac := SIMPLIFY.
 
 Definition entailment_tac_solve : imp_tac :=
@@ -89,6 +88,21 @@ Definition sym_eval_no_mem (n : nat) : imp_tac :=
                   :: EAPPLY_THEN Assign_tail_lemma (entailment_tac)
                   :: EAPPLY_THEN Skip_tail_lemma (TRY entailment_tac)
                   :: EAPPLY_THEN Assert_tail_lemma (TRY entailment_tac)
+                  :: nil)))
+      IDTAC.
+
+Definition just_sym_eval (n : nat) : imp_tac :=
+  REC n (fun rec : imp_tac =>
+           let rec : imp_tac := THENS (simplify_tac :: rec :: nil) in
+           TRY (FIRST (   EAPPLY_THEN SeqA_lemma rec
+                  :: EAPPLY_THEN triple_exL_lemma
+                          (THEN INTRO_All (runOnGoals rec))
+                  :: EAPPLY_THEN Assign_seq_lemma rec
+                  :: EAPPLY_THEN Skip_seq_lemma rec
+                  :: EAPPLY_THEN_1 Assert_seq_lemma entailment_tac (runOnGoals rec)
+                  :: EAPPLY_THEN Assign_tail_lemma IDTAC
+                  :: EAPPLY_THEN Skip_tail_lemma IDTAC
+                  :: EAPPLY_THEN Assert_tail_lemma IDTAC
                   :: nil)))
       IDTAC.
 
@@ -491,18 +505,29 @@ Time (intros; subst;
 repeat eapply and_split; eapply prove_Prop; assumption).
 Time Qed.
 
-Goal let lst := (tonums (seq 26)) in
+
+Goal let lst := (tonums (seq 15)) in
          @ILogic.lentails Imp.SProp Imp.ILogicOps_SProp (@ILogic.ltrue Imp.SProp Imp.ILogicOps_SProp)
      (Imp.triple (assign_linear 0 lst)
         (increment_all lst)
         (assign_linear 1 lst)).
 reducer.
 (** full ltac **)
+Time run_tactic (just_sym_eval 100).
+intros.
+eapply Imp.embed_ltrue;
+eapply Imp.go_lower_raw;
+intros;
+autorewrite with reduce_stuff;
+repeat (eapply Imp.pull_embed_hyp; intros);
+eapply Imp.pull_embed_last_hyp; intros;
+subst;
+repeat eapply and_split; eapply prove_Prop; assumption.
 Time repeat first [ apply Imp.triple_exL ; apply ILogic.lforallR ; intro
              | apply Imp.Assign_seq_rule
              | apply Imp.Skip_seq_rule
              | apply Imp.Assign_tail_rule
-             | apply Imp.Skip_tail_rule ];
+             | apply Imp.Skip_tail_rule ].
 eapply Imp.embed_ltrue;
 eapply Imp.go_lower_raw;
 intros;
