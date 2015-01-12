@@ -210,6 +210,28 @@ Section OpenFuncInst.
 	; ap := fun _ _ f x y => (f y) (x y)
 	}.
 
+  Definition fun_to_typ {a b : typ} (f : typD a -> typD b) : typD (tyArr a b) :=
+    eq_rect_r id f (typ2_cast a b).
+    
+  Definition typ_to_fun {a b : typ} (f : typD (tyArr a b)) : typD a -> typD b :=
+  fun x => (fun g : typD a -> typD b => g x)
+    (eq_rect (typD (typ2 a b)) id f (typD a -> typD b)
+       (typ2_cast a b)).
+    
+Definition fun_to_typ2 {a b c : typ} (f : typD a -> typD b -> typD c) :=
+   fun_to_typ (fun x => fun_to_typ (f x)). 
+
+Definition fun_to_typ3 {a b c d : typ} (f : typD a -> typD b -> typD c -> typD d) :=
+  fun_to_typ (fun x => fun_to_typ (fun y => fun_to_typ (f x y))).
+
+Definition typ_to_fun2 {a b c : typ} (f : typD (tyArr a (tyArr b c))) : typD a -> typD b -> typD c :=
+  fun x => typ_to_fun (typ_to_fun f x).
+
+Definition typ_to_fun3 {a b c d : typ} (f : typD (tyArr a (tyArr b (tyArr c d)))) : 
+	typD a -> typD b -> typD c -> typD d :=
+  fun x y => typ_to_fun (typ_to_fun (typ_to_fun f x) y).
+
+
   Definition fun1_wrap {a b : typ} (f : typD a -> typD b) :=
       eq_rect_r id f (typ2_cast a b).
   
@@ -322,11 +344,11 @@ Section OpenFuncInst.
 	      | of_stack_set => 
 	        (fun4_wrap
 	          (fun a b c d => stack_add a b (fun1D c) d))
-	      | of_apply_subst t => fun3_wrap
+	      | of_apply_subst t => fun_to_typ3
 	         (fun a b c => apply_subst 
-	           (fun x => fun1D a (fun1_wrap x))
+	           (fun x => typ_to_fun a (fun_to_typ x))
 	           (eq_rect (typD tySubst) id b subst stSubst)
-	           (fun1D c))
+	           (typ_to_fun c))
 	      | of_single_subst => 
 	        fun2_wrap (fun a b => eq_rect_r id (subst1 (fun x => fun1D a (fun1_wrap x)) b) stSubst)
 	      | of_subst => 
