@@ -18,6 +18,7 @@ override COQFLAGS += -R $(EXTERNAL_PATH) ""
 override COQFLAGS += -R $(MIRRORCORE_PATH) MirrorCore
 override COQFLAGS += -R $(EXTLIB_PATH) ExtLib
 override COQFLAGS += $(CHARGE_FLAGS)
+override COQFLAGS += -R $(EXTERNAL_PATH_0) ""
 OBJECTS = \
 	bin/BILNormalize.vo \
 	bin/CancellerTac.vo \
