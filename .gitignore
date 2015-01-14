@@ -4,3 +4,6 @@
 *~
 .dir-locals.el
 CoqoonMakefile.vars
+**/#*#
+coq-ext-lib
+mirror-core
