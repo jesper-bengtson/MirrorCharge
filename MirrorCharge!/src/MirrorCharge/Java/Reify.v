@@ -98,10 +98,10 @@ Definition set_fold_fun (x f : String.string) (P : sasn) :=
 Let _Inj := @ExprCore.Inj typ func.
 
 Require Import Java.Examples.ListModel.
-
+(*
 Reify Seed Typed Table term_table += 1 => [ (tyArr tyVal (tyArr (tyList tyVal) tyAsn)) , List ].
 Reify Seed Typed Table term_table += 2 => [ (tyArr tyVal (tyArr (tyList tyVal) tyAsn)) , NodeList ].
-
+*)
 
 Local Notation "x @ y" := (@RApp x y) (only parsing, at level 30).
 Local Notation "'!!' x" := (@RExact _ x) (only parsing, at level 25).

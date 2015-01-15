@@ -16,6 +16,10 @@ Require Import MirrorCharge.ModularFunc.EmbedFunc.
 Require Import MirrorCore.Lambda.ExprCore.
 Require Import MirrorCore.RTac.RTac.
 
+Section TestPullConjunct.
+
+Context {fs : Environment}.
+
 Definition f (e : expr typ func) := match ilogicS e with Some (ilf_false _) => true | _ => false end.
 Definition PCT := PULLCONJUNCTL typ func f ilops.
 
@@ -61,3 +65,5 @@ Eval vm_compute in PCT nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ f
 Eval vm_compute in PCT nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ func)) goal7.
 Eval vm_compute in PCT nil nil 0 0 (CTop nil nil) (ctx_empty (expr := expr typ func)) 
 	(mkEntails tyProp (mkAnd tyProp (seq_pc 3) (mkTrue tyProp)) (mkTrue tyProp)).
+
+End TestPullConjunct.

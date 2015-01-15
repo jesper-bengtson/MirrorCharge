@@ -16,9 +16,13 @@ Require Import MirrorCharge.ModularFunc.BILogicFunc.
 Require Import MirrorCharge.ModularFunc.EmbedFunc.
 
 Require Import MirrorCore.Lambda.Expr.
-Check @il_respects_reflexive.
+
+Section TestQuantPull.
+
+Context {fs : Environment}.
+
 Definition pull_quant vars :=
-  setoid_rewrite vars _ (fEntails : typ -> expr typ func) rw_fail
+  setoid_rewrite  vars _ (fEntails : typ -> expr typ func) rw_fail
     (sr_combine il_respects
                (sr_combine (@il_respects_reflexive typ func _ _ _ ilops _ _)
                                         (sr_combine bil_respects (sr_combine embed_respects
@@ -69,3 +73,5 @@ Time Eval vm_compute in
       | Some (e,_) =>  countExs e
       | None => 0
     end.
+
+End TestQuantPull.

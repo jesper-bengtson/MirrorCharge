@@ -203,6 +203,7 @@ Definition set_fold_fun (x : String.string) (f : field) (P : sasn) :=
 		+ consider (l ?[ eq ] l0); intuition congruence. 
 	Qed.		
 
+
 Definition func := (SymEnv.func + @ilfunc typ + @bilfunc typ + 
                     @base_func typ + @list_func typ + @open_func typ _ _ + 
                     @embed_func typ + @later_func typ + java_func)%type.
@@ -241,7 +242,6 @@ Section MakeJavaFunc.
 		(fold_right (fun (e : dexpr) (acc : expr typ func) => 
 			mkCons tyExpr (mkDExpr e) acc) (mkNil tyExpr) es).
 	
-
 	Fixpoint evalDExpr (e : dexpr) : expr typ func :=
 		match e with
 			| E_val v => mkConst tyVal (mkVal v)
@@ -256,113 +256,125 @@ Section MakeJavaFunc.
 			| E_eq e1 e2 => mkAps fValEq ((evalDExpr e2, tyVal)::(evalDExpr e1, tyVal)::nil) tyVal
 		end.
 
+
 End MakeJavaFunc.
 
 Require Import Java.Examples.ListModel.
 
-(* This needs to be parametric. It shouldn't be here *)
+
+Class Environment := { java_env :> @SymEnv.functions typ _}.
+
+Section JavaFunc.
+
+  Context {fs : Environment}.
+
+(* This needs to be parametric. It shouldn't be here 
 Definition fs : @SymEnv.functions typ _ :=
   SymEnv.from_list
   	(@SymEnv.F typ _ (tyArr tyVal (tyArr (tyList tyVal) tyAsn)) List::
   	 @SymEnv.F typ _ (tyArr tyVal (tyArr (tyList tyVal) tyAsn)) NodeList::nil). 
 
-(*Definition fs : @SymEnv.functions typ _ := SymEnv.from_list nil.
 *)
+Check RSym.
 
-Instance RSym_env : RSym SymEnv.func := RSym_func fs.
+  Global Instance RSym_ilfunc : RSym (@ilfunc typ) := 
+	  RSym_ilfunc ilops.
+  Global Instance RSym_bilfunc : RSym (@bilfunc typ) := 
+	  RSym_bilfunc _ bilops.
+  Global Instance RSym_embed_func : RSym (@embed_func typ) :=
+	  RSym_embed_func _ eops.
+  Global Instance RSym_later_func : RSym (@later_func typ) :=
+	  RSym_later_func _ lops.
 
-Instance RSym_ilfunc : RSym (@ilfunc typ) := 
-	RSym_ilfunc _ _ ilops.
-Instance RSym_bilfunc : RSym (@bilfunc typ) := 
-	RSym_bilfunc _ bilops.
-Instance RSym_embed_func : RSym (@embed_func typ) :=
-	RSym_embed_func _ eops.
-Instance RSym_later_func : RSym (@later_func typ) :=
-	RSym_later_func _ lops.
+  Global Instance RSym_open_func : RSym (@open_func typ _ _) :=
+	  @RSym_OpenFunc _ _ _ RType_typ _ _ _ _ _ _ _ _.
 
-Instance RSym_open_func : RSym (@open_func typ _ _) :=
-	@RSym_OpenFunc _ _ _ RType_typ _ _ _ _ _ _ _ _.
+  Global Existing Instance RSym_sum.
+  Global Existing Instance RSymOk_sum.
 
-Existing Instance RSym_sum.
-Existing Instance RSymOk_sum.
+  Global Instance RSym_func : RSym func.
+    repeat (apply RSym_sum; [|apply _]).
+    apply (RSym_func java_env).
+  Defined.
 
-Instance RelDec_expr : RelDec (@eq func) := _.
+  Global Instance RelDec_expr : RelDec (@eq func) := _.
 
-Instance Expr_expr : ExprI.Expr _ (expr typ func) := @Expr_expr typ func _ _ _.
-Instance Expr_ok : @ExprI.ExprOk typ RType_typ (expr typ func) Expr_expr := ExprOk_expr.
+  Global Instance Expr_expr : ExprI.Expr _ (expr typ func) := @Expr_expr typ func _ _ _.
+  Global Instance Expr_ok : @ExprI.ExprOk typ RType_typ (expr typ func) Expr_expr := ExprOk_expr.
 
-Require Import MirrorCore.VariablesI.
-Require Import MirrorCore.Lambda.ExprVariables.
+  Require Import MirrorCore.VariablesI.
+  Require Import MirrorCore.Lambda.ExprVariables.
 
-Instance ExprVar_expr : ExprVar (expr typ func) := _.
-Instance ExprVarOk_expr : ExprVarOk ExprVar_expr := _.
+  Global Instance ExprVar_expr : ExprVar (expr typ func) := _.
+  Global Instance ExprVarOk_expr : ExprVarOk ExprVar_expr := _.
 
-Instance ExprUVar_expr : ExprUVar (expr typ func) := _.
-Instance ExprUVarOk_expr : ExprUVarOk ExprUVar_expr := _.
+  Global Instance ExprUVar_expr : ExprUVar (expr typ func) := _.
+  Global Instance ExprUVarOk_expr : ExprUVarOk ExprUVar_expr := _.
 
-Definition subst : Type :=
-  FMapSubst.SUBST.raw (expr typ func).
-Instance SS : SubstI.Subst subst (expr typ func) :=
-  @FMapSubst.SUBST.Subst_subst _.
-Instance SU : SubstI.SubstUpdate subst (expr typ func) :=
-  @FMapSubst.SUBST.SubstUpdate_subst _ _. 
-Instance SO : SubstI.SubstOk SS := 
-  @FMapSubst.SUBST.SubstOk_subst typ RType_typ (expr typ func) _ _.
-Instance SUO :SubstI.SubstUpdateOk SU SO :=  @FMapSubst.SUBST.SubstUpdateOk_subst typ RType_typ (expr typ func) _ _ _.
+  Definition subst : Type :=
+    FMapSubst.SUBST.raw (expr typ func).
+  Global Instance SS : SubstI.Subst subst (expr typ func) :=
+    @FMapSubst.SUBST.Subst_subst _.
+  Global Instance SU : SubstI.SubstUpdate subst (expr typ func) :=
+    @FMapSubst.SUBST.SubstUpdate_subst _ _. 
+  Global Instance SO : SubstI.SubstOk SS := 
+    @FMapSubst.SUBST.SubstOk_subst typ RType_typ (expr typ func) _ _.
+  Global Instance SUO :SubstI.SubstUpdateOk SU SO :=  @FMapSubst.SUBST.SubstUpdateOk_subst typ RType_typ (expr typ func) _ _ _.
 
-Instance MA : MentionsAny (expr typ func) := {
-  mentionsAny := ExprCore.mentionsAny
-}.
+  Global Instance MA : MentionsAny (expr typ func) := {
+    mentionsAny := ExprCore.mentionsAny
+  }.
 
-Instance MAOk : MentionsAnyOk MA _ _.
-Proof.
-  admit.
-Qed.
+  Global Instance MAOk : MentionsAnyOk MA _ _.
+  Proof.
+    admit.
+  Qed.
 
-Lemma evalDexpr_wt (e : dexpr) : 
-	typeof_expr nil nil (evalDExpr e) = Some tyExpr. 
-Proof.
-  induction e.
-  + simpl; reflexivity.
-  + simpl; reflexivity.
-  + simpl; rewrite IHe1, IHe2; reflexivity.
-  + simpl; rewrite IHe1, IHe2; reflexivity.
-  + simpl; rewrite IHe1, IHe2; reflexivity.
-  + simpl; rewrite IHe1, IHe2; reflexivity.
-  + simpl; rewrite IHe1, IHe2; reflexivity.
-  + simpl; rewrite IHe; reflexivity.
-  + simpl; rewrite IHe1, IHe2; reflexivity.
-  + simpl; rewrite IHe1, IHe2; reflexivity.
-Qed.
+  Lemma evalDexpr_wt (e : dexpr) : 
+	  typeof_expr nil nil (evalDExpr e) = Some tyExpr.
+  Proof.
+    induction e.
+    + simpl; reflexivity.
+    + simpl; reflexivity.
+    + simpl; rewrite IHe1, IHe2; reflexivity.
+    + simpl; rewrite IHe1, IHe2; reflexivity.
+    + simpl; rewrite IHe1, IHe2; reflexivity.
+    + simpl; rewrite IHe1, IHe2; reflexivity.
+    + simpl; rewrite IHe1, IHe2; reflexivity.
+    + simpl; rewrite IHe; reflexivity.
+    + simpl; rewrite IHe1, IHe2; reflexivity.
+    + simpl; rewrite IHe1, IHe2; reflexivity.
+  Qed.
 
-Definition is_pure (e : expr typ func) : bool :=
+  Definition is_pure (e : expr typ func) : bool :=
 	match e with
-		| App f P => match embedS f with
-					     | Some (eilf_embed tyPure tySasn) => true
-					     | Some (eilf_embed tyProp tySasn) => true
-					     | _ => false
-					 end
+	  | App f P => match embedS f with
+				     | Some (eilf_embed tyPure tySasn) => true
+					 | Some (eilf_embed tyProp tySasn) => true
+					 | _ => false
+				   end
 			
- 		| e =>
- 		  match ilogicS e with
- 		    | Some (ilf_true _) => true
- 		    | Some (ilf_false _) => true
- 		    | _ => false
- 		  end
-	end.
+ 	  | e =>
+ 		match ilogicS e with
+ 		  | Some (ilf_true _) => true
+ 		  | Some (ilf_false _) => true
+ 		  | _ => false
+ 		end
+   end.
 
-Definition mkPointstoVar x f e : expr typ func :=
-   mkAp tyVal tyAsn 
-        (mkAp tyString (tyArr tyVal tyAsn)
-              (mkAp tyVal (tyArr tyString (tyArr tyVal tyAsn))
-                    (mkConst (tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn))) 
-                             fPointsto)
-                    (App fStackGet (mkString x)))
-              (mkConst tyString (mkString f)))
-        e.
+  Definition mkPointstoVar x f e : expr typ func :=
+     mkAp tyVal tyAsn 
+          (mkAp tyString (tyArr tyVal tyAsn)
+                (mkAp tyVal (tyArr tyString (tyArr tyVal tyAsn))
+                      (mkConst (tyArr tyVal (tyArr tyString (tyArr tyVal tyAsn))) 
+                               fPointsto)
+                      (App fStackGet (mkString x)))
+                (mkConst tyString (mkString f)))
+          e.
 
-Definition test_lemma :=
-  @lemmaD typ (expr typ func) RType_typ Expr_expr (expr typ func)
-          (fun tus tvs e => exprD' tus tvs tyProp e)
-          _
-          nil nil.
+  Definition test_lemma :=
+    @lemmaD typ (expr typ func) RType_typ Expr_expr (expr typ func)
+            (fun tus tvs e => exprD' tus tvs tyProp e)
+            _
+            nil nil.
+End JavaFunc.

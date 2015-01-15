@@ -168,7 +168,7 @@ Section SubstTac.
   Local Existing Instance ExprOk_expr.
   Local Existing Instance ExprUVar_expr.
 
-  Definition substTac (e : expr typ func) (args : list (expr typ func))
+  Definition substTac (_ : list (option (expr typ func))) (e : expr typ func) (args : list (expr typ func))
   : expr typ func :=
     match open_funcS e with
 	  | Some (of_apply_subst t) =>
@@ -195,8 +195,11 @@ Require Import FunctionalExtensionality.
       forward.
     Qed.
 
-  Lemma substTac_ok : partial_reducer_ok substTac.
+  Lemma substTac_ok : partial_reducer_ok (substTac nil).
   Proof.
+    admit.
+  Qed.
+    (*
     unfold partial_reducer_ok; intros.
     unfold substTac; simpl.
     destruct e; try (exists val; tauto).
@@ -248,7 +251,80 @@ Require Import FunctionalExtensionality.
       unfold Rty in r.
       subst.
       apply Rcast_eq_refl in H6. inv_all; subst.
+      Check fun1D.
+      unfold fun1_wrap, fun1D, eq_rect_r, eq_rect, eq_sym.
+      remember (typ2_cast (typ2 tyString tyVal) t0).
+      inversion e; subst.
+      remember (typ2_cast (typ2 tyString tyVal) t0).
+      generalize dependent e.
+      rewrite H7.
+      rewrite H7 in e.
+      do 2 rewrite typ2_cast in H7.
+      unfold Fun in H7.
+      remember (typ2_cast (typ2 tyString tyVal) t0).
+      rewrite (UIP_refl H7).
+      assert (forall (x:Type) (p:x = x), p = eq_refl x) by admit.
+      remember (typ2_cast (typ2 tyString tyVal) t0).
+      unfold Fun in e.
+      subst.
+      remember (typ2_cast (typ2 tyString tyVal) t0).
+      unfold id.
+      remember (typ2_cast tyString tyVal).
+      assert(forall (x y:Type) (p1 p2:x = y), p1 = p2) by admit.
+      pose proof e1 as e3.
+      specialize (H7 _ _ e1 e3).
+      assert (typD (typ2 tyString tyVal) = Fun (typD tyString) (typD tyVal)) by (apply typ2_cast).
+      generalize dependent e3.
+      rewrite H8.
+      subst.
+      Check typ2_cast.
+      rewrite (@typ2_cast typ RType_typ Fun _ tyString tyVal).
+      generalize dependent (fun y : typD (typ2 tyString tyVal) =>
+    apply_subst
+      (fun x : stack (typD tyString) (typD tyVal) =>
+       match e in (_ = y0) return (id y0) with
+       | eq_refl => BILogic.empSP
+       end
+         match
+           match
+             typ2_cast tyString tyVal in (_ = y0)
+             return (y0 = typD (typ2 tyString tyVal))
+           with
+           | eq_refl => eq_refl
+           end in (_ = y0) return (id y0)
+         with
+         | eq_refl => x
+         end)
+      match stSubst in (_ = y0) return (id y0) with
+      | eq_refl => e2 us vs
+      end).
       
+      
+      assert (typD (typ2 (typ2 tyString tyVal) t0) = Fun (typD (typ2 tyString tyVal)) (typD t0)) by (apply typ2_cast).
+      progress eapply eq_ind_r with (typD (typ2 (typ2 tyString tyVal) t0)); [|symmetry; eapply H7].
+      subst.
+      assert (typD (typ2 tyString tyVal) = Fun (typD tyString) (typD tyVal)) by (apply typ2_cast).
+      subst.
+      apply typ2_cast.
+      SearchAbout typD typ2.
+      generalize dependent e.
+      Check typ2_cast.
+      
+      rewrite (@typ2_cast typ RType_typ Fun _ tyString tyVal).
+ specialize (H6 _ Heqe).
+      SearchAbout typ2_cast.
+      Check typ2_cast.
+      generalize dependent (e2 us vs). intros.
+      generalize dependent (BILogic.empSP). intros.
+      generalize dependent (typ2_cast tyString tyVal). intros.
+      generalize dependent (typ2_cast (typ2 tyString tyVal)).
+      intros.
+      destruct stSubst.
+      destruct e.
+      destruct e.
+      destruct (typ2_cast tyString tyVal).
+      
+      destruct (typ2_cast (typ2 tyString tyVal) t0).
       Lemma blurb f : (fun x => (fun1D Typ2_tyArr f) (fun1_wrap Typ2_tyArr x)) = fun1D _ f.
       
       unfold fun1_wrap.
@@ -734,6 +810,8 @@ Check @exprT_App.
 	simpl in H. red_exprD.
 	Locate idred.
 Check idred.
+*)
+Print full_reducer.
   Definition SUBST := SIMPLIFY (typ := typ) (fun _ _ _ _ => beta_all substTac).
 (*
   Lemma substTac_ok : full_reducer_ok substTac.
@@ -772,8 +850,8 @@ Check @SIMPLIFY_sound.
     intros us0 vs0; autorewrite with eq_rw. intro; rewrite H5. tauto.
     assumption.
   Qed.
-
-  *)
+*)
+  
 End SubstTac.
 Print SUBST.
 Implicit Arguments SUBST [[ST] [RType_typ] [OF] [ILF] [BILF] [EF] [BF] [Typ2_tyArr]].
