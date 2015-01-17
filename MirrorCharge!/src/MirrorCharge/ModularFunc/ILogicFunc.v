@@ -3,6 +3,7 @@ Require Import ExtLib.Data.Fun.
 Require Import ExtLib.Data.Nat.
 Require Import ExtLib.Data.Bool.
 Require Import ExtLib.Data.String.
+Require Import ExtLib.Tactics.
 Require Import ExtLib.Tactics.Consider.
 
 Require Import MirrorCore.TypesI.
@@ -357,8 +358,6 @@ End MakeILogic.
 
 Implicit Arguments RSym_ilfunc [[typ] [HR] [Heq] [Typ2_tyArr] [Typ0_tyProp]].
 
-Require Import MirrorCore.SymI.
-
 Section TypeOfFunc.
   Context {typ func : Type}.
   Context {RType_typ : RType typ}.
@@ -450,34 +449,7 @@ Section ILogicFuncExprOk.
   Context {typ func : Type} `{HOK : ILogicFuncOk typ func}.
   Context {HROk : RTypeOk}.
   Context {A : Type} {RSymA : RSym A}.
-(*
-  Lemma ilogic_funcSome (f : func) (e : ilfunc typ) (t : typ)
-    (H : ilogicS f = Some e) :
-      match typeof_ilfunc _ _ gs e with
-        | Some t => 
-          match gs t with
-            | Some _ => funcAs f t <> None
-            | None => False
-          end
-        | None => False
-      end.
-  Proof.
-    destruct HOK as [H1].
-    destruct e; simpl in *.
-    specialize (H1 _ _ H logic). simpl in *.
-    unfold funcAs in H1. simpl in H1.
-    specialize (H1 _ _ H).
-    destruct e; simpl in *. intros H2;
-    match goal with 
-      | H : funcAs _ ?t = None |- _ => 
-        specialize (H1 t); rewrite H in H1; clear H;
-              unfold funcAs in H1; simpl in H1; 
-              rewrite type_cast_refl in H1; [|apply _]; inversion H1
-    end.
-  Qed.
-*)
 
-Require Import ExtLib.Tactics.
   Lemma ILogicFunc_typeOk (f : func) (e : ilfunc typ) (H : ilogicS f = Some e) :
     typeof_sym f = typeof_ilfunc _ _ gs e.
   Proof.
@@ -696,32 +668,26 @@ Section MakeILogicSound.
     rewrite (funcAs_Some _ Htype) in Hf.
     inv_all; subst. reflexivity.
   Qed.
-  (*
+(*
   Lemma mkExists_sound (t a : typ) (tus tvs : tenv typ) (f : func) g
-    (df : typD (tyArr (tyArr a t) t)) (dg : ExprI.exprT tus tvs (typD (tyArr a t)))
+    (df : typD (tyArr (tyArr a t) t)) (dg : ExprI.exprT tus (a::tvs) (typD t))
     (Ho : ilogicS f = Some (ilf_exists a t))
     (Hf : funcAs f (tyArr (tyArr a t) t) = Some df)
-    (Hp : exprD' tus tvs (tyArr a t) g = Some dg) :
-    exprD' tus tvs t (mkExists a t g) = Some (exprT_App (fun _ _ => df) dg).
+    (Hg : exprD' tus (a::tvs) t g = Some dg) :
+    exprD' tus tvs t (mkExists a t g) = Some (exprT_App (fun _ _ => df) (exprT_Abs dg)).
   Proof.
     unfold mkExists; simpl.
     autorewrite with exprD_rw; simpl; forward; inv_all; subst.
-    rewrite (ExprTac.exprD_typeof_Some _ _ _ q _ Hq).
-    autorewrite with exprD_rw; simpl; forward; inv_all; subst.
-    rewrite (ExprTac.exprD_typeof_Some _ _ _ p _ Hp).
+    rewrite (ExprTac.exprD_typeof_Some _ _ _ g _ Hg).
     autorewrite with exprD_rw; simpl; forward; inv_all; subst.
     pose proof (ilf_funcAsOk _ Ho) as Hfunc; rewrite Hfunc in Hf.
-    pose proof (ilf_fOrOk t) as HfuncOk.
+    pose proof (ilf_fExistsOk a t) as HfuncOk.
     pose proof (ilf_funcAsOk _ HfuncOk) as Heq. rewrite <- Heq in Hf.
     pose proof (ILogicFunc_typeOk _ HfuncOk) as Htype. simpl in Htype.
     destruct (ilogicS_is_ilogic _ _ HfuncOk Hf) as [x Hgs]; simpl in Hgs; rewrite Hgs in Htype.
-    rewrite (funcAs_Some _ Htype).
-    unfold tyArr in Hf.
-    rewrite (funcAs_Some _ Htype) in Hf.
-    inv_all; subst. reflexivity.
+    unfold tyArr in Hf. rewrite Hf.
+	(* Stuck here *)
   Qed.
     *)
     
 End MakeILogicSound.
-  
-Print mkTrue_sound.

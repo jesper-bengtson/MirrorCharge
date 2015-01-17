@@ -6,7 +6,7 @@ Require Import ExtLib.Data.Nat.
 Require Import MirrorCore.Lemma.
 Require Import MirrorCore.TypesI.
 Require Import MirrorCore.Lambda.Expr.
-Require Import MirrorCore.STac.STac.
+Require Import MirrorCore.RTac.RTac.
 Require Import MirrorCore.provers.DefaultProver.
 Require Import MirrorCore.Subst.FMapSubst.
 Require Import MirrorCore.Lambda.ExprLift.
@@ -211,24 +211,27 @@ Print Write_lemma.
 Definition Call_lemma : lemma typ (expr typ func) (expr typ func).
 Abort.
 
-Definition solve_find_spec : stac typ (expr typ func) subst := FAIL.
+Definition solve_find_spec : rtac typ (expr typ func) := FAIL.
 
 Definition solve_entailment :=
-  THEN SIMPLIFY stac_cancel.
+  THEN SIMPLIFY (runOnGoals stac_cancel).
 
-Definition all_cases : stac typ (expr typ func) subst :=
+Definition all_cases : rtac typ (expr typ func) :=
   REC 2 (fun rec =>
             let rec := rec in
             REPEAT 5
-                   (FIRST (   EAPPLY SeqA_lemma rec
-                           :: EAPPLY Seq_lemma rec
-                           :: EAPPLY Assign_lemma rec
-                           :: EAPPLY Read_lemma solve_entailment
-                           :: EAPPLY Write_lemma solve_entailment
-                           :: EAPPLY Skip_lemma solve_entailment
+                   (FIRST (   EAPPLY SeqA_lemma
+                           :: EAPPLY Seq_lemma
+                           :: EAPPLY Assign_lemma
+                           :: EAPPLY Read_lemma
+                           :: EAPPLY Write_lemma
+                           :: EAPPLY Skip_lemma
 (*                           :: EAPPLY to_skip rec *)
                            :: nil)))
-      (@FAIL _ _ _).
+      (FAIL).
+
+Definition runRtac (tus tvs : tenv typ) (goal : expr typ func) (tac : rtac typ (expr typ func)) :=
+  tac tus tvs (length tus) (length tvs) _ (TopSubst _ tus tvs) goal.
 
 Definition test :=
   let vars := tyLProp :: tyCmd :: tyCmd :: tyCmd :: tyLProp :: tySProp :: nil in
@@ -238,7 +241,7 @@ Definition test :=
                                         (mkSeq (mkSeq (Var 1) (Var 2)) (Var 3))
                                         (Var 4))
   in
-  @all_cases nil vars (SubstI.empty (expr :=expr typ func)) nil goal.
+  runRtac nil vars goal all_cases.
 
 Time Eval vm_compute in test.
 
@@ -250,7 +253,7 @@ Definition test' :=
                (mkSeq (mkAssign (Var 1) (Var 5)) (Var 2))
                (UVar 0)
   in
-  @all_cases uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
+  runRtac uvars vars goal all_cases.
 
 Time Eval vm_compute in test'.
 
@@ -278,7 +281,7 @@ Definition test_read :=
                (UVar 0)
   in
   let tac := all_cases in
-  @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
+  runRtac uvars vars goal tac.
 
 Time Eval vm_compute  in test_read.
 
@@ -300,7 +303,7 @@ Definition test_read2 :=
          (UVar 0))%string
   in
   let tac := all_cases in
-  @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
+  runRtac uvars vars goal tac.
 
 Eval cbv beta iota zeta delta in test_read2.
 
@@ -321,7 +324,7 @@ Definition test_swap :=
                 (lifted_ptsto (flocals_get @ fVar "p2") (lpure tyNat (Var 0)))))%string
   in
   let tac := all_cases in
-  @tac uvars vars (SubstI.empty (expr :=expr typ func)) nil goal.
+  runRtac uvars vars goal tac.
 
 Eval vm_compute in test_swap.
 (** This is not the strongest post condition because we forgot the pure facts.

@@ -14,12 +14,12 @@ bin/%.vo: src/%.v
 override COQFLAGS += -R src ""
 override COQFLAGS += -R bin ""
 override COQFLAGS += $(DK_ITU_SDG_KOPITIAM_LP_COQ_8_4_FLAGS)
-override COQFLAGS += $(CHARGE_FLAGS)
-override COQFLAGS += -R $(EXTLIB_PATH) ExtLib
-override COQFLAGS += -R $(MIRRORCORE_PATH) MirrorCore
-override COQFLAGS += $(JAVA_FLAGS)
 override COQFLAGS += -R $(EXTERNAL_PATH) ""
-override COQFLAGS += -R $(MCEXAMPLES_PATH) McExamples
+override COQFLAGS += -R $(MIRRORCORE_PATH) MirrorCore
+override COQFLAGS += -R $(EXTLIB_PATH) ExtLib
+override COQFLAGS += $(CHARGE_FLAGS)
+override COQFLAGS += -R $(EXTERNAL_PATH_0) ""
+override COQFLAGS += -R $(EXTERNAL_PATH_1) ""
 OBJECTS = \
 	bin/MirrorCharge/AutoSetoidRewrite.vo \
 	bin/MirrorCharge/BILNormalize.vo \

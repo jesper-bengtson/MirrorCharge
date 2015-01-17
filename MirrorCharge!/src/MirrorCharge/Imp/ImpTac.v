@@ -1,4 +1,4 @@
-Require Import MirrorCore.STac.STac.
+Require Import MirrorCore.RTac.RTac.
 Require Import MirrorCore.Lambda.ExprUnify_simul.
 Require Import MirrorCore.Lambda.RedAll.
 Require Import MirrorCore.Lambda.AppN.
@@ -16,21 +16,21 @@ Local Existing Instance RSym_ilfunc.
 Local Existing Instance RS.
 Local Existing Instance Expr_expr.
 
-Definition EAPPLY lem tac : stac typ (expr typ func) subst :=
-  @EAPPLY typ (expr typ func) subst _ _ ExprLift.vars_to_uvars
-                (fun tus tvs n e1 e2 t s =>
-                   @exprUnify subst typ func _ RS _ SS SU 3
-                              tus tvs n s e1 e2 t)
-                (@ExprSubst.instantiate typ func) SS SU
-                lem (apply_to_all tac).
+Definition EAPPLY lem : rtac typ (expr typ func) :=
+  THEN (@EAPPLY typ (expr typ func) _ _ _ _ ExprLift.vars_to_uvars
+                 (fun subst S_subst SU tus tvs n e1 e2 s t =>
+                    @exprUnify subst typ func _ RS _ S_subst SU 3
+                               tus tvs n e1 e2 s t)
+                 lem)
+       (@MINIFY _ _ _).
 
-Definition APPLY lem tac : stac typ (expr typ func) subst :=
-  @APPLY typ (expr typ func) subst _ _ ExprLift.vars_to_uvars
-                (fun tus tvs n e1 e2 t s =>
-                   @exprUnify subst typ func _ RS _ SS SU 3
-                              tus tvs n s e1 e2 t)
-                (@ExprSubst.instantiate typ func) SS SU
-                lem (apply_to_all tac).
+Definition APPLY lem : rtac typ (expr typ func) :=
+  THEN (@APPLY typ (expr typ func) _ _ _ _ ExprLift.vars_to_uvars
+                (fun subst S_subst SU tus tvs n e1 e2 s t =>
+                   @exprUnify subst typ func _ RS _ S_subst SU 3
+                              tus tvs n e1 e2 s t)
+                lem)
+       (@MINIFY _ _ _).
 
-Definition SIMPLIFY : stac typ (expr typ func) subst :=
-  SIMPLIFY (fun _ _ _ => beta_all simplify nil nil).
+Definition SIMPLIFY : rtac typ (expr typ func) :=
+  SIMPLIFY (fun _ _ _ _ => beta_all (idred simplify)).

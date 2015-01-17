@@ -1,6 +1,5 @@
 Require Import ExtLib.Core.RelDec.
 Require Import MirrorCore.Lambda.Expr.
-Require Import MirrorCore.STac.STac.
 Require Import MirrorCore.Lambda.AppN.
 Require Import MirrorCharge.ILogicFunc.
 Require Import MirrorCharge.Imp.Syntax.

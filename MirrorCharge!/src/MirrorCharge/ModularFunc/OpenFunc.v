@@ -240,10 +240,8 @@ Definition typ_to_fun3 {a b c d : typ} (f : typD (tyArr a (tyArr b (tyArr c d)))
     (eq_rect (typD (typ2 a b)) id f (typD a -> typD b)
        (typ2_cast a b)).
         
-  Definition fun2_wrap {a b c : typ} (f : typD a -> typD b -> typD c) :=
-    eq_rect_r id 
-      (eq_rect_r (fun T : Type => Fun (typD a) T) f (typ2_cast b c)) 
-        (typ2_cast a (typ2 b c)).
+  Definition fun2_wrap {a b c : typ} (f : typD a -> typD b -> typD c) : typD (tyArr a (tyArr b c)) :=
+    fun1_wrap (fun x => fun1_wrap (fun y : typD b => f x y)).
   
   Definition fun2D {a b c : typ} (f : typD (tyArr a (tyArr b c))) (x : typD a) (y : typD b) : typD c :=
     (fun g : typD a -> typD (typ2 b c) =>
@@ -255,13 +253,11 @@ Definition typ_to_fun3 {a b c d : typ} (f : typD (tyArr a (tyArr b (tyArr c d)))
   
   Definition fun3_wrap {a b c d : typ} (f : typD a -> typD b -> typD c -> typD d) :  
    typD (tyArr a (tyArr b (tyArr c d))) :=
-     fun2_wrap
-       (fun x y => eq_rect_r id (fun z : typD c => f x y z) (typ2_cast c d)).
+     fun1_wrap (fun x => fun2_wrap (fun y z => f x y z)).
 
   Definition fun4_wrap {a b c d e : typ} (f : typD a -> typD b -> typD c -> typD d -> typD e) :  
    typD (tyArr a (tyArr b (tyArr c (tyArr d e)))) :=
-     fun3_wrap
-       (fun x y z => eq_rect_r id (fun z' : typD d => f x y z z') (typ2_cast d e)).
+     fun1_wrap (fun x => fun3_wrap (fun y z z' => f x y z z')).
 
 (*
 	 Program Definition open_func_symD bf :=

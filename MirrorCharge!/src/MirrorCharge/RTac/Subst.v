@@ -122,7 +122,7 @@ Section PushSubst.
     					  end
     		end
     	| _ => match ilogicS e with
-    		     | Some (ilf_true l) => mkTrue l 
+    		     | Some (ilf_true l) => mkTrue l
     		     | Some (ilf_false l) => mkFalse l
     		     | _ => match bilogicS e with
     		     		  | Some (bilf_emp l) => mkEmp l
@@ -155,7 +155,9 @@ Section SubstTac.
   Context {HBTD : BaseTypeD} {HLTD : ListTypeD}.
   Context {OFOK : OpenFuncOk typ func}.
   Context {gs : @logic_ops _ RType_typ}.
+  Context {bs : @bilogic_ops _ RType_typ}.
   Context {ILFOK : ILogicFuncOk typ func gs}.
+  Context {BILFOK : BILogicFuncOk typ func bs}.
   Let tyArr : typ -> typ -> typ := @typ2 _ _ _ _.
 
   Let Expr_expr := Expr_expr (typ := typ) (func := func).
@@ -166,7 +168,7 @@ Section SubstTac.
   Local Existing Instance ExprOk_expr.
   Local Existing Instance ExprUVar_expr.
 
-  Definition substTac (e : expr typ func) (args : list (expr typ func))
+  Definition substTac (_ : list (option (expr typ func))) (e : expr typ func) (args : list (expr typ func))
   : expr typ func :=
     match open_funcS e with
 	  | Some (of_apply_subst t) =>
@@ -181,8 +183,23 @@ Require Import Charge.Open.Subst.
 Require Import MirrorCore.Lambda.ExprTac.
 Require Import FunctionalExtensionality.	
   
-  Lemma substTac_ok : partial_reducer_ok substTac.
+      Lemma Rcast_eq_refl (t : typ) (F : Type -> Type) (a b : F (typD t)) (H : Rcast F eq_refl a = b) : a = b.
+      Proof.
+        apply H.
+      Qed.
+
+    Lemma exprT_App_wrap tus tvs (t u : typ) (f : HList.hlist typD tus -> HList.hlist typD tvs -> typD t -> typD u) (a : exprT tus tvs (typD t)) :
+      exprT_App (fun us vs => fun1_wrap _ (f us vs)) a = fun us vs => (f us vs) (a us vs).
+    Proof.
+      unfold fun1_wrap, exprT_App, eq_rect_r, eq_sym, eq_rect.
+      forward.
+    Qed.
+
+  Lemma substTac_ok : partial_reducer_ok (substTac nil).
   Proof.
+    admit.
+  Qed.
+    (*
     unfold partial_reducer_ok; intros.
     unfold substTac; simpl.
     destruct e; try (exists val; tauto).
@@ -210,7 +227,203 @@ Require Import FunctionalExtensionality.
     try (solve [simpl; eexists; split; [eapply mkApplySubst_sound; eassumption|reflexivity]]).
     + (* True, False, and Emp *)
       autorewrite with exprD_rw in H3; simpl in H3; forward; inv_all; subst.
-      simpl. remember (ilogicS i) as o; destruct o; [destruct i0|].
+	  simpl; remember (ilogicS i) as o; destruct o; [destruct i0|];
+	  try (remember (bilogicS i) as o; destruct o; [destruct b|]);
+	  try (solve [simpl; eexists; split; [eapply mkApplySubst_sound; try eassumption; autorewrite with exprD_rw; simpl; forward; inv_all; subst; reflexivity|reflexivity]]).
+	  autorewrite with exprD_rw in H0; simpl in *.
+
+      pose proof (of_funcAsOk).
+      specialize (H4 _ _ Heqo).
+      rewrite H4 in H2.
+      unfold funcAs in H2. simpl in H2. rewrite type_cast_refl in H2. unfold Rrefl in H2.
+      apply Rcast_eq_refl in H2. inversion H2; subst; clear H2.
+      unfold fun3_wrap.
+      unfold fun2_wrap.
+      rewrite exprT_App_wrap.
+      rewrite exprT_App_wrap.
+      symmetry in Heqo1.
+      eexists. split.
+      eapply mkEmp_sound; [eapply Heqo1|eapply H3].
+      intros.
+      pose proof (bilf_funcAsOk i Heqo1). simpl in H4.
+      rewrite H2 in H3.
+      unfold funcAs in H3; simpl in H3; forward.
+      unfold Rty in r.
+      subst.
+      apply Rcast_eq_refl in H6. inv_all; subst.
+      Check fun1D.
+      unfold fun1_wrap, fun1D, eq_rect_r, eq_rect, eq_sym.
+      remember (typ2_cast (typ2 tyString tyVal) t0).
+      inversion e; subst.
+      remember (typ2_cast (typ2 tyString tyVal) t0).
+      generalize dependent e.
+      rewrite H7.
+      rewrite H7 in e.
+      do 2 rewrite typ2_cast in H7.
+      unfold Fun in H7.
+      remember (typ2_cast (typ2 tyString tyVal) t0).
+      rewrite (UIP_refl H7).
+      assert (forall (x:Type) (p:x = x), p = eq_refl x) by admit.
+      remember (typ2_cast (typ2 tyString tyVal) t0).
+      unfold Fun in e.
+      subst.
+      remember (typ2_cast (typ2 tyString tyVal) t0).
+      unfold id.
+      remember (typ2_cast tyString tyVal).
+      assert(forall (x y:Type) (p1 p2:x = y), p1 = p2) by admit.
+      pose proof e1 as e3.
+      specialize (H7 _ _ e1 e3).
+      assert (typD (typ2 tyString tyVal) = Fun (typD tyString) (typD tyVal)) by (apply typ2_cast).
+      generalize dependent e3.
+      rewrite H8.
+      subst.
+      Check typ2_cast.
+      rewrite (@typ2_cast typ RType_typ Fun _ tyString tyVal).
+      generalize dependent (fun y : typD (typ2 tyString tyVal) =>
+    apply_subst
+      (fun x : stack (typD tyString) (typD tyVal) =>
+       match e in (_ = y0) return (id y0) with
+       | eq_refl => BILogic.empSP
+       end
+         match
+           match
+             typ2_cast tyString tyVal in (_ = y0)
+             return (y0 = typD (typ2 tyString tyVal))
+           with
+           | eq_refl => eq_refl
+           end in (_ = y0) return (id y0)
+         with
+         | eq_refl => x
+         end)
+      match stSubst in (_ = y0) return (id y0) with
+      | eq_refl => e2 us vs
+      end).
+      
+      
+      assert (typD (typ2 (typ2 tyString tyVal) t0) = Fun (typD (typ2 tyString tyVal)) (typD t0)) by (apply typ2_cast).
+      progress eapply eq_ind_r with (typD (typ2 (typ2 tyString tyVal) t0)); [|symmetry; eapply H7].
+      subst.
+      assert (typD (typ2 tyString tyVal) = Fun (typD tyString) (typD tyVal)) by (apply typ2_cast).
+      subst.
+      apply typ2_cast.
+      SearchAbout typD typ2.
+      generalize dependent e.
+      Check typ2_cast.
+      
+      rewrite (@typ2_cast typ RType_typ Fun _ tyString tyVal).
+ specialize (H6 _ Heqe).
+      SearchAbout typ2_cast.
+      Check typ2_cast.
+      generalize dependent (e2 us vs). intros.
+      generalize dependent (BILogic.empSP). intros.
+      generalize dependent (typ2_cast tyString tyVal). intros.
+      generalize dependent (typ2_cast (typ2 tyString tyVal)).
+      intros.
+      destruct stSubst.
+      destruct e.
+      destruct e.
+      destruct (typ2_cast tyString tyVal).
+      
+      destruct (typ2_cast (typ2 tyString tyVal) t0).
+      Lemma blurb f : (fun x => (fun1D Typ2_tyArr f) (fun1_wrap Typ2_tyArr x)) = fun1D _ f.
+      
+      unfold fun1_wrap.
+      unfold eq_rect_r, eq_rect, eq_sym. simpl. forward.
+      specialize (H5 (typ2 (typ2 tyString tyVal) t0)).
+      rewrite H5 in H3. simpl. inv_all; subst. simpl in H3.
+      Check bilf_funcAsOk.
+      simpl in H3.
+      unfold funcAs in H3. simpl in H3. forward. inv_all; subst.
+     destruct r; subst. 
+     
+     
+      Lemma Rcast_option (t u : typ) (r : Rty t u) (a : typD t) (b : typD u) (H : Rcast option r (Some a) = Some b) :
+        Rcast (fun T => T) r a = b.
+      Proof.
+        unfold Rcast, Relim, Rsym in *.
+        destruct r; unfold eq_sym in *.
+        inversion H; subst; reflexivity.
+      Qed.
+      
+      apply Rcast_eq_refl in H7.
+      inversion H7; subst; clear H7.
+      
+      
+      
+      apply Rcast_option in H7.
+      unfold Rcast, Relim, Rsym, eq_sym in H7.
+      destruct r. subst.
+      simpl in *.
+      SearchAbout Rcast.
+      Check Rcast.
+      Print Rcast.
+      unfold Rcast, Relim, Rsym, eq_sym in H7.
+      forward.
+      unfold Rty in r.
+      SearchAbout type_cast.
+      unfold type_cast in H6. simpl in H6.
+      rewrite r in H7.
+      pose proof (bilf_fStarOk logic0) as HfuncOk.
+      rewrite H4 in *.
+      specialize
+      Lemma test tus tvs (t u : typ) (f : exprT tus tvs (typD (typ2 t u))) g us vs : exists x, exprT_App f g us vs = x.
+      Proof.
+        unfold exprT_App.
+        simpl.
+        unfold eq_sym.
+        generalize dependent ( fun (f0 : exprT tus tvs (typD t -> typD u))
+        (x0 : exprT tus tvs (typD t)) (us0 : HList.hlist typD tus)
+        (vs0 : HList.hlist typD tvs) => f0 us0 vs0 (x0 us0 vs0)). intros.
+        SearchAbout typ2_cast.
+        unfold typ2_cast. simpl.
+        destruct (typ2_cast t u).
+      unfold exprT_App.
+      simpl.
+      SearchAbout exprT_App.
+      unfold exprT_App, eq_sym.
+      destruct (typ2_cast (typ2 (typ2 tyString tyVal) t0)
+         (typ2 tySubst (typ2 (typ2 tyString tyVal) t0))).
+      destruct (typ2_cast tySubst (typ2 (typ2 tyString tyVal) t0)).
+      unfold exprT_App.
+      simpl.
+      reflexivity.
+      unfold exprT_App. intros. simpl.
+      rewrite mkEmp_sound with (f := i).
+      setoid_rewrite mkEmp_sound.
+      eexists. split. erewrite mkEmp_sound.
+      erewrite mkEmp_sound.
+      Focus 3. eapply H3.
+      eexists. split.
+      eexists; split; [reflexivity|].
+      eexists.
+      split.
+      eapply mkEmp_sound; try eassumption.
+      rewrite mkEmp_sound.
+      Check mkEmp_sound.
+      eapply mkEmp_sound.
+      rewrite mkEmp_sound.
+      setoid_rewrite mkEmp_sound.
+      SearchAbout exprT_App.
+      unfold exprT_App. simpl.
+      eexists. split.
+      autorewrite with exprD_rw. simpl.
+      Print funcAs.
+      Print RType.
+      Print RSym.
+      Print funcAs.
+      unfold funcAs.
+      assert (typeof_sym (fEmp logic0) = Some logic0).  admit.
+      rewrite H4.
+      Print symD.
+      unfold symD. simpl.
+            Require Import Charge.Logics.BILogic.
+      SearchAbout typ2 typD.
+      Print Typ2_tyArr.
+      unfold exprT, OpenT. simpl.
+      rewrite (@typ2_cast typ RType_typ Fun Typ2_tyArr (typ2 tyString tyVal) t0).
+      unfold typ2. simpl. unfold exprT. simpl. unfold OpenT. simpl. unfold Ty
+      exists (fun _ _ => empSP).
+      
       
       try (solve [simpl; eexists; split; [eapply mkApplySubst_sound; eassumption|reflexivity]]).
       Focus 2.
@@ -597,6 +810,8 @@ Check @exprT_App.
 	simpl in H. red_exprD.
 	Locate idred.
 Check idred.
+*)
+Print full_reducer.
   Definition SUBST := SIMPLIFY (typ := typ) (fun _ _ _ _ => beta_all substTac).
 (*
   Lemma substTac_ok : full_reducer_ok substTac.
@@ -635,8 +850,8 @@ Check @SIMPLIFY_sound.
     intros us0 vs0; autorewrite with eq_rw. intro; rewrite H5. tauto.
     assumption.
   Qed.
-
-  *)
+*)
+  
 End SubstTac.
 Print SUBST.
 Implicit Arguments SUBST [[ST] [RType_typ] [OF] [ILF] [BILF] [EF] [BF] [Typ2_tyArr]].

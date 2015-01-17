@@ -1,5 +1,5 @@
 Require Import MirrorCore.Lambda.Expr.
-Require Import MirrorCore.STac.STac.
+Require Import MirrorCore.RTac.RTac.
 Require MirrorCore.syms.SymEnv.
 Require MirrorCore.syms.SymSum.
 Require Import MirrorCore.Lambda.ExprUnify_simul.
@@ -45,10 +45,6 @@ Definition sls : SepLogSpec typ func :=
                 end
  |}.
 
-Let doUnifySepLog (tus tvs : EnvI.tenv typ) (s : subst) (e1 e2 : expr typ func)
-: option subst :=
-  @exprUnify subst typ func _ _ _ _ _ 10 tus tvs 0 s e1 e2 tyLProp.
-
 Let ssl : SynSepLog typ func :=
 {| e_star := fun l r =>
                match l with
@@ -70,12 +66,6 @@ Let ssl : SynSepLog typ func :=
  ; e_true := ltrue tyLProp
  |}.
 
-Definition eproveTrue (s : subst) (e : expr typ func) : option subst :=
-  match e with
-    | Inj (inr (ilf_true _)) => Some s
-    | _ => None
-  end.
-
 Definition is_solved (e1 e2 : conjunctives typ func) : bool :=
   match e1 , e2 with
     | {| spatial := e1s ; star_true := t ; pure := _ |}
@@ -92,43 +82,59 @@ Definition is_solved (e1 e2 : conjunctives typ func) : bool :=
     | _ , _ => false
   end.
 
-Definition the_canceller tus tvs (lhs rhs : expr typ func)
-           (s : subst)
-: (expr typ func * expr typ func * subst) + subst:=
-  match @normalize typ _ _ func _ sls tus tvs tyLProp lhs
-      , @normalize typ _ _ func _ sls tus tvs tyLProp rhs
-  with
-    | Some lhs_norm , Some rhs_norm =>
-      match lhs_norm tt , rhs_norm tt with
-        | Some lhs_norm , Some rhs_norm =>
-          let '(lhs',rhs',s') :=
-              OrderedCanceller.ordered_cancel
-                (doUnifySepLog tus tvs) eproveTrue
-                ssl
-                (simple_order (func:=func)) lhs_norm rhs_norm s
-          in
-          if is_solved lhs' rhs' then
-            inr s'
-          else
-            inl (conjunctives_to_expr ssl lhs',
-                 conjunctives_to_expr ssl rhs',
-                 s')
-        | _ , _ => inl (lhs, rhs, s)
-      end
-    | _ , _ => inl (lhs, rhs, s)
-  end.
+Section the_canceller.
+  Variable subst : Type.
+  Variable Subst_subst : Subst subst (expr typ func).
+  Variable SubstUpdate_subst : SubstUpdate subst (expr typ func).
 
-Definition stac_cancel : stac typ (expr typ func) subst :=
-  fun tus tvs s hyps e =>
+  Let doUnifySepLog (tus tvs : EnvI.tenv typ) (s : subst) (e1 e2 : expr typ func)
+  : option subst :=
+    @exprUnify subst typ func _ _ _ _ _ 10 tus tvs 0 e1 e2 tyLProp s.
+
+  Definition eproveTrue (s : subst) (e : expr typ func) : option subst :=
+    match e with
+      | Inj (inr (ilf_true _)) => Some s
+      | _ => None
+    end.
+
+  Definition the_canceller tus tvs (lhs rhs : expr typ func)
+             (s : subst)
+  : (expr typ func * expr typ func * subst) + subst:=
+    match @normalize typ _ _ func _ sls tus tvs tyLProp lhs
+          , @normalize typ _ _ func _ sls tus tvs tyLProp rhs
+    with
+      | Some lhs_norm , Some rhs_norm =>
+        match lhs_norm tt , rhs_norm tt with
+          | Some lhs_norm , Some rhs_norm =>
+            let '(lhs',rhs',s') :=
+                OrderedCanceller.ordered_cancel
+                  (doUnifySepLog tus tvs) eproveTrue
+                  ssl
+                  (simple_order (func:=func)) lhs_norm rhs_norm s
+            in
+            if is_solved lhs' rhs' then
+              inr s'
+            else
+              inl (conjunctives_to_expr ssl lhs',
+                   conjunctives_to_expr ssl rhs',
+                   s')
+          | _ , _ => inl (lhs, rhs, s)
+        end
+      | _ , _ => inl (lhs, rhs, s)
+    end.
+End the_canceller.
+
+Definition stac_cancel : rtac typ (expr typ func) :=
+  fun tus tvs _ _ ctx sub e =>
     match e with
       | App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) L) R =>
-        match the_canceller tus tvs L R s with
+        match the_canceller _ _ tus tvs L R sub with
           | inl (l,r,s') =>
             let e' :=
                 App (App (Inj (inr (ilf_entails (tyArr tyLocals tyHProp)))) l) r
             in
-            More nil nil s hyps e'
-          | inr s' => @Solved _ _ _ nil nil s'
+            More sub (GGoal e')
+          | inr s' => @Solved _ _ _ s'
         end
-      | _ => More nil nil s hyps e
+      | _ => More sub (GGoal e)
     end.

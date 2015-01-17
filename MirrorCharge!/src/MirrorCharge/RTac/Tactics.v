@@ -32,7 +32,9 @@ Require Import ExtLib.Tactics.
 
 Require Import Coq.PArith.BinPos.
 
-Definition exprD_Prop (uvar_env var_env : env) e :=
+Section Tactics.
+  Context {fs : Environment}.
+Definition exprD_Prop (uvar_env var_env : env) (e : expr typ func) :=
   match exprD uvar_env var_env e tyProp with
     | Some e' => e' 
     | None => True
@@ -51,19 +53,74 @@ Definition goalD_aux tus tvs goal (us : HList.hlist typD tus) (vs : HList.hlist 
     | Some e => Some (e us vs)
     | None => None
   end.
-    
+  
+Definition run_tac tac goal :=
+  runOnGoals tac nil nil 0 0 (CTop nil nil) 
+    (ctx_empty (typ := typ) (expr := expr typ func)) goal.
+
+Lemma run_rtac_More tac s goal e
+  (Hsound : rtac_sound tac) 
+  (Hres : run_tac tac (GGoal e) = More_ s goal) :
+  goalD_Prop nil nil goal -> exprD_Prop nil nil e.
+Proof.
+  intros He'.
+  apply runOnGoals_sound_ind with (g := GGoal e) (ctx := CTop nil nil) 
+  	(s0 := TopSubst (expr typ func) nil nil) in Hsound.
+  unfold rtac_spec in Hsound. simpl in Hsound.
+  unfold run_tac in Hres. simpl in Hres.
+  rewrite Hres in Hsound.
+  assert (WellFormed_Goal nil nil (GGoal (typ := typ) e)) as H1 by constructor.
+  assert (WellFormed_ctx_subst (TopSubst (expr typ func) nil (@nil typ))) as H2 by constructor.
+  specialize (Hsound H1 H2).
+  destruct Hsound as [Hwfs [Hwfg Hsound]].
+  unfold Ctx.propD, exprD'_typ0 in Hsound.
+  simpl in Hsound. unfold exprD_Prop, exprD; simpl.
+  forward; inv_all; subst.
+
+  destruct Hsound.
+  inversion Hwfs; subst.
+  simpl in H0; inv_all; subst.
+  unfold pctxD in H0; inv_all; subst.
+  apply H5.
+  unfold goalD_Prop in He'. simpl in He'. forward; inv_all; subst.
+Qed.
+
+Lemma run_rtac_Solved tac s e
+  (Hsound : rtac_sound tac) 
+  (Hres : run_tac tac (GGoal e) = Solved s) :
+  exprD_Prop nil nil e.
+Proof.
+  unfold run_tac in Hres.
+  unfold rtac_sound in Hsound.
+  assert (WellFormed_Goal nil nil (GGoal (typ := typ) e)) as H1 by constructor.
+  assert (WellFormed_ctx_subst (TopSubst (expr typ func) nil (@nil typ))) as H2 by constructor.
+  specialize (Hsound _ _ _ _ Hres H1 H2).
+  destruct Hsound as [Hwfs Hsound].
+  simpl in Hsound.
+  unfold Ctx.propD, exprD'_typ0 in Hsound.
+  unfold exprD_Prop.
+  
+  simpl in Hsound. unfold exprD. simpl. forward.
+  destruct Hsound. 
+  SearchAbout pctxD.
+  inversion Hwfs; subst. simpl in H8. inv_all; subst.
+  admit.
+Qed.
+
+End Tactics.
+
 Ltac cbv_denote :=
           cbv [
           goalD_aux
           
 		  (* ExprD' *)
-          exprD' funcAs  typeof_sym typeof_func type_cast type_cast_typ
+          exprD' funcAs  typeof_sym typeof_expr type_cast type_cast_typ
           exprD'_simul func_simul
           ExprD.Expr_expr
           ExprDsimul.ExprDenote.exprD'
           (* RSym *)
           
-          SymSum.RSym_sum Rcast Relim Rsym eq_sym symD RSym_env
+          SymSum.RSym_sum Rcast Relim Rsym eq_sym symD(* RSym_env*)
           Rcast_val eq_rect_r eq_rect Datatypes.id
           
           (* Monad *)
@@ -189,11 +246,10 @@ Ltac cbv_denote :=
 		  OpenFunc.OpenFuncInst
 		  
 		  OpenFunc.typeof_open_func OpenFunc.RSym_OpenFunc
-		  OpenFunc.typ2_cast_bin OpenFunc.typ3_cast_bin
+		  OpenFunc.fun1_wrap OpenFunc.fun2_wrap OpenFunc.fun3_wrap OpenFunc.fun4_wrap
+		  OpenFunc.fun1D OpenFunc.fun2D
 		  OpenFunc.RelDec_open_func
 		  
-		  RSym_OpenFunc_obligation_1
-
           (* BaseType *)
           
           BaseType.tyPair BaseType.tyNat BaseType.tyString BaseType.tyBool
@@ -221,14 +277,14 @@ Ltac cbv_denote :=
 		 (* JavaFunc *)
           
           ilops is_pure func RSym_JavaFunc typeof_java_func java_func_eq
-          java_func_symD RelDec_java_func
+          java_func_symD RelDec_java_func typeof_ilfunc
                    
           RSym_ilfunc RSym_open_func RSym_OpenFunc RSym_ListFunc
           JavaFunc.RSym_bilfunc JavaFunc.RSym_embed_func JavaFunc.RSym_later_func
           JavaFunc.RSym_ilfunc
           JavaFunc.Expr_expr
           mkPointstoVar
-          
+          JavaFunc.RSym_func JavaFunc.java_env
           JavaFunc.mkVal JavaFunc.mkVarList
           JavaFunc.mkProg JavaFunc.mkCmd JavaFunc.mkDExpr JavaFunc.mkFields
           JavaFunc.fMethodSpec JavaFunc.fProgEq JavaFunc.fTriple JavaFunc.fTypeOf
@@ -242,7 +298,7 @@ Ltac cbv_denote :=
   
           SubstType_typ
           
-          goalD propD exprD'_typ0 exprD split_env
+          goalD Ctx.propD propD exprD'_typ0 exprD split_env
           
           amap_substD
           substD
@@ -262,59 +318,6 @@ Ltac cbv_denote :=
           Quant._exists
           goalD_Prop
           ].
-
-Definition run_tac tac goal :=
-  runOnGoals tac nil nil 0 0 (CTop nil nil) 
-    (ctx_empty (typ := typ) (expr := expr typ func)) goal.
-
-Lemma run_rtac_More tac s goal e
-  (Hsound : rtac_sound tac) 
-  (Hres : run_tac tac (GGoal e) = More_ s goal) :
-  goalD_Prop nil nil goal -> exprD_Prop nil nil e.
-Proof.
-  intros He'.
-  apply runOnGoals_sound_ind with (g := GGoal e) (ctx := CTop nil nil) 
-  	(s0 := TopSubst (expr typ func) nil nil) in Hsound.
-  unfold rtac_spec in Hsound. simpl in Hsound.
-  unfold run_tac in Hres. simpl in Hres.
-  rewrite Hres in Hsound.
-  assert (WellFormed_Goal nil nil (GGoal (typ := typ) e)) as H1 by constructor.
-  assert (WellFormed_ctx_subst (TopSubst (expr typ func) nil (@nil typ))) as H2 by constructor.
-  specialize (Hsound H1 H2).
-  destruct Hsound as [Hwfs [Hwfg Hsound]].
-  unfold propD, exprD'_typ0 in Hsound.
-  simpl in Hsound. unfold exprD_Prop, exprD; simpl.
-  forward; inv_all; subst.
-
-  destruct Hsound.
-  inversion Hwfs; subst.
-  simpl in H0; inv_all; subst.
-  unfold pctxD in H0; inv_all; subst.
-  apply H5.
-  unfold goalD_Prop in He'. simpl in He'. forward; inv_all; subst.
-Qed.
-
-Lemma run_rtac_Solved tac s e
-  (Hsound : rtac_sound tac) 
-  (Hres : run_tac tac (GGoal e) = Solved s) :
-  exprD_Prop nil nil e.
-Proof.
-  unfold run_tac in Hres.
-  unfold rtac_sound in Hsound.
-  assert (WellFormed_Goal nil nil (GGoal (typ := typ) e)) as H1 by constructor.
-  assert (WellFormed_ctx_subst (TopSubst (expr typ func) nil (@nil typ))) as H2 by constructor.
-  specialize (Hsound _ _ _ _ Hres H1 H2).
-  destruct Hsound as [Hwfs Hsound].
-  simpl in Hsound.
-  unfold propD, exprD'_typ0 in Hsound.
-  unfold exprD_Prop.
-  
-  simpl in Hsound. unfold exprD. simpl. forward.
-  destruct Hsound. 
-  SearchAbout pctxD.
-  inversion Hwfs; subst. simpl in H8. inv_all; subst.
-  admit.
-Qed.
 
 Let elem_ctor : forall x : typ, typD x -> @SymEnv.function _ _ :=
   @SymEnv.F _ _.
@@ -344,13 +347,13 @@ Ltac run_rtac reify term_table tac_sound :=
 	              cut (goalD_Prop nil nil g); [
 	                let goal_resultV := g in
 	               (* change (goalD_Prop nil nil goal_resultV -> exprD_Prop nil nil name);*)
-	                exact_no_check (@run_rtac_More tac _ _ _ tac_sound
+	                exact_no_check (@run_rtac_More _ tac _ _ _ tac_sound
 	                	(@eq_refl (Result (CTop nil nil)) (More_ s goal_resultV) <:
 	                	   run_tac tac (GGoal goal) = (More_ s goal_resultV)))
 	                | cbv_denote
 	              ]
 	            | Solved ?s =>
-	              exact_no_check (@run_rtac_Solved tac s name tac_sound 
+	              exact_no_check (@run_rtac_Solved _ tac s name tac_sound 
 	                (@eq_refl (Result (CTop nil nil)) (Solved s) <: run_tac tac (GGoal goal) = Solved s))
 	            | Fail => idtac "Tactic" tac "failed."
 	            | _ => idtac "Error: run_rtac could not resolve the result from the tactic :" tac
@@ -380,13 +383,13 @@ Ltac run_rtac_debug reify term_table tac_sound :=
 	              cut (goalD_Prop nil nil g); [
 	                let goal_resultV := g in
 	               (* change (goalD_Prop nil nil goal_resultV -> exprD_Prop nil nil name);*)
-	                exact_no_check (@run_rtac_More tac _ _ _ tac_sound
+	                exact_no_check (@run_rtac_More _ tac _ _ _ tac_sound
 	                	(@eq_refl (Result (CTop nil nil)) (More_ s goal_resultV) <:
 	                	   run_tac tac (GGoal goal) = (More_ s goal_resultV)))
 	                | cbv_denote
 	              ]
 	            | Solved ?s =>
-	              exact_no_check (@run_rtac_Solved tac s name tac_sound 
+	              exact_no_check (@run_rtac_Solved _ tac s name tac_sound 
 	                (@eq_refl (Result (CTop nil nil)) (Solved s) <: run_tac tac (GGoal goal) = Solved s))
 	            | Fail => idtac "Tactic" tac "failed."
 	            | _ => idtac "Error: run_rtac could not resolve the result from the tactic :" tac
